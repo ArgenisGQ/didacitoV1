@@ -1,0 +1,16 @@
+services:
+  frontend:
+    ports:
+      - "80:80"  # Esto permite que entres por localhost en Windows
+
+  django-admin:
+    ports:
+      - "8000:8000" # Para entrar al admin de Django en local
+
+  fastapi-api:
+    ports:
+      - "8001:8001" # Para probar el API en local
+
+networks:
+  dokploy-network:
+    external: false # En Windows, Docker creará la red automáticamente

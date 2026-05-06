@@ -16,7 +16,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - app-network
+      - dokploy-network
 
   django-admin:
     build:
@@ -39,10 +39,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    #ports:
+    #  - "8000:8000"
     networks:
-      - app-network
+      - dokploy-network
     command: [ "/app/entrypoint-django.sh" ]
 
   fastapi-api:
@@ -60,10 +60,10 @@ services:
     depends_on:
       django-admin:
         condition: service_started
-    ports:
-      - "8001:8001"
+    #ports:
+    #  - "8001:8001"
     networks:
-      - app-network
+      - dokploy-network
 
   frontend:
     build: ./sys-plan
@@ -73,8 +73,8 @@ services:
       - /app/node_modules
     environment:
       VITE_API_URL: http://localhost:8001
-    ports:
-      - "${HOST_PORT_MAPPING:-80:80}"
+    #ports:
+    #  - "80:80"
     networks:
       - app-network
     depends_on:
@@ -84,6 +84,6 @@ volumes:
   postgres_data:
 
 networks:
-  app-network:
-    external: ${IS_DOKPLOY:-false}
-    name: ${NETWORK_NAME:-dokploy-network}
+  dokploy-network:
+    external: true
+    
