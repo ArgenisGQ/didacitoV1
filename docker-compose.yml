@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: planning_db
+    environment:
+      POSTGRES_DB: planning_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d planning_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  django-admin:
+    build:
+      context: ./sys-core
+      dockerfile: Dockerfile.django
+    container_name: planning_django
+    volumes:
+      - ./sys-core:/app
+    environment:
+      DB_NAME: planning_db
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_HOST: db
+      DB_PORT: 5432
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-insecure-fallback}
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,django-admin"
+      SECRET_KEY: ${SECRET_KEY:-super_secret_key_shared_with_frontend}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    command: ["/app/entrypoint-django.sh"]
+
+  fastapi-api:
+    build:
+      context: ./sys-core
+      dockerfile: Dockerfile.fastapi
+    container_name: planning_fastapi
+    volumes:
+      - ./sys-core:/app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://user:password@db:5432/planning_db
+      DATABASE_URL_SYNC: postgresql://user:password@db:5432/planning_db
+      SECRET_KEY: ${SECRET_KEY:-super_secret_key_shared_with_frontend}
+      DB_HOST: db
+    depends_on:
+      django-admin:
+        condition: service_started
+    ports:
+      - "8001:8001"
+
+  frontend:
+    build: ./sys-plan
+    container_name: planning_frontend
+    volumes:
+      - ./sys-plan:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:8001
+    ports:
+      - "80:80"
+    depends_on:
+      - fastapi-api
+
+volumes:
+  postgres_data:

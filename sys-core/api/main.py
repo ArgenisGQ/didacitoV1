@@ -1,0 +1,32 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import os
+
+from api.routers import health, auth, plans, users
+
+app = FastAPI(
+    title="DIDACTICO API",
+    version="2.0.0",
+    description="FastAPI async endpoints for DIDACTICO.",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost,http://127.0.0.1,http://localhost:5173,http://localhost:80"
+).split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register routers
+app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(plans.router)
+app.include_router(users.router)
