@@ -57,6 +57,7 @@ services:
       DATABASE_URL_SYNC: postgresql://user:password@db:5432/planning_db
       SECRET_KEY: ${SECRET_KEY:-super_secret_key_shared_with_frontend}
       DB_HOST: db
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1,http://localhost:5173,http://localhost:80}
     depends_on:
       django-admin:
         condition: service_started
@@ -66,13 +67,16 @@ services:
       - dokploy-network
 
   frontend:
-    build: ./sys-plan
+    build:
+      context: ./sys-plan
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8001}
     container_name: planning_frontend
     volumes:
       - ./sys-plan:/app
       - /app/node_modules
     environment:
-      VITE_API_URL: http://localhost:8001
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8001}
     #ports:
     #  - "80:80"
     networks:
