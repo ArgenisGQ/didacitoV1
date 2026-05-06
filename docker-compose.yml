@@ -76,7 +76,7 @@ services:
     #ports:
     #  - "80:80"
     networks:
-      - app-network
+      - dokploy-network
     depends_on:
       - fastapi-api
 
