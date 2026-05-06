@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d planning_db"]
+      test: [ "CMD-SHELL", "pg_isready -U user -d planning_db" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,6 +20,7 @@ services:
     build:
       context: ./sys-core
       dockerfile: Dockerfile.django
+      entrypoint: [ "sh", "/app/entrypoint-django.sh" ]
     container_name: planning_django
     volumes:
       - ./sys-core:/app
@@ -38,7 +39,7 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
-    command: ["/app/entrypoint-django.sh"]
+    command: [ "/app/entrypoint-django.sh" ]
 
   fastapi-api:
     build:
@@ -67,9 +68,16 @@ services:
     environment:
       VITE_API_URL: http://localhost:8001
     ports:
-      - "80:80"
+      - "${HOST_PORT_MAPPING:-80:80}"
+    networks:
+      - app-network
     depends_on:
       - fastapi-api
 
 volumes:
   postgres_data:
+
+networks:
+  app-network:
+    external: ${IS_DOKPLOY:-false}
+    name: ${NETWORK_NAME:-frontend-net}
