@@ -20,7 +20,7 @@ services:
     build:
       context: ./sys-core
       dockerfile: Dockerfile.django
-      entrypoint: [ "sh", "/app/entrypoint-django.sh" ]
+    entrypoint: [ "sh", "/app/entrypoint-django.sh" ]
     container_name: planning_django
     volumes:
       - ./sys-core:/app
