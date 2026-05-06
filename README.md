@@ -1,5 +1,7 @@
 # Proyecto Maestría: Sistema Integral de Planificación Estratégica
 
+**Autor:** Ing. Argenis Gil
+
 Este proyecto constituye el desarrollo de un Sistema de Planificación Estratégica, diseñado para gestionar, monitorear y evaluar planes institucionales o corporativos. Su propósito central es proveer una plataforma tecnológica robusta que facilite a las organizaciones la traducción de su visión en objetivos cuantificables, centralizando la toma de decisiones, el seguimiento de indicadores clave de rendimiento (KPIs) y la coordinación de equipos en torno a metas comunes. 
 
 Aplicación web integral desarrollada con una arquitectura moderna de microservicios. Utiliza un modelo híbrido en el backend combinando el panel de administración robusto de Django con la alta velocidad de FastAPI para la API pública, conectado a un frontend de alto rendimiento en React compilado con Vite.
