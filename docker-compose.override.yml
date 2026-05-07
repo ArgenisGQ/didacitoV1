@@ -2,6 +2,12 @@ services:
   frontend:
     ports:
       - "80:80"  # Esto permite que entres por localhost en Windows
+    build:
+      context: ./sys-plan
+      args:
+        VITE_API_URL: "http://localhost:8001"
+    environment:
+      VITE_API_URL: "http://localhost:8001"
 
   django-admin:
     ports:
@@ -10,6 +16,8 @@ services:
   fastapi-api:
     ports:
       - "8001:8001" # Para probar el API en local
+    environment:
+      ALLOWED_ORIGINS: "http://localhost,http://127.0.0.1,http://localhost:80,http://localhost:5173"
 
 networks:
   dokploy-network:
