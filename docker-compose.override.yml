@@ -18,6 +18,8 @@ services:
       - "8001:8001" # Para probar el API en local
     environment:
       ALLOWED_ORIGINS: "http://localhost,http://127.0.0.1,http://localhost:80,http://localhost:5173"
+      APP_ENV: local
+      ENABLE_DOCS: "true"
 
 networks:
   dokploy-network:

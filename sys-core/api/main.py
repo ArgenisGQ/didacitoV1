@@ -4,12 +4,17 @@ import os
 
 from api.routers import health, auth, plans, users
 
+is_prod = os.getenv("APP_ENV", "local") == "production"
+enable_docs = os.getenv("ENABLE_DOCS", "false").lower() == "true"
+show_docs = not is_prod or enable_docs
+
 app = FastAPI(
     title="DIDACTICO API",
     version="2.0.0",
     description="FastAPI async endpoints for DIDACTICO.",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if show_docs else None,
+    redoc_url="/redoc" if show_docs else None,
+    openapi_url="/openapi.json" if show_docs else None,
 )
 
 ALLOWED_ORIGINS = os.getenv(

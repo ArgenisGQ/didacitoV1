@@ -89,6 +89,36 @@ Asegúrate de tener instalado lo siguiente en tu máquina local:
     *   **Backend Django (Panel de Administración):** [http://localhost:8000/admin](http://localhost:8000/admin)
     *   **Base de datos (PostgreSQL):** `localhost:5432`
 
+## 🌐 Despliegue y Configuración de Entorno
+
+El proyecto utiliza una arquitectura de **Proxy Inverso** en producción para centralizar el tráfico bajo un único dominio y mejorar la seguridad.
+
+### 💻 Entorno Local (Desarrollo)
+Localmente, el sistema utiliza el archivo `docker-compose.override.yml` para facilitar la depuración:
+*   El Frontend se comunica directamente con la API en `http://localhost:8001`.
+*   No es necesario configurar dominios reales.
+*   Los CORS están configurados para permitir tráfico desde `localhost`.
+
+### 🚀 Despliegue en Producción (Dokploy / VPS)
+En producción, todo el tráfico fluye a través del contenedor de Frontend (Nginx), el cual actúa como puerta de enlace.
+
+#### 1. Variables de Entorno Críticas
+Debes configurar estas variables en el panel de **Dokploy** (sección *Environment* del servicio Frontend):
+*   `VITE_API_URL`: Debe apuntar a tu dominio seguido del prefijo `/api` (ej. `https://didactico.nexolab.dev/api`).
+*   `ALLOWED_ORIGINS`: Lista de dominios permitidos para CORS (ej. `https://didactico.nexolab.dev`).
+
+#### 2. Configuración de Dominios en Dokploy
+*   **Servicio Frontend:** Asigna tu dominio principal (ej. `didactico.nexolab.dev`).
+*   **Servicio Backend (`fastapi-api`):** **No requiere** un dominio público asignado. Nginx redirige el tráfico interno a través de la red de Docker.
+
+#### 3. Paso Crítico: Rebuild
+Debido a que Vite inyecta las variables de entorno en el código compilado:
+> [!IMPORTANT]
+> Cada vez que cambies la `VITE_API_URL` en las variables de entorno de Dokploy, **debes realizar un Rebuild / Redeploy** del servicio Frontend para que los cambios surtan efecto en los archivos estáticos.
+
+### 🛡️ Arquitectura del Proxy Inverso
+El archivo `sys-plan/nginx.conf` intercepta las peticiones que comienzan con `/api/` y las reenvía internamente al contenedor `fastapi-api:8001`, eliminando el prefijo para que la API las procese normalmente.
+
 ## 📁 Estructura Principal del Directorio
 
 ```text
