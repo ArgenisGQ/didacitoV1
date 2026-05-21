@@ -86,4 +86,5 @@ Con el fin de elevar la robustez de la plataforma a estándares de producción, 
 
 ---
 
+
 *Documento técnico de análisis e investigación elaborado para la excelencia académica y arquitectura de software.*
