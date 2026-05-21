@@ -54,8 +54,8 @@ services:
     volumes:
       - ./sys-core:/app
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://user:password@planning-db:5432/planning_db?ssl=require}
-      DATABASE_URL_SYNC: ${DATABASE_URL_SYNC:-postgresql://user:password@planning-db:5432/planning_db?sslmode=require}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://user:password@planning-db:5432/planning_db}
+      DATABASE_URL_SYNC: ${DATABASE_URL_SYNC:-postgresql://user:password@planning-db:5432/planning_db}
       SECRET_KEY: ${SECRET_KEY:-super_secret_key_shared_with_frontend}
       DB_HOST: planning-db
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1,http://localhost:5173,http://localhost:80}
