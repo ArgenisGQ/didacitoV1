@@ -2,7 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from api.routers import health, auth, plans, users
+from api.routers import health, auth, plans, users, admin
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from api.core.limiter import limiter
+
+
 
 is_prod = os.getenv("APP_ENV", "local") == "production"
 enable_docs = os.getenv("ENABLE_DOCS", "false").lower() == "true"
@@ -16,6 +21,19 @@ app = FastAPI(
     redoc_url="/redoc" if show_docs else None,
     openapi_url="/openapi.json" if show_docs else None,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.on_event("startup")
+async def startup_event():
+    import asyncio
+    from api.core.settings_manager import SettingsManager
+    from api.core.scheduler import run_daily_inactivity_cleanup
+    await SettingsManager.initialize()
+    asyncio.create_task(run_daily_inactivity_cleanup())
+
+
 
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS",
@@ -35,3 +53,5 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(plans.router)
 app.include_router(users.router)
+app.include_router(admin.router)
+

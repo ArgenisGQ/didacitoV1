@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float, Text, CheckConstraint
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float, Text, CheckConstraint, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from api.database import Base
@@ -39,6 +39,14 @@ class User(Base):
     is_staff = Column(Boolean, default=False)
     is_superuser = Column(Boolean, default=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
+
+    # Category A Security Fields
+    mfa_secret = Column(String(32), nullable=True)
+    mfa_enabled = Column(Boolean, default=False, nullable=False)
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    lockout_until = Column(DateTime(timezone=True), nullable=True)
+    deactivated_at = Column(DateTime(timezone=True), nullable=True)
+    deactivation_reason = Column(Text, nullable=True)
     date_joined = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -160,3 +168,91 @@ class WeeklyContent(Base):
     )
 
     lesson_plan = relationship("LessonPlan", back_populates="weekly_contents")
+
+
+class PasswordReset(Base):
+    __tablename__ = "plan_app_password_resets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String(255), unique=True, index=True, nullable=False)
+    email = Column(String(255), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+    )
+
+
+class RefreshToken(Base):
+    __tablename__ = "plan_app_refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("plan_app_user.id", ondelete="CASCADE"), nullable=False)
+    token_hash = Column(String(255), unique=True, nullable=False)
+    jti = Column(String(255), unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_revoked = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+    )
+    parent_jti = Column(String(255), nullable=True)
+
+    user = relationship("User", backref="refresh_tokens")
+
+
+class SystemSetting(Base):
+    __tablename__ = "plan_app_system_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, index=True, nullable=False)
+    value = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String(50), default="GENERAL", index=True, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+    )
+    updated_by = Column("updated_by_id", Integer, ForeignKey("plan_app_user.id", ondelete="SET NULL"), nullable=True)
+
+    updater = relationship("User", backref="updated_settings", foreign_keys=[updated_by])
+
+
+class Invitation(Base):
+    __tablename__ = "plan_app_invitations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False)
+    token = Column(Text, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_revoked = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+    )
+    user_id = Column(Integer, ForeignKey("plan_app_user.id", ondelete="CASCADE"), nullable=True)
+
+    invited_user = relationship("User", backref="invitations", foreign_keys=[user_id])
+
+
+class AuditLog(Base):
+    __tablename__ = "plan_app_audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("plan_app_user.id", ondelete="SET NULL"), nullable=True)
+    action = Column(String(60), index=True, nullable=False)
+    ip_address = Column(String(45), nullable=False)
+    user_agent = Column(String(255), nullable=False)
+    details = Column(JSON, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+    )
+

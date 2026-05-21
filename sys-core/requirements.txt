@@ -16,6 +16,9 @@ pydantic[email]==2.6.4
 python-jose[cryptography]==3.3.0
 passlib==1.7.4
 bcrypt==3.2.2
+pyotp==2.9.0
+qrcode==7.4.2
+slowapi==0.1.9
 
 # Utils
 python-dotenv==1.0.1
@@ -26,3 +29,9 @@ pytest==8.1.1
 pytest-asyncio==0.23.6
 httpx==0.27.0
 pytest-django==4.8.0
+
+# Category B Utils
+pandas==3.0.3
+openpyxl==3.1.5
+zxcvbn==4.5.0
+

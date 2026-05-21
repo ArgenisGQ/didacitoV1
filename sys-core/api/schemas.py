@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 from api.models import UserRole, PlanStatus
 
@@ -32,6 +32,7 @@ class UserResponse(BaseModel):
     is_active: bool
     is_staff: bool
     is_superuser: bool
+    mfa_enabled: bool = False
     last_login: Optional[datetime] = None
     date_joined: Optional[datetime] = None
 
@@ -114,3 +115,125 @@ class TokenResponse(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class LoginResponse(BaseModel):
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
+    mfa_required: bool = False
+    mfa_token: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ValidateTokenRequest(BaseModel):
+    token: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str = Field(..., min_length=6)
+
+
+class MFASetupResponse(BaseModel):
+    qr_code_base64: str
+    secret: str
+
+
+class MFAVerifyRequest(BaseModel):
+    token: str
+
+
+class MFATokenLoginRequest(BaseModel):
+    mfa_token: str
+    code: str
+
+
+# ---------------------------------------------------------------------------
+# Category B - Governance and Admin Schemas
+# ---------------------------------------------------------------------------
+class SystemSettingResponse(BaseModel):
+    id: int
+    key: str
+    value: str
+    description: Optional[str] = None
+    category: str
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SystemSettingUpdate(BaseModel):
+    value: str
+
+
+class InvitationCreate(BaseModel):
+    email: EmailStr
+
+
+class InvitationResponse(BaseModel):
+    id: int
+    email: str
+    expires_at: datetime
+    is_revoked: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AccountActivationRequest(BaseModel):
+    token: str
+    password: str
+
+
+class BulkImportRowPreview(BaseModel):
+    row_num: int
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    status: str  # "VALID" or "INVALID"
+    errors: List[str] = []
+    warnings: List[str] = []
+
+
+class BulkImportPreviewResponse(BaseModel):
+    total_rows: int
+    valid_rows: int
+    invalid_rows: int
+    rows: List[BulkImportRowPreview]
+
+
+class BulkImportRowInput(BaseModel):
+    email: EmailStr
+    full_name: str
+    role: UserRole
+
+
+class BulkImportConfirmRequest(BaseModel):
+    users: List[BulkImportRowInput]
+
+
+class AuditLogResponse(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    user_email: Optional[str] = None
+    action: str
+    ip_address: str
+    user_agent: str
+    details: Optional[Any] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserInactivityResponse(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    role: str
+    last_login: Optional[datetime] = None
+    days_inactive: int
+
+

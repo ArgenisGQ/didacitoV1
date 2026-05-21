@@ -42,3 +42,16 @@ def check_role(user: User, allowed_roles: List[UserRole]):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to perform this action",
         )
+
+
+async def get_current_audit_viewer(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    from api.core.settings_manager import SettingsManager
+    viewer_roles = SettingsManager.get_setting_as_list("AUDIT_LOG_VIEWER_ROLES", ["SUPER_ADMIN"])
+    if current_user.role not in viewer_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Privilegios de auditoría insuficientes"
+        )
+    return current_user

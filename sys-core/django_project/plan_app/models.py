@@ -53,6 +53,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
 
+    # Category A Security Fields
+    mfa_secret = models.CharField(max_length=32, blank=True, null=True)
+    mfa_enabled = models.BooleanField(default=False)
+    failed_login_attempts = models.IntegerField(default=0)
+    lockout_until = models.DateTimeField(blank=True, null=True)
+    deactivated_at = models.DateTimeField(blank=True, null=True)
+    deactivation_reason = models.TextField(blank=True, null=True)
+
     objects = UserManager()
 
     USERNAME_FIELD = "email"
@@ -183,3 +191,89 @@ class WeeklyContent(models.Model):
 
     def __str__(self):
         return f"Semana {self.week_number} - Plan #{self.lesson_plan_id}"
+
+
+class PasswordReset(models.Model):
+    jti = models.CharField(max_length=255, unique=True, db_index=True)
+    email = models.CharField(max_length=255)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "plan_app_password_resets"
+        verbose_name = "Password Reset"
+        verbose_name_plural = "Password Resets"
+
+    def __str__(self):
+        return f"Reset {self.email} - used: {self.used}"
+
+
+class RefreshToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="refresh_tokens")
+    token_hash = models.CharField(max_length=255, unique=True)
+    jti = models.CharField(max_length=255, unique=True, db_index=True)
+    expires_at = models.DateTimeField()
+    is_revoked = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    parent_jti = models.CharField(max_length=255, blank=True, null=True)
+
+    class Meta:
+        db_table = "plan_app_refresh_tokens"
+        verbose_name = "Refresh Token"
+        verbose_name_plural = "Refresh Tokens"
+
+    def __str__(self):
+        return f"RefreshToken {self.jti} - user: {self.user.email}"
+
+
+class SystemSetting(models.Model):
+    key = models.CharField(max_length=100, unique=True, db_index=True)
+    value = models.TextField()
+    description = models.TextField(blank=True, null=True)
+    category = models.CharField(max_length=50, default="GENERAL", db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True)
+
+    class Meta:
+        db_table = "plan_app_system_settings"
+        verbose_name = "Configuracion de Sistema"
+        verbose_name_plural = "Configuraciones de Sistema"
+
+    def __str__(self):
+        return f"{self.key}: {self.value}"
+
+
+class Invitation(models.Model):
+    email = models.CharField(max_length=255, unique=True)
+    token = models.TextField()
+    expires_at = models.DateTimeField()
+    is_revoked = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="invitations", blank=True, null=True)
+
+    class Meta:
+        db_table = "plan_app_invitations"
+        verbose_name = "Invitacion"
+        verbose_name_plural = "Invitaciones"
+
+    def __str__(self):
+        return f"Invitacion {self.email} - is_revoked: {self.is_revoked}"
+
+
+class AuditLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True)
+    action = models.CharField(max_length=60, db_index=True)
+    ip_address = models.CharField(max_length=45)
+    user_agent = models.CharField(max_length=255)
+    details = models.JSONField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "plan_app_audit_logs"
+        verbose_name = "Log de Auditoria"
+        verbose_name_plural = "Logs de Auditoria"
+
+    def __str__(self):
+        return f"{self.action} by {self.user.email if self.user else 'System'} at {self.created_at}"
+
