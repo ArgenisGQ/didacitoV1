@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { jwtDecode } from 'jwt-decode'
 import { useLessonPlanMutations } from '../hooks/useLessonPlanMutations'
@@ -23,8 +23,15 @@ import {
   Sun,
   Menu,
   X,
+  User,
+  Shield,
+  Clock,
 } from 'lucide-react'
-import api from '../lib/api-client'
+import api, { getAccessToken } from '../lib/api-client'
+import SecuritySettings from './SecuritySettings'
+import AdminSettings from './AdminSettings'
+import UserProfile from './UserProfile'
+import AuditManagement from './AuditManagement'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -73,7 +80,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
+    const token = getAccessToken()
     if (token) {
       try {
         const decoded: any = jwtDecode(token)
@@ -103,6 +110,20 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     },
   })
 
+  const { data: profileConfig } = useQuery({
+    queryKey: ['profileConfig'],
+    queryFn: async () => {
+      const { data } = await api.get('/users/me/profile-config')
+      return data
+    },
+  })
+
+  const isAuditViewer = useMemo(() => {
+    if (!profileConfig || !userRole) return false
+    const viewerRoles = profileConfig.audit_viewer_roles || ['SUPER_ADMIN']
+    return viewerRoles.includes(userRole)
+  }, [profileConfig, userRole])
+
   const { createMutation, updateMutation } = useLessonPlanMutations()
 
   const handleSavePlan = async (wizardData: any) => {
@@ -125,70 +146,75 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     setEditingPlan(null)
   }
 
-  const filteredPlans = plans.filter(
-    (p) =>
-      p.title.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredPlans = useMemo(() => {
+    return plans.filter(
+      (p) =>
+        p.title.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [plans, searchQuery])
 
-  const columns: ColumnDef<LessonPlan>[] = [
-    {
-      accessorKey: 'title',
-      header: 'Titulo',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 w-10 h-10 rounded-xl flex items-center justify-center text-primary">
-            <FileText size={20} />
+  const columns = useMemo<ColumnDef<LessonPlan>[]>(
+    () => [
+      {
+        accessorKey: 'title',
+        header: 'Titulo',
+        cell: ({ row }) => (
+          <div className="flex items-center gap-3">
+            <div className="bg-primary/10 w-10 h-10 rounded-xl flex items-center justify-center text-primary">
+              <FileText size={20} />
+            </div>
+            <div>
+              <p className="font-bold">{row.original.title}</p>
+              <p className="text-xs text-muted-foreground">
+                {new Date(row.original.created_at).toLocaleDateString()}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="font-bold">{row.original.title}</p>
-            <p className="text-xs text-muted-foreground">
-              {new Date(row.original.created_at).toLocaleDateString()}
-            </p>
-          </div>
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'status',
-      header: 'Estado',
-      cell: ({ row }) => {
-        const s = row.original.status
-        const label = s === 'DRAFT' ? 'Borrador' : s === 'IN_REVIEW' ? 'En Revision' : s === 'APPROVED' ? 'Aprobado' : s
-        const variant = s === 'DRAFT' ? 'outline' : s === 'APPROVED' ? 'default' : 'secondary'
-        return <Badge variant={variant as any}>{label}</Badge>
+        ),
       },
-    },
-    {
-      accessorKey: 'content',
-      header: 'Objetivos',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-          <CheckCircle2 size={14} />
-          {row.original.content?.objectives?.length || 0} objetivos
-        </div>
-      ),
-    },
-    {
-      id: 'actions',
-      header: () => <div className="text-right">Accion</div>,
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1"
-            onClick={() => {
-              setEditingPlan(row.original)
-              setIsModalOpen(true)
-            }}
-          >
-            Editar
-            <ChevronRight size={16} />
-          </Button>
-        </div>
-      ),
-    },
-  ]
+      {
+        accessorKey: 'status',
+        header: 'Estado',
+        cell: ({ row }) => {
+          const s = row.original.status
+          const label = s === 'DRAFT' ? 'Borrador' : s === 'IN_REVIEW' ? 'En Revision' : s === 'APPROVED' ? 'Aprobado' : s
+          const variant = s === 'DRAFT' ? 'outline' : s === 'APPROVED' ? 'default' : 'secondary'
+          return <Badge variant={variant as any}>{label}</Badge>
+        },
+      },
+      {
+        accessorKey: 'content',
+        header: 'Objetivos',
+        cell: ({ row }) => (
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <CheckCircle2 size={14} />
+            {row.original.content?.objectives?.length || 0} objetivos
+          </div>
+        ),
+      },
+      {
+        id: 'actions',
+        header: () => <div className="text-right">Accion</div>,
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1"
+              onClick={() => {
+                setEditingPlan(row.original)
+                setIsModalOpen(true)
+              }}
+            >
+              Editar
+              <ChevronRight size={16} />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    []
+  )
 
   const table = useReactTable({
     data: filteredPlans,
@@ -228,9 +254,18 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
             { id: 'plans', icon: FileText, label: 'Planificaciones', count: plans.length },
+            { id: 'profile', icon: User, label: 'Mi Perfil' },
             ...(userRole === 'SUPER_ADMIN'
-              ? [{ id: 'users', icon: Users, label: 'Gestion de Usuarios' }]
+              ? [
+                  { id: 'users', icon: Users, label: 'Gestion de Usuarios' },
+                  { id: 'governance', icon: Shield, label: 'Gobernanza' }
+                ]
               : [{ id: 'teachers', icon: Users, label: 'Profesores' }]),
+            ...(isAuditViewer
+              ? [
+                  { id: 'audit', icon: Clock, label: 'Auditoría y Control' }
+                ]
+              : []),
           ].map((item) => (
             <Button
               key={item.id}
@@ -320,6 +355,14 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         <div className="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8">
           {activeTab === 'users' ? (
             <UserManagement />
+          ) : activeTab === 'settings' ? (
+            <SecuritySettings />
+          ) : activeTab === 'governance' ? (
+            <AdminSettings />
+          ) : activeTab === 'audit' ? (
+            <AuditManagement />
+          ) : activeTab === 'profile' ? (
+            <UserProfile onForceLogout={onLogout} />
           ) : (
             <>
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">

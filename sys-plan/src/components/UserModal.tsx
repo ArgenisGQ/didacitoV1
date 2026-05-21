@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 
 interface UserModalProps {
+  isOpen: boolean
   onClose: () => void
   initialData?: {
     id: number
@@ -34,9 +35,11 @@ interface UserModalProps {
   } | null
 }
 
-export default function UserModal({ onClose, initialData }: UserModalProps) {
+export default function UserModal({ isOpen, onClose, initialData }: UserModalProps) {
   const queryClient = useQueryClient()
   const isEditing = !!initialData
+
+  const [serverError, setServerError] = useState<string | null>(null)
 
   const schema = useMemo(
     () =>
@@ -45,7 +48,9 @@ export default function UserModal({ onClose, initialData }: UserModalProps) {
         full_name: z.string().min(3, 'Nombre muy corto'),
         role: z.enum(['SUPER_ADMIN', 'ADMIN_GESTION', 'COORDINADOR', 'DOCENTE']),
         password: isEditing
-          ? z.string().optional().or(z.literal(''))
+          ? z.string().optional().or(z.literal('')).refine((val) => !val || val.length >= 6, {
+              message: 'Minimo 6 caracteres',
+            })
           : z.string().min(6, 'Minimo 6 caracteres'),
       }),
     [isEditing]
@@ -63,14 +68,27 @@ export default function UserModal({ onClose, initialData }: UserModalProps) {
     },
   })
 
+  useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        email: initialData?.email || '',
+        full_name: initialData?.full_name || '',
+        role: (initialData?.role as FormData['role']) || 'DOCENTE',
+        password: '',
+      })
+      setServerError(null)
+    }
+  }, [isOpen, initialData, form.reset])
+
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
+      setServerError(null)
       const payload: Record<string, unknown> = {
         email: data.email,
         full_name: data.full_name,
         role: data.role,
       }
-      if (data.password) {
+      if (data.password && data.password.trim() !== '') {
         payload.password = data.password
       }
 
@@ -84,13 +102,35 @@ export default function UserModal({ onClose, initialData }: UserModalProps) {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       onClose()
     },
+    onError: (err: any) => {
+      console.error(err)
+      const detail = err.response?.data?.detail
+      if (detail) {
+        if (typeof detail === 'string') {
+          setServerError(detail)
+        } else if (Array.isArray(detail)) {
+          const messages = detail
+            .map((d: any) => {
+              const field = d.loc ? d.loc[d.loc.length - 1] : ''
+              const msg = d.msg || ''
+              return field ? `${field}: ${msg}` : msg
+            })
+            .join(', ')
+          setServerError(messages)
+        } else {
+          setServerError(JSON.stringify(detail))
+        }
+      } else {
+        setServerError(err.message || 'Ocurrió un error al procesar el usuario.')
+      }
+    }
   })
 
   const onSubmit = (data: FormData) => mutation.mutate(data)
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-[480px]">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="sm:max-w-[480px]" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">
             {isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}
@@ -101,6 +141,11 @@ export default function UserModal({ onClose, initialData }: UserModalProps) {
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+          {serverError && (
+            <div className="p-3.5 rounded-xl border border-destructive/20 bg-destructive/10 text-destructive text-sm font-semibold animate-fadeIn">
+              {serverError}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="full_name">Nombre Completo</Label>
             <Input

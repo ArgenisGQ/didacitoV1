@@ -1,187 +1,340 @@
-import { useState } from 'react'
-import { Eye, EyeOff, BookOpen, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect } from 'react';
+import { Eye, EyeOff, BookOpen, Mail, Lock, AlertCircle, Loader2, ShieldCheck, HelpCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import api, { setAccessToken } from '@/lib/api-client';
 
-export default function Login({ onLoginSuccess }: { onLoginSuccess: () => void }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+interface LoginProps {
+  onLoginSuccess: (token: string) => void;
+  onForgotPassword: () => void;
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError('')
+export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // MFA Flow States
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaToken, setMfaToken] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+
+  // Lockout countdown states
+  const [lockoutTimeLeft, setLockoutTimeLeft] = useState<number | null>(null);
+
+  // Lockout countdown timer effect
+  useEffect(() => {
+    if (lockoutTimeLeft === null) return;
+    if (lockoutTimeLeft <= 0) {
+      setLockoutTimeLeft(null);
+      setError('');
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setLockoutTimeLeft((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [lockoutTimeLeft]);
+
+  const handlePrimarySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (lockoutTimeLeft !== null) return;
+
+    setIsLoading(true);
+    setError('');
 
     try {
-      const formData = new URLSearchParams()
-      formData.append('username', email)
-      formData.append('password', password)
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8001'}/token`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: formData,
-        }
-      )
+      const response = await api.post('/token', formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
 
-      if (!response.ok) {
-        let errorMsg = 'Authentication failed'
-        try {
-          const errorData = await response.json()
-          errorMsg = errorData.detail || errorMsg
-        } catch {
-          errorMsg = response.statusText || errorMsg
-        }
-        throw new Error(errorMsg)
+      const data = response.data;
+
+      if (data.mfa_required) {
+        setMfaToken(data.mfa_token);
+        setMfaRequired(true);
+        setIsLoading(false);
+        return;
       }
 
-      const data = await response.json()
-      localStorage.setItem('token', data.access_token)
-      onLoginSuccess()
+      setAccessToken(data.access_token);
+      onLoginSuccess(data.access_token);
     } catch (err: any) {
-      setError(
-        err.message === 'Failed to fetch'
-          ? 'Cannot reach server. Please check if Docker is running.'
-          : err.message
-      )
+      if (err.response?.status === 423) {
+        // Parse locked seconds from message (e.g. "... 840 segundos.")
+        const detailMsg = err.response.data.detail || '';
+        const match = detailMsg.match(/\b(\d+)\b/);
+        const seconds = match ? parseInt(match[1], 10) : 900;
+        setLockoutTimeLeft(seconds);
+        setError(detailMsg);
+      } else {
+        setError(
+          err.response?.data?.detail || 
+          'Credenciales incorrectas o servidor inaccesible. Verifique.'
+        );
+      }
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
+
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await api.post('/token/mfa', {
+        mfa_token: mfaToken,
+        code: mfaCode,
+      });
+
+      const data = response.data;
+      setAccessToken(data.access_token);
+      onLoginSuccess(data.access_token);
+    } catch (err: any) {
+      if (err.response?.status === 423) {
+        const detailMsg = err.response.data.detail || '';
+        const match = detailMsg.match(/\b(\d+)\b/);
+        const seconds = match ? parseInt(match[1], 10) : 900;
+        setLockoutTimeLeft(seconds);
+        setMfaRequired(false);
+        setError(detailMsg);
+      } else {
+        setError(
+          err.response?.data?.detail || 
+          'Código de verificación incorrecto.'
+        );
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background transition-colors duration-500">
+    <div className="min-h-screen grid lg:grid-cols-2 bg-slate-950 text-slate-100 transition-colors duration-500 relative overflow-hidden">
+      {/* Background radial effects */}
+      <div className="absolute top-0 -left-4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-0 right-4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+
       {/* Left Side - Hero */}
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-primary/5 border-r border-border relative overflow-hidden">
+      <div className="hidden lg:flex flex-col justify-between p-12 bg-slate-900/40 border-r border-slate-800 relative overflow-hidden">
         <div className="relative z-10 flex items-center gap-3 text-primary">
-          <BookOpen size={40} strokeWidth={2.5} />
-          <span className="text-3xl font-bold tracking-tight">DIDACTICO</span>
+          <BookOpen size={40} strokeWidth={2.5} className="text-primary animate-pulse" />
+          <span className="text-3xl font-extrabold tracking-tight text-white">DIDACTICO</span>
         </div>
 
         <div className="relative z-10 space-y-6 max-w-lg">
-          <h2 className="text-5xl font-extrabold leading-tight text-foreground tracking-tighter">
+          <h2 className="text-5xl font-extrabold leading-tight text-white tracking-tighter">
             Plataforma Avanzada de{' '}
-            <span className="text-primary">Planificacion Didactica</span>
+            <span className="text-primary block mt-2">Planificación Didáctica</span>
           </h2>
-          <p className="text-xl text-muted-foreground font-medium leading-relaxed">
-            Una herramienta institucional disenada para la excelencia academica,
-            facilitando la gestion de objetivos y estrategias educativas.
+          <p className="text-lg text-slate-400 font-medium leading-relaxed">
+            Una herramienta institucional de última generación diseñada para la excelencia académica, 
+            facilitando la gestión de objetivos de aprendizaje, estrategias y planes de clase.
           </p>
         </div>
 
-        <div className="relative z-10 text-sm text-muted-foreground font-medium">
-          (c) 2026 Maestria en Informatica - Argenis Gil
+        <div className="relative z-10 text-sm text-slate-500 font-medium">
+          (c) 2026 Maestría en Informática - Argenis Gil
         </div>
-
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/4 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-2xl" />
       </div>
 
-      {/* Right Side - Login Form */}
-      <div className="flex items-center justify-center p-8">
-        <Card className="w-full max-w-[420px] border-0 shadow-none">
+      {/* Right Side - Forms */}
+      <div className="flex items-center justify-center p-8 relative z-10">
+        <Card className="w-full max-w-[420px] border border-slate-800 bg-slate-900/60 backdrop-blur-xl shadow-2xl text-slate-100">
           <CardHeader className="space-y-1 text-center lg:text-left">
             <div className="lg:hidden flex items-center justify-center gap-3 text-primary mb-4">
               <BookOpen size={32} strokeWidth={2.5} />
-              <span className="text-2xl font-bold tracking-tight">DIDACTICO</span>
+              <span className="text-2xl font-bold tracking-tight text-white">DIDACTICO</span>
             </div>
-            <CardTitle className="text-4xl font-extrabold tracking-tighter">
-              Iniciar Sesion
+            
+            <CardTitle className="text-4xl font-extrabold tracking-tight text-white">
+              {mfaRequired ? 'Código de Seguridad' : 'Iniciar Sesión'}
             </CardTitle>
-            <CardDescription className="text-lg">
-              Bienvenido, identifiquese para gestionar sus planes.
+            <CardDescription className="text-slate-400 text-base">
+              {mfaRequired 
+                ? 'Su cuenta está protegida con MFA. Ingrese el código de su aplicación móvil.'
+                : 'Bienvenido, identifíquese para gestionar sus planes de clase.'
+              }
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">
+            {/* Error alerts including lockout */}
             {error && (
-              <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-xl flex items-start gap-3">
+              <div className={`p-4 rounded-xl border flex items-start gap-3 transition-all duration-300 ${
+                lockoutTimeLeft !== null
+                  ? 'bg-red-500/10 border-red-500/30 text-red-400 animate-pulse'
+                  : 'bg-red-500/10 border-red-500/20 text-red-400'
+              }`}>
                 <AlertCircle className="shrink-0 mt-0.5" size={20} />
-                <p className="text-sm font-semibold">{error}</p>
+                <div className="space-y-1">
+                  <p className="text-sm font-bold">
+                    {lockoutTimeLeft !== null ? 'Acceso Suspendido Temporalmente' : 'Error de Autenticación'}
+                  </p>
+                  <p className="text-xs font-semibold leading-relaxed">
+                    {lockoutTimeLeft !== null
+                      ? `Demasiados intentos fallidos. Su cuenta se encuentra bloqueada por seguridad. Espere ${formatTime(lockoutTimeLeft)} minutos.`
+                      : error
+                    }
+                  </p>
+                </div>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-bold uppercase tracking-wide">
-                  Correo Institucional
-                </Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-                  <Input
-                    id="email"
-                    type="email"
-                    className="pl-10 h-12 text-base"
-                    placeholder="usuario@universidad.edu"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-sm font-bold uppercase tracking-wide">
-                    Contrasena
+            {/* MFA Login Flow */}
+            {mfaRequired ? (
+              <form onSubmit={handleMfaSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="mfaCode" className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Código de Verificación TOTP (6 dígitos)
                   </Label>
-                  <a href="#" className="text-sm font-bold text-primary hover:underline">
-                    Olvido su contrasena?
-                  </a>
+                  <div className="relative">
+                    <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <Input
+                      id="mfaCode"
+                      type="text"
+                      pattern="[0-9]{6}"
+                      inputMode="numeric"
+                      maxLength={6}
+                      required
+                      autoFocus
+                      className="pl-10 h-12 bg-slate-800/50 border-slate-700 text-white placeholder-slate-500 text-center text-xl font-bold tracking-[0.75em]"
+                      placeholder="000000"
+                      value={mfaCode}
+                      onChange={(e) => setMfaCode(e.target.value.replace(/[^0-9]/g, ''))}
+                    />
+                  </div>
                 </div>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    className="pl-10 pr-12 h-12 text-base"
-                    placeholder="........"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
-                    onClick={() => setShowPassword(!showPassword)}
+
+                <div className="flex flex-col gap-3">
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full h-12 text-base font-extrabold bg-primary hover:bg-primary/90 text-white shadow-lg transition-transform duration-200 transform hover:scale-[1.01]"
+                    disabled={isLoading || mfaCode.length !== 6}
                   >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
+                    {isLoading ? (
+                      <Loader2 className="animate-spin" size={20} />
+                    ) : (
+                      'Confirmar Código'
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full h-12 font-bold text-slate-400 hover:text-white"
+                    onClick={() => {
+                      setMfaRequired(false);
+                      setMfaCode('');
+                      setError('');
+                    }}
+                  >
+                    Volver a credenciales
+                  </Button>
                 </div>
-              </div>
+              </form>
+            ) : (
+              /* Standard login flow */
+              <form onSubmit={handlePrimarySubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Correo Institucional
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <Input
+                      id="email"
+                      type="email"
+                      className="pl-10 h-12 bg-slate-800/50 border-slate-700 text-white placeholder-slate-500 text-base"
+                      placeholder="usuario@universidad.edu"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      disabled={lockoutTimeLeft !== null || isLoading}
+                    />
+                  </div>
+                </div>
 
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full h-14 text-lg font-extrabold"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="animate-spin" size={24} />
-                ) : (
-                  'Acceder al Sistema'
-                )}
-              </Button>
-            </form>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Contraseña
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={onForgotPassword}
+                      className="text-xs font-bold text-primary hover:underline"
+                    >
+                      ¿Olvidó su contraseña?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      className="pl-10 pr-12 h-12 bg-slate-800/50 border-slate-700 text-white placeholder-slate-500 text-base"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={lockoutTimeLeft !== null || isLoading}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors"
+                      onClick={() => setShowPassword(!showPassword)}
+                      disabled={lockoutTimeLeft !== null || isLoading}
+                    >
+                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
 
-            <div className="pt-4 border-t text-center">
-              <p className="text-muted-foreground font-medium">
-                No tiene cuenta?{' '}
-                <a href="#" className="text-primary font-bold hover:underline">
-                  Solicite acceso al administrador
-                </a>
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full h-14 text-lg font-extrabold bg-primary hover:bg-primary/95 text-white shadow-xl transition-all duration-300 transform hover:scale-[1.01]"
+                  disabled={lockoutTimeLeft !== null || isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="animate-spin" size={24} />
+                  ) : (
+                    'Acceder al Sistema'
+                  )}
+                </Button>
+              </form>
+            )}
+
+            <div className="pt-4 border-t border-slate-800 text-center">
+              <p className="text-slate-400 text-sm font-medium flex items-center justify-center gap-1.5">
+                <HelpCircle size={15} className="text-slate-500" />
+                ¿No tiene cuenta?{' '}
+                <span className="text-primary font-bold">Solicite acceso formal.</span>
               </p>
             </div>
           </CardContent>
         </Card>
       </div>
     </div>
-  )
+  );
 }
