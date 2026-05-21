@@ -52,6 +52,7 @@ services:
     build:
       context: ./sys-core
       dockerfile: Dockerfile.fastapi
+    entrypoint: [ "sh", "/app/entrypoint-fastapi.sh" ]
     container_name: planning_fastapi
     volumes:
       - ./sys-core:/app
