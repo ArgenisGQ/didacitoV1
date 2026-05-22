@@ -92,6 +92,7 @@ services:
     build:
       context: ./sys-syllabus
       dockerfile: Dockerfile
+    entrypoint: [ "sh", "/app/entrypoint-syllabus.sh" ]
     container_name: planning_syllabus
     volumes:
       - ./sys-syllabus:/app

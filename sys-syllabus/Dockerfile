@@ -19,4 +19,4 @@ RUN chmod +x entrypoint-syllabus.sh
 
 EXPOSE 8002
 
-ENTRYPOINT ["/app/entrypoint-syllabus.sh"]
+ENTRYPOINT ["sh", "/app/entrypoint-syllabus.sh"]
