@@ -9,8 +9,8 @@ Aplicación web integral desarrollada con una arquitectura moderna de microservi
 ## 🚧 Estado del Proyecto
 Este proyecto se encuentra actualmente en **fase de desarrollo activo**. Las siguientes funcionalidades o módulos están planificados o aún se encuentran en construcción:
 
-*   **[Módulo de Reportería y Exportación Avanzada]:** Generación automatizada de reportes gerenciales en formatos PDF y Excel.
-*   **[Dashboards Analíticos en Tiempo Real]:** Integración completa de gráficos interactivos basados en los datos de planificación y desempeño de la organización.
+*   **[Módulo de Reportería y Exportación Avanzada]:** Generación y descarga automatizada de matrices y consolidados curriculares en formatos Excel (`.xlsx`) y CSV de forma dinámica (¡Completado!).
+*   **[Dashboards Analíticos en Tiempo Real]:** Panel de control con estadísticas clave consolidadas sobre asignaturas, niveles curriculares (Pregrado y Postgrado) y carga horaria (¡Completado!).
 *   **[Integradores de Identidad Externos (OAuth/SSO)]**: Soporte adicional opcional para autenticación federada con Google Workspace, Microsoft Azure AD u otros proveedores de identidad corporativos.
 *   **[Cobertura de Pruebas Unitarias/E2E de Alta Fidelidad (Fase 2)]**: Extensión de pruebas automatizadas integrales del lado del cliente y flujos interactivos de gobernanza.
 
@@ -64,7 +64,33 @@ Recientemente, el ecosistema de **DIDACTICO** ha sido robustecido con una arquit
 4. **Interfaces Frontend Premium y Glassmorphism (Efecto Cristal)**
    * **Perfil de Usuario Autogestionable (`UserProfile.tsx`):** Candados visuales plateados con tooltips flotantes inteligentes en los campos deshabilitados por la gobernanza centralizada de la institución (por ejemplo, el correo institucional).
    * **Gobernanza IT de Elite (`AdminSettings.tsx`):** Panel exclusivo para `SUPER_ADMIN` con sub-tabs responsivas de cristal, control de switches de políticas de accesos, editor dinámico de tags de columnas CSV requeridas y terminal SMTP interactivo.
-   * **Gestión de Identidades Eficiente (`UserManagement.tsx`):** Barra superior de búsqueda con **Debounce de 300 ms** para aliviar la carga de peticiones al backend y selectores avanzados por rol y estado MFA.
+    * **Gestión de Identidades Eficiente (`UserManagement.tsx`):** Barra superior de búsqueda con **Debounce de 300 ms** para aliviar la carga de peticiones al backend y selectores avanzados por rol y estado MFA.
+
+### 📚 Categoría C: Gestión e Inteligencia de Programas Sinópticos (Syllabus)
+
+Recientemente, el ecosistema de **DIDACTICO** ha sido enriquecido con un módulo robusto de inteligencia curricular y gobernanza de planes de estudio estructurado como un microservicio independiente.
+
+1. **Inteligencia de Extracción y Parsing Curricular (`PyMuPDF`)**
+   * **Lectura Sintáctica de PDFs (`app/parser.py`):** Un extractor de alta precisión basado en la biblioteca PyMuPDF (`fitz`) procesa los archivos PDF subidos, lee y estructura metadatos del programa como el código de materia, nombre, nivel curricular, créditos académicos y distribución horaria (HAD, HDE, HTS).
+   * **Estructuración Semántica Dinámica:** Extrae de manera granular los bloques textuales correspondientes a la presentación, propósito, competencias previas/genéricas, estrategias de enseñanza, metodologías de evaluación y la lista detallada de unidades de aprendizaje (número, título, contenidos y criterios de desempeño).
+
+2. **Gobernanza Física de Archivos y Control de Versiones con Seguridad Criptográfica**
+   * **Prevención de Duplicidad Física (SHA-256):** El microservicio calcula el hash `SHA-256` en tiempo real de cada archivo PDF. Si coincide de forma exacta con uno existente, previene la inserción de datos redundantes para salvaguardar el almacenamiento.
+   * **Versionamiento Atómico:** Si la materia ya existe en el sistema, la versión activa anterior se marca como inactiva de manera atómica, y se genera un incremento incremental (`v1`, `v2`, etc.), guardando físicamente el PDF bajo la nomenclatura `{codigo}_v{version}.pdf` en el volumen compartido.
+
+3. **Carga e Importación Masiva en Lotes (ZIP)**
+   * **Procesamiento Asíncrono Tolerante a Fallos:** Permite subir archivos comprimidos `.zip` con decenas de programas sinópticos. El backend los extrae a un directorio temporal, los procesa y valida individualmente de manera transaccional.
+   * **Consolidación Limpia del Servidor:** Omitirá los archivos duplicados de forma segura sin interrumpir la cola y, una vez terminada la operación (exitosa o fallida), realiza una purga absoluta del directorio y archivos ZIP temporales del disco del servidor.
+
+4. **Matriz de Exportación e Integraciones en Tiempo Real**
+   * **Streaming Consolidado (Excel & CSV):** Los administradores pueden descargar instantáneamente la matriz curricular global de la institución a formatos Excel (`.xlsx`) y CSV de forma fluida, transmitidos directamente mediante `StreamingResponse` para alto rendimiento y bajo uso de memoria.
+
+5. **Experiencia de Usuario Premium e Interfaces Interactivas**
+   * **Panel de Control Curricular (`SyllabusManagement.tsx`):** Grid responsivo avanzado con búsqueda en tiempo real, ordenación y selectores dinámicos basados en programas académicos y niveles escolares.
+   * **KPIs Dinámicos en Tiempo Real:** Tarjetas premium en cabecera con recuentos globales de asignaturas, distribución de Pregrado/Postgrado e indicador de horas promedio HAD.
+   * **Visor Estructurado de Asignaturas:** Un modal premium en pestañas interactivas que muestra detalladamente toda la estructura modular de la materia, la grilla interactiva de Unidades de Aprendizaje y sus materias correspondientes/requisitos.
+   * **Historial de Auditoría Interno:** Modal de historial que detalla cronológicamente las versiones subidas de una materia, el usuario administrativo responsable de la carga, la fecha/hora y firma SHA-256 con botón de copiado rápido al portapapeles.
+   * **Edición Manual Flexible:** Permite corregir o actualizar manualmente datos de asignaturas de forma directa sin alterar el PDF original de soporte, sincronizándose reactivamente con React Query.
 
 ## 🏗️ Arquitectura y Tecnologías (Stack Detallado)
 
@@ -96,6 +122,14 @@ Escrito en Python y diseñado para exponer las APIs y administrar la base de dat
     *   Pandas `2.2.1` & Openpyxl `3.1.2` (Procesamiento inteligente de archivos masivos CSV/Excel)
     *   Zxcvbn-python `4.4.28` (Evaluación de entropía y robustez de contraseñas)
 *   **Testing:** Pytest `8.1.1`, Pytest-asyncio `0.23.6`, Pytest-django `4.8.0`
+
+### Microservicio de Syllabus (`sys-syllabus`)
+Microservicio asíncrono e independiente especializado en la extracción, control de versiones y almacenamiento físico de programas sinópticos curriculares.
+*   **Lenguaje Base:** Python `3.12-slim`
+*   **Frameworks y Servidores:** FastAPI `0.110.1` expuesto de forma asíncrona mediante Uvicorn `0.29.0` en el puerto `8002` (localmente).
+*   **Motor de Extracción y Parsing:** PyMuPDF (`fitz` `1.23.26`) para parsing de PDF y extracción estructurada de texto.
+*   **Procesamiento de Datos:** Pandas `2.2.1` y Openpyxl `3.1.2` para la consolidación sintáctica y exportación dinámica de matrices Excel/CSV.
+*   **ORM y Drivers:** SQLAlchemy `2.0.29` y Asyncpg `0.29.0` para operaciones relacionales no bloqueantes en PostgreSQL.
 
 ### Frontend (`sys-plan`)
 Aplicación de una sola página (SPA) responsiva y moderna.
@@ -143,6 +177,7 @@ Asegúrate de tener instalado lo siguiente en tu máquina local:
 4.  **Acceso a los Servicios:**
     *   **Frontend (React/Vite):** [http://localhost:80](http://localhost:80)
     *   **Backend FastAPI (API y Swagger UI):** [http://localhost:8001/docs](http://localhost:8001/docs)
+    *   **Backend FastAPI Syllabus (API y Swagger UI):** [http://localhost:8002/docs](http://localhost:8002/docs)
     *   **Backend Django (Panel de Administración):** [http://localhost:8000/admin](http://localhost:8000/admin)
     *   **Base de datos (PostgreSQL):** `localhost:5432`
 
@@ -190,6 +225,12 @@ PROYECTO-MAESTRIA-PY/
 │   ├── Dockerfile.django    # Contenedor dedicado a Django
 │   ├── Dockerfile.fastapi   # Contenedor dedicado a FastAPI
 │   └── requirements.txt     # Dependencias de Python
+├── sys-syllabus/            # Microservicio de Gestión de Syllabus (FastAPI)
+│   ├── app/                 # Módulo de base de datos, modelos, parser y API
+│   ├── syllabus_pdfs/       # Almacenamiento persistente de PDFs curriculares
+│   ├── Dockerfile           # Contenedor dedicado a Syllabus
+│   ├── entrypoint-syllabus.sh # Script de arranque y migraciones
+│   └── requirements.txt     # Dependencias de Python especializadas (fitz, openpyxl, pandas)
 └── sys-plan/                # Aplicación Frontend
     ├── src/                 # Código fuente de React
     ├── public/              # Archivos estáticos
