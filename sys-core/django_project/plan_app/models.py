@@ -277,3 +277,91 @@ class AuditLog(models.Model):
     def __str__(self):
         return f"{self.action} by {self.user.email if self.user else 'System'} at {self.created_at}"
 
+
+class Subject(models.Model):
+    code = models.CharField(max_length=50, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    document_code = models.CharField(max_length=100, blank=True, null=True)
+    program = models.CharField(max_length=255, blank=True, null=True)
+    level = models.CharField(max_length=50, default="PREGRADO")
+    identification_date = models.DateField(blank=True, null=True)
+    syllabus_version_year = models.CharField(max_length=10, blank=True, null=True)
+    academic_credits = models.IntegerField(default=0)
+    had_hours = models.IntegerField(default=0)
+    hde_hours = models.IntegerField(default=0)
+    hts_hours = models.IntegerField(default=0)
+    academic_period = models.IntegerField(blank=True, null=True)
+    prerequisite = models.TextField(blank=True, null=True)
+    presentation = models.TextField(blank=True, null=True)
+    purpose = models.TextField(blank=True, null=True)
+    previous_competencies = models.TextField(blank=True, null=True)
+    generic_competencies = models.TextField(blank=True, null=True)
+    relation_other_subjects = models.TextField(blank=True, null=True)
+    teaching_strategies = models.TextField(blank=True, null=True)
+    eval_diagnostica = models.TextField(blank=True, null=True)
+    eval_formativa = models.TextField(blank=True, null=True)
+    eval_sumativa = models.TextField(blank=True, null=True)
+    bibliographic_references = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "plan_app_subject"
+        verbose_name = "Materia"
+        verbose_name_plural = "Materias"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class SubjectUnit(models.Model):
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="units")
+    unit_number = models.CharField(max_length=50)
+    unit_title = models.CharField(max_length=255, blank=True, null=True)
+    contents = models.TextField(blank=True, null=True)
+    performance_criteria = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = "plan_app_subjectunit"
+        verbose_name = "Unidad de Aprendizaje"
+        verbose_name_plural = "Unidades de Aprendizaje"
+
+    def __str__(self):
+        return f"{self.unit_number} - {self.subject.code}"
+
+
+class SubjectCorrespondence(models.Model):
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="correspondences")
+    code = models.CharField(max_length=50)
+    name = models.CharField(max_length=255)
+    requirements = models.CharField(max_length=255, blank=True, null=True)
+
+    class Meta:
+        db_table = "plan_app_subjectcorrespondence"
+        verbose_name = "Correspondencia de Materia"
+        verbose_name_plural = "Correspondencias de Materias"
+
+    def __str__(self):
+        return f"{self.code} equivalencia a {self.subject.code}"
+
+
+class SyllabusVersion(models.Model):
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="syllabuses")
+    version_number = models.IntegerField(default=1)
+    filename = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=512)
+    file_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="uploaded_syllabuses")
+    extracted_text = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "plan_app_syllabusversion"
+        verbose_name = "Version de Programa Sinoptico"
+        verbose_name_plural = "Versiones de Programas Sinopticos"
+
+    def __str__(self):
+        return f"{self.subject.code} v{self.version_number} - Active: {self.is_active}"
+
+

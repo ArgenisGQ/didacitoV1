@@ -26,12 +26,14 @@ import {
   User,
   Shield,
   Clock,
+  BookOpen,
 } from 'lucide-react'
 import api, { getAccessToken } from '../lib/api-client'
 import SecuritySettings from './SecuritySettings'
 import AdminSettings from './AdminSettings'
 import UserProfile from './UserProfile'
 import AuditManagement from './AuditManagement'
+import SyllabusManagement from './SyllabusManagement'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -254,6 +256,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
             { id: 'plans', icon: FileText, label: 'Planificaciones', count: plans.length },
+            ...((userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_GESTION')
+              ? [
+                  { id: 'syllabus', icon: BookOpen, label: 'Programas Sinópticos' }
+                ]
+              : []),
             { id: 'profile', icon: User, label: 'Mi Perfil' },
             ...(userRole === 'SUPER_ADMIN'
               ? [
@@ -355,6 +362,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         <div className="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8">
           {activeTab === 'users' ? (
             <UserManagement />
+          ) : activeTab === 'syllabus' ? (
+            <SyllabusManagement />
           ) : activeTab === 'settings' ? (
             <SecuritySettings />
           ) : activeTab === 'governance' ? (

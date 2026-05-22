@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from api.routers import health, auth, plans, users, admin
+from api.routers import health, auth, plans, users, admin, syllabus_proxy
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from api.core.limiter import limiter
@@ -54,4 +54,6 @@ app.include_router(auth.router)
 app.include_router(plans.router)
 app.include_router(users.router)
 app.include_router(admin.router)
+app.include_router(syllabus_proxy.router, prefix="/syllabus", tags=["Syllabus"])
+
 
