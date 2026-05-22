@@ -7,12 +7,64 @@ Este proyecto constituye el desarrollo de un Sistema de Planificación Estratég
 Aplicación web integral desarrollada con una arquitectura moderna de microservicios. Utiliza un modelo híbrido en el backend combinando el panel de administración robusto de Django con la alta velocidad de FastAPI para la API pública, conectado a un frontend de alto rendimiento en React compilado con Vite.
 
 ## 🚧 Estado del Proyecto
-Este proyecto se encuentra actualmente en **fase de desarrollo activo**. Las siguientes funcionalidades o módulos no están habilitados o aún están en construcción:
+Este proyecto se encuentra actualmente en **fase de desarrollo activo**. Las siguientes funcionalidades o módulos están planificados o aún se encuentran en construcción:
 
-*   **[Gestión Completa de Autenticación / Roles]:** [Validación de correos, integración con proveedores de identidad externos (OAuth) y control de acceso basado en roles granulares (RBAC)].
-*   **[Módulo de Reportería y Exportación Avanzada]:** [Generación automatizada de reportes gerenciales en formatos PDF y Excel].
-*   **[Dashboards Analíticos en Tiempo Real]:** [Integración completa de gráficos interactivos basados en los datos del sistema].
-*   **[Cobertura Total de Pruebas Unitarias/E2E]:** [Implementación de suite completa de pruebas automatizadas para garantizar estabilidad en despliegues continuos].
+*   **[Módulo de Reportería y Exportación Avanzada]:** Generación automatizada de reportes gerenciales en formatos PDF y Excel.
+*   **[Dashboards Analíticos en Tiempo Real]:** Integración completa de gráficos interactivos basados en los datos de planificación y desempeño de la organización.
+*   **[Integradores de Identidad Externos (OAuth/SSO)]**: Soporte adicional opcional para autenticación federada con Google Workspace, Microsoft Azure AD u otros proveedores de identidad corporativos.
+*   **[Cobertura de Pruebas Unitarias/E2E de Alta Fidelidad (Fase 2)]**: Extensión de pruebas automatizadas integrales del lado del cliente y flujos interactivos de gobernanza.
+
+---
+
+## ✨ Nuevas Funcionalidades Implementadas: Seguridad, Autenticación y Gobernanza Dinámica
+
+Recientemente, el ecosistema de **DIDACTICO** ha sido robustecido con una arquitectura de seguridad y gobernanza IT de nivel empresarial, organizada en dos categorías operativas principales para garantizar la confidencialidad, integridad y la autogestión ágil de identidades.
+
+### 🔐 Categoría A: Seguridad de Sesión e Infraestructura de Acceso
+
+1. **Gobernanza de Sesiones Concurrentes (Refresh Tokens en Cookies HttpOnly)**
+   * **Tabla de Sesiones Activas:** Base de datos estructurada con `plan_app_refresh_tokens` para controlar de manera granular todas las sesiones activas en el sistema, registrando el hash del token, su expiración y la genealogía del token (`parent_jti`) mediante Rotación de Refresh Tokens (RTR).
+   * **Directivas de Cookie Ultra-Seguras:** Emisión del Refresh Token con políticas estrictas: `HttpOnly`, `Secure`, `SameSite=Strict`, y restringido exclusivamente a la ruta `/api/auth/refresh`, eliminando por completo vectores de ataque XSS y CSRF.
+   * **Defensa contra Replay Attacks:** Si se detecta un intento de reutilización de un token de refresco ya revocado, el backend automáticamente bloquea la sesión entera y desactiva todas las demás sesiones activas asociadas al usuario como medida de mitigación instantánea.
+   * **Cierre de Sesión Seguro en Todos los Dispositivos:** Al cambiar o restablecer la contraseña, el sistema marca inmediatamente todas las sesiones del usuario como revocadas (`is_revoked = True`), desautenticándolo en tiempo real de todos sus dispositivos.
+
+2. **Autenticación Multifactor (MFA/2FA - TOTP)**
+   * **Criptografía Secundaria Independiente:** Soporte nativo para autenticación de dos pasos empleando contraseñas de un solo uso basadas en el tiempo (TOTP) generadas por aplicaciones móviles como Google Authenticator o Authy.
+   * **Stepper Animado Premium:** Flujo guiado en el perfil de usuario para activación con escaneo de código QR dinámico (generado y codificado en Base64 en el backend) e inputs segmentados interactivos para validar el código inicial.
+   * **Seguridad en Primer y Segundo Factor:** El login inicial devuelve una redirección `HTTP 202 Accepted` si el usuario tiene MFA activo, requiriendo un JWT temporal firmado de corta duración para ingresar el código OTP, mitigando ataques de replay de OTP mediante ventanas de tiempo de sincronización.
+
+3. **Mecanismos de Protección Antifuerza Bruta y Rate Limiting**
+   * **Rate Limiting por Red (`slowapi`):** Límites de peticiones estrictos por IP en endpoints críticos (máximo de 5 intentos/minuto en `/api/token` y 3 intentos/minuto en `/api/auth/forgot-password` para salvaguardar el servidor SMTP).
+   * **Bloqueo Inteligente de Cuentas (Account Lockout):** Tras 5 intentos fallidos consecutivos de contraseña o código OTP, la cuenta se bloquea automáticamente por 15 minutos (`lockout_until`), impidiendo cualquier intento de descifrado en base de datos.
+   * **UX Dinámico con Contador en Tiempo Real:** El frontend intercepta el estado `HTTP 423 Locked`, deshabilita los controles y muestra un banner premium rojo fuego con una cuenta regresiva dinámica en tiempo real.
+
+4. **Flujo de Recuperación Autónoma de Credenciales**
+   * **Previene Enumeración de Usuarios:** Las respuestas de recuperación (`/forgot-password`) son uniformes y simulan retardos aleatorios para evitar que atacantes deduzcan cuentas válidas.
+   * **Tokens JWT de Un Solo Uso:** Generación de tokens temporales de 15 minutos firmados criptográficamente que invalidan inmediatamente su uso posterior en la tabla `plan_app_password_resets`.
+
+5. **Entropía de Contraseñas en Tiempo Real (`zxcvbn`)**
+   * **Evaluación Inteligente:** Integración de la librería `zxcvbn` para medir la entropía basada en patrones comunes, nombres, y fechas.
+   * **Restricción de Fuerza Mínima:** Candado estricto en el backend y frontend que impide contraseñas con robustez menor a Nivel 3.
+
+### ⚙️ Categoría B: Gobernanza Dinámica del Sistema y Experiencia de Usuario (UX)
+
+1. **Área Especial de Configuración de Gobernanza (System Settings Panel)**
+   * **Base de Datos Dinámica:** Tabla `plan_app_system_settings` en PostgreSQL que almacena parámetros en tiempo de ejecución (`SUPPORT_EMAIL`, `INVITATION_TOKEN_EXPIRE_HOURS`, etc.).
+   * **Gestor de Caché asíncrono (`SettingsManager`):** Sistema de caché en memoria en FastAPI que optimiza las lecturas evitando consultas recurrentes a base de datos.
+   * **Consola SMTP Diagnóstica:** Panel con validación de credenciales SMTP en tiempo real para verificar el estado de envío de correos institucionales.
+
+2. **Cargador Masivo de Usuarios en Lote (CSV & Excel)**
+   * **Analizador Inteligente con `pandas`:** Validación sintáctica de correos, comprobación de roles del sistema y detección de duplicados en tiempo real.
+   * **Diálogo Drag-and-Drop Premium:** Interfaz interactiva de cristal (Glassmorphic) en el frontend que permite subir el archivo, muestra una grilla de previsualización con marcado en rojo brillante y badges explicativos para filas inválidas, permitiendo importar omitiendo las filas erróneas de manera atómica.
+
+3. **Gobernanza de Invitaciones y Onboarding de Usuarios**
+   * **Invitaciones Cifradas y Temporales:** Envío de enlaces seguros con firma criptográfica que vencen tras la cantidad de horas dictadas por el panel de gobernanza.
+   * **Panel de Control de Invitaciones (`InvitationsManagement.tsx`):** Grilla interactiva que muestra las invitaciones activas, expiradas o revocadas, con acciones de reenvío automático o revocación atómica en cascada.
+
+4. **Interfaces Frontend Premium y Glassmorphism (Efecto Cristal)**
+   * **Perfil de Usuario Autogestionable (`UserProfile.tsx`):** Candados visuales plateados con tooltips flotantes inteligentes en los campos deshabilitados por la gobernanza centralizada de la institución (por ejemplo, el correo institucional).
+   * **Gobernanza IT de Elite (`AdminSettings.tsx`):** Panel exclusivo para `SUPER_ADMIN` con sub-tabs responsivas de cristal, control de switches de políticas de accesos, editor dinámico de tags de columnas CSV requeridas y terminal SMTP interactivo.
+   * **Gestión de Identidades Eficiente (`UserManagement.tsx`):** Barra superior de búsqueda con **Debounce de 300 ms** para aliviar la carga de peticiones al backend y selectores avanzados por rol y estado MFA.
 
 ## 🏗️ Arquitectura y Tecnologías (Stack Detallado)
 
@@ -39,6 +91,10 @@ Escrito en Python y diseñado para exponer las APIs y administrar la base de dat
 *   **Utilidades y Seguridad:**
     *   Pydantic `2.6.4`
     *   Python-jose `3.3.0`, Passlib `1.7.4`, Bcrypt `3.2.2` (Autenticación JWT y hashing)
+    *   Pyotp `2.9.0` & Qrcode `7.4.2` (Generación y validación de MFA / TOTP)
+    *   Slowapi `0.1.9` (Rate limiting dinámico por dirección IP)
+    *   Pandas `2.2.1` & Openpyxl `3.1.2` (Procesamiento inteligente de archivos masivos CSV/Excel)
+    *   Zxcvbn-python `4.4.28` (Evaluación de entropía y robustez de contraseñas)
 *   **Testing:** Pytest `8.1.1`, Pytest-asyncio `0.23.6`, Pytest-django `4.8.0`
 
 ### Frontend (`sys-plan`)
@@ -58,6 +114,7 @@ Aplicación de una sola página (SPA) responsiva y moderna.
     *   TanStack React Query `5.100.9` (Gestión de estado del servidor)
     *   React Hook Form `7.54.2`
     *   Zod `4.4.2` (Validación de esquemas)
+    *   Zxcvbn-ts (Cálculo de entropía y feedback interactivo de robustez en inputs)
 *   **Herramientas de Desarrollo:** ESLint `10.2.1`, Babel React Compiler `1.0.0`
 
 ## ⚙️ Requisitos Previos
