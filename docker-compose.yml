@@ -31,7 +31,7 @@ services:
       DB_PASSWORD: password
       DB_HOST: planning-db
       DB_PORT: 5432
-      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      DB_SSLMODE: ${DB_SSLMODE:-require}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-insecure-fallback}
       DJANGO_DEBUG: "True"
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,django-admin"
@@ -55,7 +55,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://user:password@planning-db:5432/planning_db}
       DATABASE_URL_SYNC: ${DATABASE_URL_SYNC:-postgresql://user:password@planning-db:5432/planning_db}
       SECRET_KEY: ${SECRET_KEY:-super_secret_key_shared_with_frontend}
-      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      DB_SSLMODE: ${DB_SSLMODE:-require}
       DB_HOST: planning-db
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1,http://localhost:5173,http://localhost:80}
     depends_on:
