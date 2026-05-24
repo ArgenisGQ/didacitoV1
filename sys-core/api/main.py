@@ -1,7 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import os
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,18 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def catch_exceptions_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception:
+        logger.error(f"Unhandled exception on {request.method} {request.url.path}:\n{traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "path": request.url.path, "error": traceback.format_exc() if not is_prod else "Enable APP_ENV=local for details"},
+        )
 
 
 @app.on_event("startup")
