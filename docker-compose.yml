@@ -14,7 +14,16 @@ services:
     entrypoint:
       - "sh"
       - "-c"
-      - "if [ -f /var/lib/postgresql/data/pg_hba.conf ]; then sed -i 's/hostssl/host/g' /var/lib/postgresql/data/pg_hba.conf; fi; exec /usr/local/bin/docker-entrypoint.sh postgres"
+      - |
+        if [ -f /var/lib/postgresql/data/pg_hba.conf ]; then
+          echo 'local all all trust' > /var/lib/postgresql/data/pg_hba.conf
+          echo 'host all all 127.0.0.1/32 scram-sha-256' >> /var/lib/postgresql/data/pg_hba.conf
+          echo 'host all all ::1/128 scram-sha-256' >> /var/lib/postgresql/data/pg_hba.conf
+          echo 'host all all 0.0.0.0/0 scram-sha-256' >> /var/lib/postgresql/data/pg_hba.conf
+          echo 'host all all ::/0 scram-sha-256' >> /var/lib/postgresql/data/pg_hba.conf
+          echo '[entrypoint-inline] pg_hba.conf successfully rewritten with standard Docker rules.'
+        fi
+        exec /usr/local/bin/docker-entrypoint.sh postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user -d planning_db"]
       interval: 5s
