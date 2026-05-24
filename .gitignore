@@ -19,4 +19,27 @@ yarn-error.log
 # System
 .DS_Store
 .env
-sys-core/scratch/
+
+# Syllabus PDFs
+sys-core/syllabus_pdfs/
+*.pdf
+
+# Office Documents
+*.docx
+*.xlsx
+*.pptx
+*.doc
+*.xls
+*.ppt
+
+# Temporary and Log files
+*.tmp
+*.bak
+*.log
+temp/
+tmp/
+
+# IDE/Editor settings
+.vscode/
+.idea/
+
