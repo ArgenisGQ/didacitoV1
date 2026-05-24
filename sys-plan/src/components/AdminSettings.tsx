@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Shield, FileSpreadsheet, User, Mail, CheckCircle2, AlertCircle, Loader2, Save, Plus, X } from 'lucide-react'
+import { Shield, FileSpreadsheet, User, Mail, CheckCircle2, AlertCircle, Loader2, Save, Plus, X, Clock, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,8 +19,59 @@ interface SettingItem {
 export default function AdminSettings() {
   const [settings, setSettings] = useState<SettingItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeSubTab, setActiveSubTab] = useState<'security' | 'import' | 'profile' | 'smtp'>('security')
+  const [activeSubTab, setActiveSubTab] = useState<'security' | 'import' | 'profile' | 'smtp' | 'system_time'>('security')
   
+  // Clock state & helpers
+  const [currentTime, setCurrentTime] = useState(new Date())
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const timezonesList = [
+    { value: 'America/Caracas', label: 'Caracas, Venezuela (GMT-04:00)' },
+    { value: 'America/Bogota', label: 'Bogotá, Colombia (GMT-05:00)' },
+    { value: 'America/Lima', label: 'Lima, Perú (GMT-05:00)' },
+    { value: 'America/Santiago', label: 'Santiago, Chile (GMT-04:00)' },
+    { value: 'America/Mexico_City', label: 'Ciudad de México, México (GMT-06:00)' },
+    { value: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires, Argentina (GMT-03:00)' },
+    { value: 'America/Guayaquil', label: 'Guayaquil, Ecuador (GMT-05:00)' },
+    { value: 'America/Sao_Paulo', label: 'São Paulo, Brasil (GMT-03:00)' },
+    { value: 'America/New_York', label: 'Nueva York, EE.UU. (GMT-05:00)' },
+    { value: 'Europe/Madrid', label: 'Madrid, España (GMT+01:00)' },
+    { value: 'UTC', label: 'Tiempo Universal Coordinado (UTC)' }
+  ]
+
+  const formatTimeForZone = (date: Date, tz: string) => {
+    try {
+      return new Intl.DateTimeFormat('es-ES', {
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).format(date)
+    } catch (e) {
+      return date.toLocaleTimeString()
+    }
+  }
+
+  const formatDateForZone = (date: Date, tz: string) => {
+    try {
+      return new Intl.DateTimeFormat('es-ES', {
+        timeZone: tz,
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }).format(date)
+    } catch (e) {
+      return date.toLocaleDateString()
+    }
+  }
+
   // Local modified settings state for pending changes
   const [localValues, setLocalValues] = useState<Record<string, string>>({})
   const [isSaving, setIsSaving] = useState(false)
@@ -234,7 +285,8 @@ export default function AdminSettings() {
             { id: 'security', label: 'Seguridad y Accesos', icon: Shield },
             { id: 'import', label: 'Carga Masiva (CSV)', icon: FileSpreadsheet },
             { id: 'profile', label: 'Campos Auto-Gestión', icon: User },
-            { id: 'smtp', label: 'Servidor SMTP', icon: Mail }
+            { id: 'smtp', label: 'Servidor SMTP', icon: Mail },
+            { id: 'system_time', label: 'Hora del Sistema', icon: Clock }
           ].map((tab) => (
             <Button
               key={tab.id}
@@ -583,6 +635,61 @@ export default function AdminSettings() {
                       ))}
                     </div>
                   )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSubTab === 'system_time' && (
+            <Card className="backdrop-blur-md bg-card/60">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="text-primary" size={22} />
+                  Hora y Sincronizacion del Sistema
+                </CardTitle>
+                <CardDescription>
+                  Establece la zona horaria institucional predeterminada para todos los modulos, reportes e inicios de sesion.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Live clock panel */}
+                <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 text-center space-y-2 shadow-xl">
+                  <span className="text-[10px] font-black tracking-widest text-primary uppercase">Reloj Digital Activo</span>
+                  <div className="font-mono text-5xl font-black tracking-widest text-slate-100 py-2">
+                    {formatTimeForZone(currentTime, localValues['SYSTEM_TIMEZONE'] || 'America/Caracas')}
+                  </div>
+                  <div className="text-xs font-bold text-slate-400 capitalize">
+                    {formatDateForZone(currentTime, localValues['SYSTEM_TIMEZONE'] || 'America/Caracas')}
+                  </div>
+                  <div className="text-[10px] font-semibold text-slate-500">
+                    Zona horaria activa: {localValues['SYSTEM_TIMEZONE'] || 'America/Caracas'}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="font-extrabold text-sm">Zona Horaria Oficial</Label>
+                    <div className="relative">
+                      <select
+                        value={localValues['SYSTEM_TIMEZONE'] || 'America/Caracas'}
+                        onChange={(e) => handleChangeValue('SYSTEM_TIMEZONE', e.target.value)}
+                        className="flex h-12 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm font-semibold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer"
+                      >
+                        {timezonesList.map((tz) => (
+                          <option key={tz.value} value={tz.value} className="bg-background text-foreground">
+                            {tz.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-muted-foreground">
+                        <ChevronDown size={18} />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Sincroniza todas las planificaciones de clases, inicios de sesion y registros de auditoria a la zona horaria seleccionada. 
+                    Asegurese de pulsar <strong>"Aplicar y Recargar Cache"</strong> en la parte superior para hacer persistentes los cambios.
+                  </p>
                 </div>
               </CardContent>
             </Card>

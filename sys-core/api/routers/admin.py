@@ -107,6 +107,12 @@ async def update_settings(
         
         # Validation checks
         str_val = str(val).strip()
+        if key == "SYSTEM_TIMEZONE":
+            import zoneinfo
+            try:
+                zoneinfo.ZoneInfo(str_val)
+            except Exception:
+                raise HTTPException(status_code=400, detail=f"Zona horaria '{str_val}' invalida")
         if key in ("SUPPORT_EMAIL", "SMTP_USER") and not is_valid_email(str_val):
             raise HTTPException(status_code=400, detail=f"Email invalido para la configuracion '{key}'")
         if key in ("DEFAULT_PAGINATION_LIMIT", "INVITATION_TOKEN_EXPIRE_HOURS", "MAX_CSV_FILE_SIZE_MB", "MAX_INVITATIONS_PER_DAY", "SMTP_PORT"):
@@ -133,6 +139,39 @@ async def update_settings(
     
     result = await db.execute(select(SystemSetting).order_by(SystemSetting.key))
     return result.scalars().all()
+
+@router.get("/system-time")
+async def get_system_time(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    check_role(current_user, [UserRole.SUPER_ADMIN])
+    import zoneinfo
+    from datetime import datetime
+    
+    common_tzs = sorted([
+        "America/Caracas", "America/Bogota", "America/Lima", 
+        "America/Santiago", "America/Mexico_City", "America/Argentina/Buenos_Aires", 
+        "America/Guayaquil", "America/Sao_Paulo", "America/New_York", 
+        "Europe/Madrid", "UTC"
+    ])
+    
+    current_tz = SettingsManager.get_cached_setting("SYSTEM_TIMEZONE", "America/Caracas")
+    
+    try:
+        tz = zoneinfo.ZoneInfo(current_tz)
+    except Exception:
+        tz = zoneinfo.ZoneInfo("America/Caracas")
+        
+    now_tz = datetime.now(tz)
+    
+    return {
+        "current_timezone": current_tz,
+        "server_utc_time": datetime.now(timezone.utc).isoformat(),
+        "system_formatted_time": now_tz.strftime("%Y-%m-%d %H:%M:%S %Z %z"),
+        "iso_time": now_tz.isoformat(),
+        "available_timezones": common_tzs
+    }
 
 # Bulk User Import Endpoints
 @router.post("/users/import", response_model=BulkImportPreviewResponse)

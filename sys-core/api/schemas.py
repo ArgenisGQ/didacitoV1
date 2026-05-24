@@ -268,3 +268,28 @@ class UserInactivityResponse(BaseModel):
     days_inactive: int
 
 
+# ---------------------------------------------------------------------------
+# Academic Period Schemas
+# ---------------------------------------------------------------------------
+from datetime import date
+
+class AcademicPeriodBase(BaseModel):
+    name: str
+    start_date: date
+    end_date: date
+    is_active: bool = False
+    type: str = "NORMAL"
+
+class AcademicPeriodCreate(AcademicPeriodBase):
+    pass
+
+class AcademicPeriodUpdate(BaseModel):
+    name: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    is_active: Optional[bool] = None
+    type: Optional[str] = None
+
+class AcademicPeriodResponse(AcademicPeriodBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)

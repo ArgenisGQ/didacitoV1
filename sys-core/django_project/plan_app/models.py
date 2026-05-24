@@ -389,3 +389,27 @@ class SyllabusVersion(models.Model):
         return f"{self.subject.code} v{self.version_number} - Active: {self.is_active}"
 
 
+class PeriodType(models.TextChoices):
+    NORMAL = "NORMAL", "Periodo Normal"
+    INTENSIVO = "INTENSIVO", "Periodo Intensivo"
+
+
+class AcademicPeriod(models.Model):
+    name = models.CharField(max_length=100, unique=True, verbose_name="Nombre del Periodo")
+    start_date = models.DateField(verbose_name="Fecha de Inicio")
+    end_date = models.DateField(verbose_name="Fecha de Fin")
+    is_active = models.BooleanField(default=False, verbose_name="Vigente")
+    type = models.CharField(
+        max_length=20,
+        choices=PeriodType.choices,
+        default=PeriodType.NORMAL,
+        verbose_name="Tipo de Periodo"
+    )
+
+    class Meta:
+        db_table = "plan_app_academicperiod"
+        verbose_name = "Periodo Academico"
+        verbose_name_plural = "Periodos Academicos"
+
+    def __str__(self):
+        return f"{self.name} ({self.get_type_display()})"

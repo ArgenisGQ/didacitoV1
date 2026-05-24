@@ -52,6 +52,7 @@ else:
 
 # Seed system settings
 settings_to_seed = {
+    'SYSTEM_TIMEZONE': ('America/Caracas', 'Zona horaria global del sistema para la visualizacion coherente de fechas y registros de auditoria', 'GENERAL'),
     'SUPPORT_EMAIL': ('soporte@didactico.edu', 'Correo de soporte institucional para solicitudes de cambio de campos protegidos', 'GENERAL'),
     'DEFAULT_PAGINATION_LIMIT': ('20', 'Limite de paginacion por defecto para consultas del sistema', 'GENERAL'),
     'INVITATION_TOKEN_EXPIRE_HOURS': ('24', 'Horas de expiracion para los tokens de invitacion', 'SECURITY'),

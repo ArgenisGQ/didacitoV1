@@ -27,6 +27,7 @@ import {
   Shield,
   Clock,
   BookOpen,
+  Calendar as CalendarIcon,
 } from 'lucide-react'
 import api, { getAccessToken } from '../lib/api-client'
 import SecuritySettings from './SecuritySettings'
@@ -34,6 +35,7 @@ import AdminSettings from './AdminSettings'
 import UserProfile from './UserProfile'
 import AuditManagement from './AuditManagement'
 import SyllabusManagement from './SyllabusManagement'
+import AcademicPeriods from './AcademicPeriods'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -168,7 +170,18 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             <div>
               <p className="font-bold">{row.original.title}</p>
               <p className="text-xs text-muted-foreground">
-                {new Date(row.original.created_at).toLocaleDateString()}
+                {(() => {
+                  const tz = profileConfig?.system_timezone || 'America/Caracas';
+                  try {
+                    return new Intl.DateTimeFormat('es-ES', {
+                      timeZone: tz,
+                      dateStyle: 'medium',
+                      timeStyle: 'short'
+                    }).format(new Date(row.original.created_at))
+                  } catch (e) {
+                    return new Date(row.original.created_at).toLocaleDateString()
+                  }
+                })()}
               </p>
             </div>
           </div>
@@ -262,10 +275,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 ]
               : []),
             { id: 'profile', icon: User, label: 'Mi Perfil' },
+            { id: 'security', icon: Shield, label: 'Seguridad de la Cuenta' },
             ...(userRole === 'SUPER_ADMIN'
               ? [
                   { id: 'users', icon: Users, label: 'Gestion de Usuarios' },
-                  { id: 'governance', icon: Shield, label: 'Gobernanza' }
+                  { id: 'academic_periods', icon: CalendarIcon, label: 'Periodos Académicos' }
                 ]
               : [{ id: 'teachers', icon: Users, label: 'Profesores' }]),
             ...(isAuditViewer
@@ -290,16 +304,19 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             </Button>
           ))}
 
-          <Separator className="my-4" />
-
-          <Button
-            variant={activeTab === 'settings' ? 'default' : 'ghost'}
-            className="w-full justify-start gap-3 h-12 text-base font-semibold"
-            onClick={() => setActiveTab('settings')}
-          >
-            <Settings size={20} />
-            Configuracion
-          </Button>
+          {userRole === 'SUPER_ADMIN' && (
+            <>
+              <Separator className="my-4" />
+              <Button
+                variant={activeTab === 'settings' ? 'default' : 'ghost'}
+                className="w-full justify-start gap-3 h-12 text-base font-semibold"
+                onClick={() => setActiveTab('settings')}
+              >
+                <Settings size={20} />
+                Configuracion
+              </Button>
+            </>
+          )}
         </nav>
 
         <div className="p-4 space-y-2">
@@ -364,10 +381,12 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             <UserManagement />
           ) : activeTab === 'syllabus' ? (
             <SyllabusManagement />
-          ) : activeTab === 'settings' ? (
-            <SecuritySettings />
-          ) : activeTab === 'governance' ? (
+          ) : activeTab === 'academic_periods' && userRole === 'SUPER_ADMIN' ? (
+            <AcademicPeriods />
+          ) : activeTab === 'settings' && userRole === 'SUPER_ADMIN' ? (
             <AdminSettings />
+          ) : activeTab === 'security' ? (
+            <SecuritySettings />
           ) : activeTab === 'audit' ? (
             <AuditManagement />
           ) : activeTab === 'profile' ? (

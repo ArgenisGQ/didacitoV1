@@ -33,10 +33,12 @@ async def get_profile_config():
     editable_fields = SettingsManager.get_setting_as_list("EDITABLE_PROFILE_FIELDS", ["full_name"])
     support_email = SettingsManager.get_cached_setting("SUPPORT_EMAIL", "soporte@didactico.edu")
     audit_viewer_roles = SettingsManager.get_setting_as_list("AUDIT_LOG_VIEWER_ROLES", ["SUPER_ADMIN"])
+    system_timezone = SettingsManager.get_cached_setting("SYSTEM_TIMEZONE", "America/Caracas")
     return {
         "editable_fields": editable_fields,
         "support_email": support_email,
-        "audit_viewer_roles": audit_viewer_roles
+        "audit_viewer_roles": audit_viewer_roles,
+        "system_timezone": system_timezone
     }
 
 

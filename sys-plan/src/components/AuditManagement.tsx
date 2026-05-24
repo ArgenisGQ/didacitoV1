@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   Clock,
   Search,
@@ -73,6 +74,14 @@ export default function AuditManagement() {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [inactiveUsers, setInactiveUsers] = useState<InactiveUser[]>([])
   const [settings, setSettings] = useState<SettingItem[]>([])
+
+  const { data: profileConfig } = useQuery({
+    queryKey: ['profileConfig'],
+    queryFn: async () => {
+      const { data } = await api.get('/users/me/profile-config')
+      return data
+    },
+  })
   
   // Loading states
   const [isLogsLoading, setIsLogsLoading] = useState(true)
@@ -515,7 +524,18 @@ export default function AuditManagement() {
                                 )}
                               </TableCell>
                               <TableCell className="text-xs font-medium py-3">
-                                {new Date(log.created_at).toLocaleString()}
+                                {(() => {
+                                  const tz = profileConfig?.system_timezone || 'America/Caracas';
+                                  try {
+                                    return new Intl.DateTimeFormat('es-ES', {
+                                      timeZone: tz,
+                                      dateStyle: 'short',
+                                      timeStyle: 'medium'
+                                    }).format(new Date(log.created_at))
+                                  } catch (e) {
+                                    return new Date(log.created_at).toLocaleString()
+                                  }
+                                })()}
                               </TableCell>
                               <TableCell className="py-3">
                                 <Badge variant="outline" className={`font-bold text-[10px] tracking-wide rounded-full px-2 py-0.5 ${getActionBadgeColor(log.action)}`}>
@@ -773,7 +793,18 @@ export default function AuditManagement() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs font-semibold py-3 text-slate-500">
-                            {user.last_login ? new Date(user.last_login).toLocaleString() : (
+                            {user.last_login ? (() => {
+                              const tz = profileConfig?.system_timezone || 'America/Caracas';
+                              try {
+                                return new Intl.DateTimeFormat('es-ES', {
+                                  timeZone: tz,
+                                  dateStyle: 'short',
+                                  timeStyle: 'medium'
+                                }).format(new Date(user.last_login))
+                              } catch (e) {
+                                return new Date(user.last_login).toLocaleString()
+                              }
+                            })() : (
                               <span className="text-amber-600 italic">Nunca registrado</span>
                             )}
                           </TableCell>
