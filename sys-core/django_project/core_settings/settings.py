@@ -56,19 +56,43 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core_settings.wsgi.application'
 
 # PostgreSQL connection (synchronous, for Django ORM)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'planning_db'),
-        'USER': os.getenv('DB_USER', 'user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'password'),
-        'HOST': os.getenv('DB_HOST', 'db'),
-        'PORT': os.getenv('DB_PORT', '5432'),
-        'OPTIONS': {
-            'sslmode': os.getenv('DB_SSLMODE', 'disable'),
+import urllib.parse
+
+db_url = os.getenv('DATABASE_URL_SYNC') or os.getenv('DATABASE_URL')
+
+if db_url:
+    # Convert async schema to sync for Django psycopg2 driver
+    if "postgresql+asyncpg://" in db_url:
+        db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+    
+    parsed = urllib.parse.urlparse(db_url)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': parsed.path.lstrip('/'),
+            'USER': parsed.username,
+            'PASSWORD': parsed.password,
+            'HOST': parsed.hostname,
+            'PORT': str(parsed.port or 5432),
+            'OPTIONS': {
+                'sslmode': os.getenv('DB_SSLMODE', 'disable'),
+            }
         }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'planning_db'),
+            'USER': os.getenv('DB_USER', 'user'),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'password'),
+            'HOST': os.getenv('DB_HOST', 'db'),  # Fallback
+            'PORT': os.getenv('DB_PORT', '5432'),
+            'OPTIONS': {
+                'sslmode': os.getenv('DB_SSLMODE', 'disable'),
+            }
+        }
+    }
 
 # Custom User model
 AUTH_USER_MODEL = 'plan_app.User'
