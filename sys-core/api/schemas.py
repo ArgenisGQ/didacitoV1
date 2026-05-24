@@ -22,6 +22,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
     password: Optional[str] = Field(None, min_length=6)
+    is_active: Optional[bool] = None
 
 
 class UserResponse(BaseModel):

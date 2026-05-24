@@ -181,6 +181,10 @@ async def update_user(
         user.role = user_in.role
     if user_in.password is not None:
         user.password = get_password_hash(user_in.password)
+    if user_in.is_active is not None:
+        if user_id == current_user.id and user_in.is_active is False:
+            raise HTTPException(status_code=400, detail="No puedes desactivar tu propia cuenta")
+        user.is_active = user_in.is_active
 
     await db.commit()
     await db.refresh(user)
@@ -196,13 +200,19 @@ async def delete_user(
     check_role(current_user, [UserRole.SUPER_ADMIN])
 
     if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+        raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta")
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user.is_active = False
+    if user.role != UserRole.DOCENTE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo los docentes pueden ser eliminados permanentemente del sistema"
+        )
+
+    await db.delete(user)
     await db.commit()
-    return {"message": "User successfully deactivated"}
+    return {"message": "Docente eliminado permanentemente de la base de datos"}

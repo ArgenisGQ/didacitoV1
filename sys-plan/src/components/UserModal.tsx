@@ -32,6 +32,7 @@ interface UserModalProps {
     email: string
     full_name: string
     role: string
+    is_active?: boolean
   } | null
 }
 
@@ -52,6 +53,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
               message: 'Minimo 6 caracteres',
             })
           : z.string().min(6, 'Minimo 6 caracteres'),
+        is_active: z.boolean().optional(),
       }),
     [isEditing]
   )
@@ -65,6 +67,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
       full_name: initialData?.full_name || '',
       role: (initialData?.role as FormData['role']) || 'DOCENTE',
       password: '',
+      is_active: initialData?.is_active ?? true,
     },
   })
 
@@ -75,6 +78,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
         full_name: initialData?.full_name || '',
         role: (initialData?.role as FormData['role']) || 'DOCENTE',
         password: '',
+        is_active: initialData?.is_active ?? true,
       })
       setServerError(null)
     }
@@ -90,6 +94,9 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
       }
       if (data.password && data.password.trim() !== '') {
         payload.password = data.password
+      }
+      if (isEditing && data.is_active !== undefined) {
+        payload.is_active = data.is_active
       }
 
       if (isEditing) {
@@ -192,6 +199,24 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
               </SelectContent>
             </Select>
           </div>
+
+          {isEditing && (
+            <div className="space-y-2 animate-fadeIn">
+              <Label htmlFor="is_active">Estado de Cuenta</Label>
+              <Select
+                value={form.watch('is_active') ? 'true' : 'false'}
+                onValueChange={(v) => form.setValue('is_active', v === 'true')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Activo</SelectItem>
+                  <SelectItem value="false">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="password">

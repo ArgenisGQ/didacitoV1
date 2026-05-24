@@ -19,9 +19,13 @@ import {
   Filter,
   Users,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  UserCheck,
+  UserX,
+  BookOpen
 } from 'lucide-react'
-import api from '../lib/api-client'
+import { jwtDecode } from 'jwt-decode'
+import api, { getAccessToken } from '../lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -49,6 +53,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import UserModal from './UserModal'
 import BulkImportDialog from './BulkImportDialog'
 import InvitationsManagement from './InvitationsManagement'
@@ -87,14 +99,51 @@ export default function UserManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserData | null>(null)
+  const [selectedAcademicLoadUser, setSelectedAcademicLoadUser] = useState<UserData | null>(null)
   
   // Search & Filter States
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('ALL')
   const [mfaFilter, setMfaFilter] = useState<string>('ALL')
+  const [statusFilter, setStatusFilter] = useState<string>('ALL')
   
   const queryClient = useQueryClient()
+
+  // Fetch all subjects from the syllabus microservice proxy to match codes with names
+  const { data: allSubjects = [] } = useQuery<any[]>({
+    queryKey: ['syllabusSubjects'],
+    queryFn: async () => {
+      const { data } = await api.get('/syllabus/subjects')
+      return data
+    },
+  })
+
+  // Get logged-in user email and role from JWT token
+  const currentUserInfo = useMemo(() => {
+    const token = getAccessToken();
+    if (token) {
+      try {
+        const decoded: any = jwtDecode(token);
+        return {
+          email: decoded.sub,
+          role: decoded.role
+        };
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }, []);
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, is_active }: { id: number; is_active: boolean }) => {
+      await api.put(`/users/${id}`, { is_active })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
 
   // 300ms Debounce implementation for high responsiveness without lag
   useEffect(() => {
@@ -136,9 +185,27 @@ export default function UserManagement() {
     setIsModalOpen(true)
   }, [])
 
-  const handleDelete = useCallback(async (id: number) => {
-    if (window.confirm('¿Está seguro de desactivar este usuario? (Se aplicará borrado lógico en base de datos)')) {
-      await deleteMutation.mutateAsync(id)
+  const handleToggleStatus = useCallback(async (user: UserData) => {
+    const actionText = user.is_active ? 'desactivar' : 'activar';
+    if (window.confirm(`¿Está seguro de ${actionText} este usuario?`)) {
+      await toggleStatusMutation.mutateAsync({ id: user.id, is_active: !user.is_active })
+    }
+  }, [toggleStatusMutation])
+
+  const handleDelete = useCallback(async (user: UserData) => {
+    const subjectStr = user.subject_code || '';
+    const subjects = subjectStr.split(',').map(s => s.trim()).filter(Boolean);
+    
+    let warningMsg = `¿Está seguro de eliminar permanentemente al docente ${user.full_name}?`;
+    if (subjects.length > 0) {
+      warningMsg += `\n\n¡ADVERTENCIA DE VÍNCULOS ACADÉMICOS!\nSe eliminarán de forma irreversible todas sus relaciones con las siguientes materias asignadas:\n- ${subjects.join('\n- ')}`;
+    } else {
+      warningMsg += `\n\nNo tiene materias asignadas actualmente.`;
+    }
+    warningMsg += `\n\nEsta acción es definitiva y realizará un borrado físico en la base de datos. ¿Desea continuar?`;
+    
+    if (window.confirm(warningMsg)) {
+      await deleteMutation.mutateAsync(user.id);
     }
   }, [deleteMutation])
 
@@ -162,9 +229,14 @@ export default function UserManagement() {
         (mfaFilter === 'MFA_ENABLED' && u.mfa_enabled) || 
         (mfaFilter === 'MFA_DISABLED' && !u.mfa_enabled)
 
-      return matchesSearch && matchesRole && matchesMFA
+      const matchesStatus = 
+        statusFilter === 'ALL' || 
+        (statusFilter === 'ACTIVE' && u.is_active) || 
+        (statusFilter === 'INACTIVE' && !u.is_active)
+
+      return matchesSearch && matchesRole && matchesMFA && matchesStatus
     })
-  }, [users, debouncedSearch, roleFilter, mfaFilter])
+  }, [users, debouncedSearch, roleFilter, mfaFilter, statusFilter])
 
   const columns = useMemo<ColumnDef<UserData>[]>(
     () => [
@@ -221,14 +293,18 @@ export default function UserManagement() {
           
           return (
             <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1.5">
-                <Badge className="font-extrabold text-[9px] bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border border-blue-500/25">
+              <button 
+                onClick={() => setSelectedAcademicLoadUser(row.original)}
+                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer group text-left"
+                title="Haga clic para ver detalles de la carga académica"
+              >
+                <Badge className="font-extrabold text-[9px] bg-blue-500/10 text-blue-500 group-hover:bg-blue-500/20 border border-blue-500/25 transition-all duration-300">
                   {subjects.length} {subjects.length === 1 ? 'materia' : 'materias'}
                 </Badge>
-                <Badge variant="outline" className="font-extrabold text-[9px] bg-orange-500/5 text-orange-500 border border-orange-500/30">
+                <Badge variant="outline" className="font-extrabold text-[9px] bg-orange-500/5 text-orange-500 border border-orange-500/30 group-hover:bg-orange-500/10 transition-all duration-300">
                   {sections.length} {sections.length === 1 ? 'sección' : 'secciones'}
                 </Badge>
-              </div>
+              </button>
               {(subjects.length > 0 || sections.length > 0) && (
                 <p className="text-[10px] text-muted-foreground font-medium max-w-[180px] truncate" title={`${subjectStr} | ${sectionStr}`}>
                   {subjects.join(', ')} ({sections.join(', ')})
@@ -269,30 +345,55 @@ export default function UserManagement() {
       {
         id: 'actions',
         header: () => <div className="text-right">Acciones</div>,
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 hover:bg-slate-100 dark:hover:bg-slate-800"
-              onClick={() => handleEdit(row.original)}
-            >
-              <Edit2 size={15} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => handleDelete(row.original.id)}
-              disabled={!row.original.is_active}
-            >
-              <Trash2 size={15} />
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const isCurrentUser = currentUserInfo?.email === row.original.email;
+          const isDocente = row.original.role === 'DOCENTE';
+          const isSuperAdmin = currentUserInfo?.role === 'SUPER_ADMIN';
+
+          return (
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={() => handleEdit(row.original)}
+                title="Editar Usuario"
+              >
+                <Edit2 size={15} />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-8 w-8 transition-colors duration-250 ${
+                  row.original.is_active
+                    ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                    : 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                }`}
+                onClick={() => handleToggleStatus(row.original)}
+                disabled={isCurrentUser}
+                title={row.original.is_active ? 'Desactivar Cuenta' : 'Activar Cuenta'}
+              >
+                {row.original.is_active ? <UserX size={15} /> : <UserCheck size={15} />}
+              </Button>
+
+              {isDocente && isSuperAdmin && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => handleDelete(row.original)}
+                  title="Eliminar Docente Permanentemente"
+                >
+                  <Trash2 size={15} />
+                </Button>
+              )}
+            </div>
+          );
+        },
       },
     ],
-    [handleEdit, handleDelete]
+    [handleEdit, handleDelete, handleToggleStatus, currentUserInfo, setSelectedAcademicLoadUser]
   )
 
   const table = useReactTable({
@@ -430,11 +531,24 @@ export default function UserManagement() {
                   </Select>
                 </div>
 
-                {(roleFilter !== 'ALL' || mfaFilter !== 'ALL' || searchInput) && (
+                <div className="w-full md:w-44">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="bg-card border-slate-200/80 h-11">
+                      <SelectValue placeholder="Estado de Cuenta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Todos los Estados</SelectItem>
+                      <SelectItem value="ACTIVE">Activos Únicamente</SelectItem>
+                      <SelectItem value="INACTIVE">Inactivos Únicamente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(roleFilter !== 'ALL' || mfaFilter !== 'ALL' || statusFilter !== 'ALL' || searchInput) && (
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => { setSearchInput(''); setRoleFilter('ALL'); setMfaFilter('ALL'); }}
+                    onClick={() => { setSearchInput(''); setRoleFilter('ALL'); setMfaFilter('ALL'); setStatusFilter('ALL'); }}
                     className="h-11 font-bold text-xs"
                   >
                     Restablecer
@@ -593,6 +707,92 @@ export default function UserManagement() {
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
       />
+
+      {/* Detailed Academic Load Modal / Dialog */}
+      {selectedAcademicLoadUser && (
+        <Dialog 
+          open={!!selectedAcademicLoadUser} 
+          onOpenChange={(open) => { if (!open) setSelectedAcademicLoadUser(null) }}
+        >
+          <DialogContent className="sm:max-w-[600px] border-slate-200/80 dark:border-slate-800/80 glass-morphism shadow-2xl animate-fadeIn">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black tracking-tight text-slate-850 dark:text-slate-100 flex items-center gap-2">
+                <BookOpen className="text-primary" size={24} />
+                Carga Académica Detallada
+              </DialogTitle>
+              <DialogDescription className="text-sm font-medium text-muted-foreground mt-1">
+                Materias, códigos y secciones oficiales asignadas al docente: <strong className="text-slate-700 dark:text-slate-350">{selectedAcademicLoadUser.full_name}</strong>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 my-3 max-h-[380px] overflow-y-auto pr-1">
+              {(() => {
+                const subjectCodes = (selectedAcademicLoadUser.subject_code || '').split(',').map(s => s.trim()).filter(Boolean);
+                const sections = (selectedAcademicLoadUser.section || '').split(',').map(s => s.trim()).filter(Boolean);
+                
+                if (subjectCodes.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-muted-foreground font-semibold">
+                      Este docente no tiene materias asignadas actualmente.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3.5">
+                    {subjectCodes.map((code, idx) => {
+                      const resolvedSubject = allSubjects.find(s => s.code.toUpperCase() === code.toUpperCase());
+                      const subjectName = resolvedSubject ? resolvedSubject.name : 'Unidad Curricular Sin Registrar';
+                      const sectionName = sections[idx] || (sections[0] ? `${sections[0]}` : 'Sin Sección');
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          className="flex items-start justify-between gap-4 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/30 border border-slate-200/50 dark:border-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-900/30 transition-all duration-300 animate-fadeIn"
+                        >
+                          <div className="space-y-1">
+                            <span className="font-mono font-black text-xs text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md uppercase">
+                              {code}
+                            </span>
+                            <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 pt-1 leading-snug">
+                              {subjectName}
+                            </h4>
+                            <p className="text-[11px] font-semibold text-muted-foreground">
+                              Programa: {resolvedSubject?.program || 'Por asignar'}
+                            </p>
+                          </div>
+                          
+                          <div className="flex flex-col items-end shrink-0 gap-2">
+                            <Badge variant="outline" className="font-extrabold text-[10px] bg-orange-500/5 text-orange-500 border border-orange-500/20 px-2 py-0.5 rounded-lg uppercase shrink-0">
+                              {sectionName}
+                            </Badge>
+                            {resolvedSubject && (
+                              <button
+                                onClick={() => {
+                                  alert(`Detalle Rápido de ${code}:\n\n• Nombre: ${subjectName}\n• Créditos: ${resolvedSubject.academic_credits}\n• Horas HAD: ${resolvedSubject.had_hours}\n• Nivel: ${resolvedSubject.level}\n• Período Académico: ${resolvedSubject.academic_period || 'N/A'}`);
+                                }}
+                                className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                              >
+                                Vista Rápida
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <DialogFooter>
+              <Button onClick={() => setSelectedAcademicLoadUser(null)} className="font-bold w-full sm:w-auto">
+                Cerrar Carga Académica
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
