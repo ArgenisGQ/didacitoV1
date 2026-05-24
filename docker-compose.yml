@@ -74,13 +74,13 @@ services:
     build:
       context: ./sys-plan
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8001}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8009}
     container_name: planning_frontend
     volumes:
       - ./sys-plan:/app
       - /app/node_modules
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8001}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8009}
     #ports:
     #  - "80:80"
     networks:

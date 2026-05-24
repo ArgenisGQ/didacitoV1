@@ -35,14 +35,6 @@ def seed():
         role="COORDINADOR",
     )
 
-    for i in range(1, 4):
-        User.objects.create_user(
-            email=f"docente0{i}@didactico.edu",
-            password=f"clave0{i}",
-            full_name=f"Docente Autor 0{i}",
-            role="DOCENTE",
-        )
-
     print("Seed data created successfully.")
 
 

@@ -35,6 +35,14 @@ class UserResponse(BaseModel):
     mfa_enabled: bool = False
     last_login: Optional[datetime] = None
     date_joined: Optional[datetime] = None
+    id_user: Optional[str] = None
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    subject_code: Optional[str] = None
+    section: Optional[str] = None
+    academic_period: Optional[str] = None
+    needs_password_change: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -122,6 +130,13 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
     mfa_required: bool = False
     mfa_token: Optional[str] = None
+    needs_password_change: bool = False
+    temp_token: Optional[str] = None
+
+
+class TeacherFirstPasswordChangeRequest(BaseModel):
+    temp_token: str
+    new_password: str = Field(..., min_length=6)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -196,6 +211,13 @@ class BulkImportRowPreview(BaseModel):
     status: str  # "VALID" or "INVALID"
     errors: List[str] = []
     warnings: List[str] = []
+    username: Optional[str] = None
+    id_user: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    subject_code: Optional[str] = None
+    section: Optional[str] = None
+    academic_period: Optional[str] = None
 
 
 class BulkImportPreviewResponse(BaseModel):
@@ -209,10 +231,18 @@ class BulkImportRowInput(BaseModel):
     email: EmailStr
     full_name: str
     role: UserRole
+    username: Optional[str] = None
+    id_user: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    subject_code: Optional[str] = None
+    section: Optional[str] = None
+    academic_period: Optional[str] = None
 
 
 class BulkImportConfirmRequest(BaseModel):
     users: List[BulkImportRowInput]
+    activation_method: Optional[str] = "activate"  # "activate" or "invite"
 
 
 class AuditLogResponse(BaseModel):

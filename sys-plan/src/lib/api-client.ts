@@ -5,7 +5,7 @@ let onTokenRefreshCallback: ((token: string) => void) | null = null;
 let onLogoutCallback: (() => void) | null = null;
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8001',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8009',
   headers: {
     'Content-Type': 'application/json',
   },

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import api, { setAccessToken } from '@/lib/api-client';
+import zxcvbn from 'zxcvbn';
 
 interface LoginProps {
   onLoginSuccess: (token: string) => void;
@@ -26,6 +27,13 @@ export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) 
   // Lockout countdown states
   const [lockoutTimeLeft, setLockoutTimeLeft] = useState<number | null>(null);
 
+  // Mandatory password change states
+  const [passwordChangeRequired, setPasswordChangeRequired] = useState(false);
+  const [tempPasswordToken, setTempPasswordToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordStrength, setPasswordStrength] = useState<any>(null);
+
   // Lockout countdown timer effect
   useEffect(() => {
     if (lockoutTimeLeft === null) return;
@@ -41,6 +49,64 @@ export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) 
 
     return () => clearInterval(interval);
   }, [lockoutTimeLeft]);
+
+  // Handle password strength calculation dynamically
+  useEffect(() => {
+    if (!newPassword) {
+      setPasswordStrength(null);
+      return;
+    }
+    const result = zxcvbn(newPassword);
+    setPasswordStrength(result);
+  }, [newPassword]);
+
+  const getStrengthLabel = (score: number) => {
+    switch (score) {
+      case 0: return { label: 'Muy débil', color: 'text-red-500 bg-red-500/10 border-red-500/20' };
+      case 1: return { label: 'Débil', color: 'text-orange-500 bg-orange-500/10 border-orange-500/20' };
+      case 2: return { label: 'Regular', color: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20' };
+      case 3: return { label: 'Fuerte', color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' };
+      case 4: return { label: 'Excelente', color: 'text-green-500 bg-green-500/10 border-green-500/20' };
+      default: return { label: 'Desconocido', color: 'text-slate-500 bg-slate-500/10 border-slate-500/20' };
+    }
+  };
+
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmNewPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+    
+    const minScore = 3; // Institutional requirement
+    if (passwordStrength && passwordStrength.score < minScore) {
+      setError('La contraseña no es lo suficientemente fuerte. Elija una contraseña más segura.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await api.post('/api/auth/first-login-change-password', {
+        temp_token: tempPasswordToken,
+        new_password: newPassword,
+      });
+
+      const data = response.data;
+      
+      // Successfully changed! Automatically log the user in
+      setAccessToken(data.access_token);
+      onLoginSuccess(data.access_token);
+    } catch (err: any) {
+      setError(
+        err.response?.data?.detail || 
+        'No se pudo cambiar la contraseña. Intente de nuevo.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handlePrimarySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +129,13 @@ export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) 
       if (data.mfa_required) {
         setMfaToken(data.mfa_token);
         setMfaRequired(true);
+        setIsLoading(false);
+        return;
+      }
+
+      if (data.needs_password_change) {
+        setTempPasswordToken(data.temp_token);
+        setPasswordChangeRequired(true);
         setIsLoading(false);
         return;
       }
@@ -166,11 +239,17 @@ export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) 
             </div>
             
             <CardTitle className="text-4xl font-extrabold tracking-tight text-white">
-              {mfaRequired ? 'Código de Seguridad' : 'Iniciar Sesión'}
+              {mfaRequired 
+                ? 'Código de Seguridad' 
+                : passwordChangeRequired 
+                ? 'Nueva Contraseña' 
+                : 'Iniciar Sesión'}
             </CardTitle>
             <CardDescription className="text-slate-400 text-base">
               {mfaRequired 
                 ? 'Su cuenta está protegida con MFA. Ingrese el código de su aplicación móvil.'
+                : passwordChangeRequired
+                ? 'Su cuenta ha sido importada por primera vez. Por seguridad institucional, debe establecer una contraseña personal y segura.'
                 : 'Bienvenido, identifíquese para gestionar sus planes de clase.'
               }
             </CardDescription>
@@ -199,8 +278,121 @@ export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) 
               </div>
             )}
 
-            {/* MFA Login Flow */}
-            {mfaRequired ? (
+            {/* Password Change Flow */}
+            {passwordChangeRequired ? (
+              <form onSubmit={handlePasswordChangeSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword" className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Nueva Contraseña
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <Input
+                      id="newPassword"
+                      type={showPassword ? 'text' : 'password'}
+                      className="pl-10 pr-12 h-12 bg-slate-800/50 border-slate-700 text-white placeholder-slate-500 text-base"
+                      placeholder="••••••••"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors"
+                      onClick={() => setShowPassword(!showPassword)}
+                      disabled={isLoading}
+                    >
+                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmNewPassword" className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Confirmar Contraseña
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <Input
+                      id="confirmNewPassword"
+                      type={showPassword ? 'text' : 'password'}
+                      className="pl-10 h-12 bg-slate-800/50 border-slate-700 text-white placeholder-slate-500 text-base"
+                      placeholder="••••••••"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+
+                {/* Password Strength Indicator */}
+                {passwordStrength && (
+                  <div className="space-y-2 p-4 rounded-xl bg-slate-900/40 border border-slate-800/80">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-400">Fortaleza:</span>
+                      <span className={`px-2 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider ${getStrengthLabel(passwordStrength.score).color}`}>
+                        {getStrengthLabel(passwordStrength.score).label}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5 pt-1">
+                      {[0, 1, 2, 3].map((step) => {
+                        let barColor = 'bg-slate-800';
+                        if (passwordStrength.score > step) {
+                          if (passwordStrength.score === 1) barColor = 'bg-red-500';
+                          else if (passwordStrength.score === 2) barColor = 'bg-orange-500';
+                          else if (passwordStrength.score === 3) barColor = 'bg-blue-500';
+                          else if (passwordStrength.score === 4) barColor = 'bg-green-500';
+                        }
+                        return (
+                          <div key={step} className={`h-1.5 rounded-full transition-colors duration-500 ${barColor}`} />
+                        );
+                      })}
+                    </div>
+                    {passwordStrength.feedback && (passwordStrength.feedback.warning || passwordStrength.feedback.suggestions?.length > 0) && (
+                      <div className="text-[11px] leading-relaxed text-slate-400 pt-2 font-medium">
+                        {passwordStrength.feedback.warning && (
+                          <p className="text-red-400/90 font-bold">⚠ {passwordStrength.feedback.warning}</p>
+                        )}
+                        {passwordStrength.feedback.suggestions?.map((sug: string, idx: number) => (
+                          <p key={idx} className="text-slate-400/80">• {sug}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3">
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full h-12 text-base font-extrabold bg-primary hover:bg-primary/90 text-white shadow-lg transition-transform duration-200 transform hover:scale-[1.01]"
+                    disabled={isLoading || !newPassword || newPassword !== confirmNewPassword || (passwordStrength && passwordStrength.score < 3)}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="animate-spin" size={20} />
+                    ) : (
+                      'Establecer y Acceder'
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full h-12 font-bold text-slate-400 hover:text-white"
+                    onClick={() => {
+                      setPasswordChangeRequired(false);
+                      setNewPassword('');
+                      setConfirmNewPassword('');
+                      setError('');
+                    }}
+                  >
+                    Volver a credenciales
+                  </Button>
+                </div>
+              </form>
+            ) : mfaRequired ? (
               <form onSubmit={handleMfaSubmit} className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="mfaCode" className="text-xs font-bold uppercase tracking-wider text-slate-300">

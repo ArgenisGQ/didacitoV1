@@ -144,7 +144,6 @@ async def import_users_preview(
     check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION])
     
     max_size_mb = SettingsManager.get_setting_as_int("MAX_CSV_FILE_SIZE_MB", 5)
-    # Check file size (rough check via spooling or reading)
     content = await file.read()
     if len(content) > max_size_mb * 1024 * 1024:
         raise HTTPException(
@@ -158,28 +157,56 @@ async def import_users_preview(
         if filename.endswith(".xlsx") or filename.endswith(".xls"):
             df = pd.read_excel(io.BytesIO(content))
         else:
-            # Assume CSV
-            df = pd.read_csv(io.StringIO(content.decode("utf-8", errors="ignore")))
+            # Assume CSV - Auto-detect delimiter
+            csv_str = content.decode("utf-8", errors="ignore")
+            sep = ";" if ";" in csv_str.split("\n")[0] else ","
+            df = pd.read_csv(io.StringIO(csv_str), sep=sep)
     except Exception as e:
         raise HTTPException(
             status_code=400,
             detail=f"No se pudo decodificar el archivo. Compruebe el formato CSV/Excel. Error: {str(e)}"
         )
     
-    required_cols = SettingsManager.get_setting_as_list("CSV_REQUIRED_COLUMNS", ["email", "full_name", "role"])
-    missing_cols = [col for col in required_cols if col not in df.columns]
-    if missing_cols:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Faltan las siguientes columnas obligatorias en el archivo: {', '.join(missing_cols)}"
+    # Normalize column names to make import highly tolerant
+    import unicodedata
+    def normalize_col(col_name: str) -> str:
+        c = col_name.strip().lower()
+        c = "".join(
+            ch for ch in unicodedata.normalize('NFKD', c)
+            if not unicodedata.combining(ch)
         )
+        return c
+
+    df.columns = [normalize_col(c) for c in df.columns]
+    
+    # Check if this is a Teacher Bulk Import by checking for 'cedula' column
+    is_teacher_import = "cedula" in df.columns
+    
+    if is_teacher_import:
+        required_cols = ["usuario", "cedula", "nombre", "apellido", "email", "curso completo", "periodo academico"]
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Faltan las siguientes columnas obligatorias para la importación de profesores: {', '.join(missing_cols)}"
+            )
+    else:
+        required_cols = SettingsManager.get_setting_as_list("CSV_REQUIRED_COLUMNS", ["email", "full_name", "role"])
+        norm_req_cols = [normalize_col(c) for c in required_cols]
+        missing_cols = [required_cols[i] for i, norm in enumerate(norm_req_cols) if norm not in df.columns]
+        if missing_cols:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Faltan las siguientes columnas obligatorias en el archivo: {', '.join(missing_cols)}"
+            )
     
     preview_rows = []
-    emails_in_file = set()
     
-    # Fetch existing emails in db to prevent double checking in loop
-    existing_users_res = await db.execute(select(User.email))
-    existing_emails = {email[0].lower() for email in existing_users_res.all()}
+    # Fetch existing data in db to prevent double checking in loop
+    existing_users_res = await db.execute(select(User.email, User.id_user))
+    existing_rows = existing_users_res.all()
+    existing_emails = {r[0].lower() for r in existing_rows if r[0]}
+    existing_cedulas = {str(r[1]).strip() for r in existing_rows if r[1]}
     
     # Fetch existing pending invitations to warn about them
     existing_invs_res = await db.execute(select(Invitation.email).where(Invitation.is_revoked == False))
@@ -188,57 +215,180 @@ async def import_users_preview(
     valid_count = 0
     invalid_count = 0
     
-    for idx, row in df.iterrows():
-        row_num = idx + 1
-        email_val = str(row.get("email", "")).strip().lower()
-        name_val = str(row.get("full_name", "")).strip()
-        role_val = str(row.get("role", "")).strip().upper()
+    if is_teacher_import:
+        teacher_records = {} # keyed by email
         
-        errors = []
-        warnings = []
-        
-        if not email_val or email_val == "nan":
-            errors.append("El correo electronico es obligatorio")
-        elif not is_valid_email(email_val):
-            errors.append(f"Formato de correo invalido: '{email_val}'")
-        else:
-            if email_val in emails_in_file:
-                errors.append(f"Correo duplicado dentro del mismo archivo CSV: '{email_val}'")
-            emails_in_file.add(email_val)
+        for idx, row in df.iterrows():
+            row_num = idx + 1
+            email_val = str(row.get("email", "")).strip().lower()
+            cedula_raw = str(row.get("cedula", "")).strip()
+            if cedula_raw.endswith(".0"):
+                cedula_raw = cedula_raw[:-2]
+            username_val = str(row.get("usuario", "")).strip()
+            first_name_val = str(row.get("nombre", "")).strip()
+            last_name_val = str(row.get("apellido", "")).strip()
+            curso_completo = str(row.get("curso completo", "")).strip()
+            period_val = str(row.get("periodo academico", "")).strip()
             
-            if email_val in existing_emails:
-                errors.append(f"El usuario ya esta registrado en la base de datos: '{email_val}'")
+            # Parse 'Curso Completo' (Subject code and Section separated by spaces)
+            parts = [p for p in curso_completo.split() if p]
+            subject_code_val = parts[0] if len(parts) > 0 and parts[0].lower() != "nan" else None
+            section_val = parts[1] if len(parts) > 1 and parts[1].lower() != "nan" else None
             
-            if email_val in pending_emails:
-                warnings.append(f"Ya existe una invitacion pendiente enviada a '{email_val}'")
+            if not email_val or email_val == "nan":
+                continue # Skip completely empty email rows
                 
-        if not name_val or name_val == "nan":
-            errors.append("El nombre completo es obligatorio")
-            
-        allowed_roles = [r.value for r in UserRole]
-        if not role_val or role_val == "NAN":
-            errors.append("El rol es obligatorio")
-        elif role_val not in allowed_roles:
-            errors.append(f"Rol invalido: '{role_val}'. Roles permitidos: {', '.join(allowed_roles)}")
-            
-        status_str = "INVALID" if errors else "VALID"
-        if status_str == "VALID":
-            valid_count += 1
-        else:
-            invalid_count += 1
-            
-        preview_rows.append(
-            BulkImportRowPreview(
-                row_num=row_num,
-                email=email_val if email_val != "nan" else None,
-                full_name=name_val if name_val != "nan" else None,
-                role=role_val if role_val != "NAN" else None,
-                status=status_str,
-                errors=errors,
-                warnings=warnings
+            if email_val not in teacher_records:
+                errors = []
+                warnings = []
+                
+                if not is_valid_email(email_val):
+                    errors.append(f"Formato de correo invalido: '{email_val}'")
+                if email_val in existing_emails:
+                    errors.append(f"El usuario ya esta registrado en la base de datos: '{email_val}'")
+                if email_val in pending_emails:
+                    warnings.append(f"Ya existe una invitacion pendiente enviada a '{email_val}'")
+                    
+                if not username_val or username_val == "nan":
+                    errors.append("El usuario es obligatorio")
+                if not cedula_raw or cedula_raw == "nan":
+                    errors.append("La cédula es obligatoria")
+                elif cedula_raw in existing_cedulas:
+                    errors.append(f"La cédula ya está registrada en la base de datos: '{cedula_raw}'")
+                    
+                if not first_name_val or first_name_val == "nan":
+                    errors.append("El nombre es obligatorio")
+                if not last_name_val or last_name_val == "nan":
+                    errors.append("El apellido es obligatorio")
+                    
+                if not subject_code_val:
+                    errors.append("El código de la materia (en el curso completo) es obligatorio")
+                    
+                subject_codes_set = {subject_code_val} if subject_code_val else set()
+                sections_set = {section_val} if section_val else set()
+                periods_set = {period_val} if period_val and period_val != "nan" else set()
+                
+                if subject_code_val:
+                    # Soft relationship check with programs sinopticos
+                    from api.models import Subject
+                    subj_res = await db.execute(select(Subject).where(Subject.code == subject_code_val))
+                    if not subj_res.scalars().first():
+                        warnings.append(
+                            f"La materia '{subject_code_val}' no se encuentra registrada en el sistema de programas sinópticos. "
+                            "El usuario se cargará con éxito y se vinculará de manera reactiva tan pronto como se cargue el PDF del syllabus."
+                        )
+                        
+                teacher_records[email_val] = {
+                    "row_num": row_num,
+                    "email": email_val,
+                    "full_name": f"{first_name_val} {last_name_val}".strip(),
+                    "username": username_val,
+                    "id_user": cedula_raw,
+                    "first_name": first_name_val,
+                    "last_name": last_name_val,
+                    "subject_codes_set": subject_codes_set,
+                    "sections_set": sections_set,
+                    "periods_set": periods_set,
+                    "errors": errors,
+                    "warnings": warnings,
+                    "role": UserRole.DOCENTE
+                }
+            else:
+                # Merge into existing record
+                rec = teacher_records[email_val]
+                if subject_code_val and subject_code_val not in rec["subject_codes_set"]:
+                    rec["subject_codes_set"].add(subject_code_val)
+                    from api.models import Subject
+                    subj_res = await db.execute(select(Subject).where(Subject.code == subject_code_val))
+                    if not subj_res.scalars().first():
+                        rec["warnings"].append(
+                            f"La materia '{subject_code_val}' no se encuentra registrada en el sistema de programas sinópticos. "
+                            "El usuario se cargará con éxito y se vinculará de manera reactiva tan pronto como se cargue el PDF del syllabus."
+                        )
+                if section_val:
+                    rec["sections_set"].add(section_val)
+                if period_val and period_val != "nan":
+                    rec["periods_set"].add(period_val)
+                    
+        for email_val, rec in teacher_records.items():
+            status_str = "INVALID" if rec["errors"] else "VALID"
+            if status_str == "VALID":
+                valid_count += 1
+            else:
+                invalid_count += 1
+                
+            preview_rows.append(
+                BulkImportRowPreview(
+                    row_num=rec["row_num"],
+                    email=email_val,
+                    full_name=rec["full_name"],
+                    role=rec["role"],
+                    status=status_str,
+                    errors=rec["errors"],
+                    warnings=rec["warnings"],
+                    username=rec["username"],
+                    id_user=rec["id_user"],
+                    first_name=rec["first_name"],
+                    last_name=rec["last_name"],
+                    subject_code=", ".join(sorted(rec["subject_codes_set"])),
+                    section=", ".join(sorted(rec["sections_set"])),
+                    academic_period=", ".join(sorted(rec["periods_set"]))
+                )
             )
-        )
-        
+    else:
+        # Standard Bulk Import
+        for idx, row in df.iterrows():
+            row_num = idx + 1
+            errors = []
+            warnings = []
+            
+            email_val = str(row.get("email", "")).strip().lower()
+            
+            if not email_val or email_val == "nan":
+                errors.append("El correo electronico es obligatorio")
+            elif not is_valid_email(email_val):
+                errors.append(f"Formato de correo invalido: '{email_val}'")
+            else:
+                if email_val in emails_in_file:
+                    errors.append(f"Correo duplicado dentro del mismo archivo CSV: '{email_val}'")
+                emails_in_file.add(email_val)
+                
+                if email_val in existing_emails:
+                    errors.append(f"El usuario ya esta registrado en la base de datos: '{email_val}'")
+                
+                if email_val in pending_emails:
+                    warnings.append(f"Ya existe una invitacion pendiente enviada a '{email_val}'")
+                    
+            name_val = str(row.get("full_name", "")).strip()
+            role_val = str(row.get("role", "")).strip().upper()
+            
+            if not name_val or name_val == "nan":
+                errors.append("El nombre completo es obligatorio")
+                
+            allowed_roles = [r.value for r in UserRole]
+            if not role_val or role_val == "NAN":
+                errors.append("El rol es obligatorio")
+            elif role_val not in allowed_roles:
+                errors.append(f"Rol invalido: '{role_val}'. Roles permitidos: {', '.join(allowed_roles)}")
+                
+            status_str = "INVALID" if errors else "VALID"
+            if status_str == "VALID":
+                valid_count += 1
+            else:
+                invalid_count += 1
+                
+            preview_rows.append(
+                BulkImportRowPreview(
+                    row_num=row_num,
+                    email=email_val if email_val != "nan" else None,
+                    full_name=name_val if name_val != "nan" else None,
+                    role=role_val if role_val != "NAN" else None,
+                    status=status_str,
+                    errors=errors,
+                    warnings=warnings
+                )
+            )
+            
     return BulkImportPreviewResponse(
         total_rows=len(df),
         valid_rows=valid_count,
@@ -258,7 +408,8 @@ async def import_users_confirm(
     if not payload.users:
         raise HTTPException(status_code=400, detail="No se proporcionaron usuarios para importar")
     
-    auto_activate = SettingsManager.get_setting_as_bool("CSV_AUTO_ACTIVATE_USERS", False)
+    activation_method = payload.activation_method or "activate"
+    auto_activate = (activation_method == "activate")
     expire_hours = SettingsManager.get_setting_as_int("INVITATION_TOKEN_EXPIRE_HOURS", 24)
     
     imported_count = 0
@@ -267,59 +418,117 @@ async def import_users_confirm(
     async with db.begin_nested(): # nested transaction for atomic operations
         for row in payload.users:
             email_clean = row.email.strip().lower()
-            # Double check existence to avoid race conditions
             existing_res = await db.execute(select(User).where(User.email == email_clean))
             if existing_res.scalars().first():
                 continue
                 
-            # Create user
-            # Provide a secure long random placeholder password
-            import secrets
-            rand_pwd = secrets.token_urlsafe(16)
-            hashed_pwd = get_password_hash(rand_pwd)
-            
-            new_user = User(
-                email=email_clean,
-                full_name=row.full_name.strip(),
-                role=row.role,
-                password=hashed_pwd,
-                is_active=auto_activate,
-                is_staff=False,
-                is_superuser=False
-            )
-            db.add(new_user)
-            await db.flush() # get new_user.id
-            
-            if not auto_activate:
-                # Generate invitation token
-                payload_jwt = {
-                    "sub": email_clean,
-                    "exp": datetime.now(timezone.utc) + timedelta(hours=expire_hours),
-                    "type": "invitation"
-                }
-                inv_token = jwt.encode(payload_jwt, SECRET_KEY, algorithm=ALGORITHM)
+            if row.id_user:
+                # Teacher Bulk Import Flow
+                if auto_activate:
+                    # Initial password is Cédula (id_user)
+                    hashed_pwd = get_password_hash(row.id_user.strip())
+                    is_active_val = True
+                    needs_pwd_change_val = True
+                else:
+                    # By Invitation
+                    import secrets
+                    rand_pwd = secrets.token_urlsafe(16)
+                    hashed_pwd = get_password_hash(rand_pwd)
+                    is_active_val = False
+                    needs_pwd_change_val = False
                 
-                # Revoke any previous active invitations for this email
-                await db.execute(
-                    update(Invitation)
-                    .where(Invitation.email == email_clean)
-                    .values(is_revoked=True)
-                )
-                
-                invitation = Invitation(
+                new_user = User(
                     email=email_clean,
-                    token=inv_token,
-                    expires_at=datetime.now(timezone.utc) + timedelta(hours=expire_hours),
-                    is_revoked=False,
-                    user_id=new_user.id
+                    full_name=row.full_name.strip(),
+                    role=UserRole.DOCENTE,
+                    password=hashed_pwd,
+                    is_active=is_active_val,
+                    is_staff=False,
+                    is_superuser=False,
+                    id_user=row.id_user.strip(),
+                    username=row.username.strip() if row.username else None,
+                    first_name=row.first_name.strip() if row.first_name else None,
+                    last_name=row.last_name.strip() if row.last_name else None,
+                    subject_code=row.subject_code.strip() if row.subject_code else None,
+                    section=row.section.strip() if row.section else None,
+                    academic_period=row.academic_period.strip() if row.academic_period else None,
+                    needs_password_change=needs_pwd_change_val
                 )
-                db.add(invitation)
-                invitations_created.append({
-                    "email": email_clean,
-                    "token": inv_token
-                })
-            
-            imported_count += 1
+                db.add(new_user)
+                await db.flush() # get new_user.id
+                
+                if not auto_activate:
+                    payload_jwt = {
+                        "sub": email_clean,
+                        "exp": datetime.now(timezone.utc) + timedelta(hours=expire_hours),
+                        "type": "invitation"
+                    }
+                    inv_token = jwt.encode(payload_jwt, SECRET_KEY, algorithm=ALGORITHM)
+                    
+                    await db.execute(
+                        update(Invitation)
+                        .where(Invitation.email == email_clean)
+                        .values(is_revoked=True)
+                    )
+                    
+                    invitation = Invitation(
+                        email=email_clean,
+                        token=inv_token,
+                        expires_at=datetime.now(timezone.utc) + timedelta(hours=expire_hours),
+                        is_revoked=False,
+                        user_id=new_user.id
+                    )
+                    db.add(invitation)
+                    invitations_created.append({
+                        "email": email_clean,
+                        "token": inv_token
+                    })
+                imported_count += 1
+            else:
+                # Standard Bulk Import Flow
+                import secrets
+                rand_pwd = secrets.token_urlsafe(16)
+                hashed_pwd = get_password_hash(rand_pwd)
+                
+                new_user = User(
+                    email=email_clean,
+                    full_name=row.full_name.strip(),
+                    role=row.role,
+                    password=hashed_pwd,
+                    is_active=auto_activate,
+                    is_staff=False,
+                    is_superuser=False
+                )
+                db.add(new_user)
+                await db.flush() # get new_user.id
+                
+                if not auto_activate:
+                    payload_jwt = {
+                        "sub": email_clean,
+                        "exp": datetime.now(timezone.utc) + timedelta(hours=expire_hours),
+                        "type": "invitation"
+                    }
+                    inv_token = jwt.encode(payload_jwt, SECRET_KEY, algorithm=ALGORITHM)
+                    
+                    await db.execute(
+                        update(Invitation)
+                        .where(Invitation.email == email_clean)
+                        .values(is_revoked=True)
+                    )
+                    
+                    invitation = Invitation(
+                        email=email_clean,
+                        token=inv_token,
+                        expires_at=datetime.now(timezone.utc) + timedelta(hours=expire_hours),
+                        is_revoked=False,
+                        user_id=new_user.id
+                    )
+                    db.add(invitation)
+                    invitations_created.append({
+                        "email": email_clean,
+                        "token": inv_token
+                    })
+                imported_count += 1
             
     await db.commit()
     
@@ -332,8 +541,6 @@ async def import_users_confirm(
         details={"imported_users_count": imported_count, "auto_activate": auto_activate}
     )
     
-    # In reality we would queue an email background task here.
-    # For this application, we return the counts and the invitation links/tokens for confirmation display.
     return {
         "success": True,
         "imported_count": imported_count,

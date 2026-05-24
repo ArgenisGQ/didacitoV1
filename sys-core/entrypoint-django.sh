@@ -37,8 +37,6 @@ from plan_app.models import User, SystemSetting
 if not User.objects.filter(email='gestion@didactico.edu').exists():
     User.objects.create_user(email='gestion@didactico.edu', password='gestion123', full_name='Admin de Gestion Academica', role='ADMIN_GESTION')
     User.objects.create_user(email='coordinador@didactico.edu', password='coord2024', full_name='Coordinador de Area', role='COORDINADOR')
-    for i in range(1, 4):
-        User.objects.create_user(email=f'docente0{i}@didactico.edu', password=f'clave0{i}', full_name=f'Docente Autor 0{i}', role='DOCENTE')
     print('Seed data created.')
 else:
     print('Seed data already exists.')

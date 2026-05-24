@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float, Text, CheckConstraint, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float, Text, CheckConstraint, JSON, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from api.database import Base
@@ -52,6 +52,27 @@ class User(Base):
         default=lambda: datetime.now(timezone.utc),
         server_default=func.now(),
     )
+
+    # Nuevos campos de gobernanza curricular para docentes
+    id_user = Column(String(50), unique=True, nullable=True)
+    username = Column(String(150), unique=True, nullable=True)
+    first_name = Column(String(150), nullable=True)
+    last_name = Column(String(150), nullable=True)
+    
+    # Relación lógica por código de materia con Subject
+    subject_code = Column(Text, ForeignKey("plan_app_subject.code"), nullable=True)
+    subject = relationship(
+        "Subject",
+        primaryjoin="User.subject_code == Subject.code",
+        foreign_keys=[subject_code],
+        backref="teachers"
+    )
+    
+    section = Column(Text, nullable=True)
+    academic_period = Column(Text, nullable=True)
+    
+    # Bandera para forzar cambio de clave en primer inicio de sesión
+    needs_password_change = Column(Boolean, default=False, nullable=False)
 
     authored_plans = relationship(
         "LessonPlan", back_populates="author",
@@ -255,4 +276,36 @@ class AuditLog(Base):
         default=lambda: datetime.now(timezone.utc),
         server_default=func.now(),
     )
+
+
+class Subject(Base):
+    __tablename__ = "plan_app_subject"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    document_code = Column(String(100), nullable=True)
+    program = Column(String(255), nullable=True)
+    level = Column(String(50), default="PREGRADO")
+    identification_date = Column(Date, nullable=True)
+    syllabus_version_year = Column(String(10), nullable=True)
+    academic_credits = Column(Integer, default=0)
+    had_hours = Column(Integer, default=0)
+    hde_hours = Column(Integer, default=0)
+    hts_hours = Column(Integer, default=0)
+    academic_period = Column(Integer, nullable=True)
+    prerequisite = Column(Text, nullable=True)
+    presentation = Column(Text, nullable=True)
+    purpose = Column(Text, nullable=True)
+    previous_competencies = Column(Text, nullable=True)
+    generic_competencies = Column(Text, nullable=True)
+    relation_other_subjects = Column(Text, nullable=True)
+    teaching_strategies = Column(Text, nullable=True)
+    eval_diagnostica = Column(Text, nullable=True)
+    eval_formativa = Column(Text, nullable=True)
+    eval_sumativa = Column(Text, nullable=True)
+    bibliographic_references = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), server_default=func.now(), onupdate=lambda: datetime.now(timezone.utc))
+
 

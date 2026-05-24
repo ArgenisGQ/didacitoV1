@@ -39,6 +39,13 @@ interface RowPreview {
   status: 'VALID' | 'INVALID'
   errors: string[]
   warnings: string[]
+  id_user?: string | null
+  username?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  subject_code?: string | null
+  section?: string | null
+  academic_period?: string | null
 }
 
 interface ImportPreviewResponse {
@@ -78,6 +85,7 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
   const [omitErrors, setOmitErrors] = useState(false)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [result, setResult] = useState<ImportConfirmResponse | null>(null)
+  const [activationMethod, setActivationMethod] = useState<'activate' | 'invite'>('activate')
 
   // 1. Upload & Preview Mutation
   const previewMutation = useMutation({
@@ -101,10 +109,8 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
 
   // 2. Confirm Import Mutation
   const confirmMutation = useMutation({
-    mutationFn: async (usersToConfirm: { email: string; full_name: string; role: string }[]) => {
-      const { data } = await api.post<ImportConfirmResponse>('/admin/users/import/confirm', {
-        users: usersToConfirm,
-      })
+    mutationFn: async (payload: { users: any[]; activation_method: string }) => {
+      const { data } = await api.post<ImportConfirmResponse>('/admin/users/import/confirm', payload)
       return data
     },
     onSuccess: (data) => {
@@ -159,6 +165,7 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
     setErrorMsg(null)
     setOmitErrors(false)
     setResult(null)
+    setActivationMethod('activate')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -178,6 +185,13 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
         email: r.email,
         full_name: r.full_name,
         role: r.role,
+        id_user: r.id_user || null,
+        username: r.username || null,
+        first_name: r.first_name || null,
+        last_name: r.last_name || null,
+        subject_code: r.subject_code || null,
+        section: r.section || null,
+        academic_period: r.academic_period || null,
       }))
 
     if (usersPayload.length === 0) {
@@ -185,7 +199,10 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
       return
     }
 
-    confirmMutation.mutate(usersPayload)
+    confirmMutation.mutate({
+      users: usersPayload,
+      activation_method: activationMethod
+    })
   }
 
   const copyToClipboard = (text: string, index: number) => {
@@ -312,6 +329,53 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
                   <p className="text-2xl font-black mt-1 text-destructive">{preview.invalid_rows}</p>
                 </div>
               </div>
+                           {/* Método de Alta en Sistema */}
+              <div className="space-y-2 bg-slate-50/50 dark:bg-slate-950/30 p-4 rounded-2xl border border-slate-200/55 dark:border-slate-800/55">
+                <label className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                  Método de Alta y Registro de Docentes
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setActivationMethod('activate')}
+                    className={`p-3.5 rounded-xl border text-left transition-all duration-300 flex flex-col justify-between min-h-[92px] ${
+                      activationMethod === 'activate'
+                        ? 'border-blue-500/55 bg-blue-500/5 dark:bg-blue-500/10 shadow-lg shadow-blue-500/5 scale-[1.01]'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700 bg-card/65'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-extrabold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${activationMethod === 'activate' ? 'bg-blue-500' : 'bg-slate-300'}`} />
+                        Activar Masivamente
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-semibold leading-relaxed mt-2.5">
+                      Activo al instante en base de datos. Su contraseña inicial es su Cédula y se les fuerza a cambiarla en su primer login de forma obligatoria.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActivationMethod('invite')}
+                    className={`p-3.5 rounded-xl border text-left transition-all duration-300 flex flex-col justify-between min-h-[92px] ${
+                      activationMethod === 'invite'
+                        ? 'border-orange-500/55 bg-orange-500/5 dark:bg-orange-500/10 shadow-lg shadow-orange-500/5 scale-[1.01]'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700 bg-card/65'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-extrabold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${activationMethod === 'invite' ? 'bg-orange-500' : 'bg-slate-300'}`} />
+                        Por Invitación
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-semibold leading-relaxed mt-2.5">
+                      Inactivo en el sistema. Genera enlaces de invitación únicos para que el docente complete su registro y contraseña vía correo de forma autónoma.
+                    </p>
+                  </button>
+                </div>
+              </div>
 
               {/* Options */}
               {hasInvalidRows && (
@@ -350,6 +414,25 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
                         <td className="p-3">
                           <div className="font-bold text-slate-800 dark:text-slate-200">{row.full_name || <span className="italic text-slate-400">Sin nombre</span>}</div>
                           <div className="text-xs text-muted-foreground mt-0.5">{row.email || <span className="italic text-slate-400">Sin correo</span>}</div>
+                          
+                          {row.id_user && (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                              <Badge variant="outline" className="font-extrabold text-[8px] tracking-tight bg-slate-500/10 text-slate-650 dark:text-slate-350 border border-slate-500/15">
+                                Cédula: {row.id_user}
+                              </Badge>
+                              {row.subject_code && (
+                                <Badge variant="outline" className="font-extrabold text-[8px] tracking-tight bg-blue-500/5 text-blue-600 dark:text-blue-400 border border-blue-500/15 max-w-[160px] truncate" title={row.subject_code}>
+                                  Materias: {row.subject_code}
+                                </Badge>
+                              )}
+                              {row.section && (
+                                <Badge variant="outline" className="font-extrabold text-[8px] tracking-tight bg-orange-500/5 text-orange-655 dark:text-orange-400 border border-orange-500/15 max-w-[100px] truncate" title={row.section}>
+                                  Secciones: {row.section}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+
                           {row.errors.length > 0 && (
                             <div className="mt-2 space-y-1">
                               {row.errors.map((e, i) => (

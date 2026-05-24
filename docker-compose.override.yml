@@ -5,9 +5,9 @@ services:
     build:
       context: ./sys-plan
       args:
-        VITE_API_URL: "http://localhost:8001"
+        VITE_API_URL: "http://localhost:8009"
     environment:
-      VITE_API_URL: "http://localhost:8001"
+      VITE_API_URL: "http://localhost:8009"
 
   django-admin:
     ports:
@@ -15,7 +15,7 @@ services:
 
   fastapi-api:
     ports:
-      - "8001:8001" # Para probar el API en local
+      - "8009:8001" # Para probar el API en local
     environment:
       ALLOWED_ORIGINS: "http://localhost,http://127.0.0.1,http://localhost:80,http://localhost:5173"
       APP_ENV: local

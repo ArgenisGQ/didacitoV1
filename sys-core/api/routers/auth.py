@@ -36,6 +36,7 @@ from api.schemas import (
     MFATokenLoginRequest,
     TokenResponse,
     AccountActivationRequest,
+    TeacherFirstPasswordChangeRequest,
 )
 from api.core.dependencies import get_current_user
 from api.core.limiter import limiter
@@ -129,6 +130,27 @@ async def login(
     user.failed_login_attempts = 0
     user.lockout_until = None
     await db.commit()
+
+    # 3.5. First-login password change check
+    if getattr(user, "needs_password_change", False):
+        temp_token = jwt.encode(
+            {
+                "sub": str(user.id),
+                "email": user.email,
+                "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+                "type": "password_change_pending"
+            },
+            SECRET_KEY,
+            algorithm=ALGORITHM
+        )
+        return {
+            "access_token": None,
+            "token_type": "bearer",
+            "mfa_required": False,
+            "mfa_token": None,
+            "needs_password_change": True,
+            "temp_token": temp_token
+        }
 
     # 4. MFA transition check
     if user.mfa_enabled:
@@ -398,6 +420,114 @@ async def disable_mfa(
     current_user.mfa_secret = None
     await db.commit()
     return {"message": "Autenticación multifactor desactivada exitosamente"}
+
+
+@router.post("/api/auth/first-login-change-password", response_model=LoginResponse)
+async def first_login_change_password(
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    payload_data: TeacherFirstPasswordChangeRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    from api.routers.admin import log_audit_background, update_last_login
+    import zxcvbn
+    from api.core.settings_manager import SettingsManager
+    
+    # 1. Decode and validate the temporary password change pending token
+    try:
+        payload = jwt.decode(payload_data.temp_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "password_change_pending":
+            raise JWTError()
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token temporal de cambio de clave inválido o expirado"
+        )
+        
+    user_id = int(payload.get("sub"))
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalars().first()
+    
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuario inválido o inactivo"
+        )
+        
+    # 2. Robustness check of the new password using zxcvbn
+    strength = zxcvbn.zxcvbn(payload_data.new_password)
+    min_score = SettingsManager.get_setting_as_int("MINIMUM_PASSWORD_STRENGTH_SCORE", 3)
+    if strength.get("score", 0) < min_score:
+        crack_time = strength.get("crack_times_display", {}).get("offline_fast_hashing_1e10_per_second", "instantaneamente")
+        warning = strength.get("feedback", {}).get("warning", "")
+        suggestions = ", ".join(strength.get("feedback", {}).get("suggestions", []))
+        detail_msg = f"Contraseña muy débil (Fortaleza {strength.get('score')}/{min_score}). Se crackearía {crack_time}."
+        if warning:
+            detail_msg += f" Advertencia: {warning}."
+        if suggestions:
+            detail_msg += f" Sugerencias: {suggestions}."
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail_msg
+        )
+        
+    # 3. Save new password and remove mandatory change password flag
+    user.password = get_password_hash(payload_data.new_password)
+    user.needs_password_change = False
+    await db.commit()
+    
+    # 4. Generate definitive session tokens (RTR cookie refresh token)
+    access_token = create_access_token(data={"sub": user.email, "role": user.role})
+    jti = uuid.uuid4().hex
+    refresh_token_jwt = create_refresh_token(data={"sub": user.email}, jti=jti)
+    token_hash = hashlib.sha256(refresh_token_jwt.encode()).hexdigest()
+    
+    db_refresh_token = RefreshToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        jti=jti,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        is_revoked=False,
+        parent_jti=None
+    )
+    db.add(db_refresh_token)
+    await db.commit()
+    
+    # Set Cookie HttpOnly securely
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token_jwt,
+        httponly=True,
+        secure=is_prod,
+        samesite="lax",
+        max_age=7 * 24 * 3600
+    )
+    
+    background_tasks.add_task(update_last_login, user_id=user.id)
+    background_tasks.add_task(
+        log_audit_background,
+        user_id=user.id,
+        action="PASSWORD_MANDATORY_CHANGED",
+        ip_address=request.client.host if request.client else "unknown",
+        user_agent=request.headers.get("user-agent", "unknown"),
+        details={"email": user.email}
+    )
+    background_tasks.add_task(
+        log_audit_background,
+        user_id=user.id,
+        action="LOGIN_SUCCESS",
+        ip_address=request.client.host if request.client else "unknown",
+        user_agent=request.headers.get("user-agent", "unknown"),
+        details={"email": user.email, "mfa_used": False}
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "mfa_required": False,
+        "needs_password_change": False
+    }
 
 
 @router.post("/api/auth/refresh", response_model=TokenResponse)

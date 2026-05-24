@@ -61,6 +61,30 @@ class User(AbstractBaseUser, PermissionsMixin):
     deactivated_at = models.DateTimeField(blank=True, null=True)
     deactivation_reason = models.TextField(blank=True, null=True)
 
+    # Nuevos campos de gobernanza curricular para docentes
+    id_user = models.CharField(max_length=50, unique=True, blank=True, null=True, verbose_name="Cédula")
+    username = models.CharField(max_length=150, unique=True, blank=True, null=True, verbose_name="Usuario")
+    first_name = models.CharField(max_length=150, blank=True, null=True)
+    last_name = models.CharField(max_length=150, blank=True, null=True)
+    
+    # Relación lógica por código de materia con Subject
+    subject_code = models.TextField(blank=True, null=True)
+    subject = models.ForeignKey(
+        "Subject",
+        to_field="code",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="teachers",
+        db_constraint=False  # Relación lógica sin restricción física estricta a nivel de base de datos
+    )
+    
+    section = models.TextField(blank=True, null=True)
+    academic_period = models.TextField(blank=True, null=True)
+    
+    # Bandera para forzar cambio de clave en primer inicio de sesión
+    needs_password_change = models.BooleanField(default=False)
+
     objects = UserManager()
 
     USERNAME_FIELD = "email"

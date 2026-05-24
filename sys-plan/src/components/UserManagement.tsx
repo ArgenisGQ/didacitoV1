@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   useReactTable,
   getCoreRowModel,
+  getPaginationRowModel,
   type ColumnDef,
   flexRender,
 } from '@tanstack/react-table'
@@ -60,6 +61,11 @@ interface UserData {
   is_active: boolean
   date_joined: string
   mfa_enabled: boolean
+  id_user?: string
+  username?: string
+  subject_code?: string
+  section?: string
+  academic_period?: string
 }
 
 const roleLabels: Record<string, string> = {
@@ -141,9 +147,13 @@ export default function UserManagement() {
     return users.filter((u) => {
       const fullName = u.full_name || ''
       const email = u.email || ''
+      const idUser = u.id_user || ''
+      const username = u.username || ''
       const matchesSearch = 
         fullName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        email.toLowerCase().includes(debouncedSearch.toLowerCase())
+        email.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        idUser.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        username.toLowerCase().includes(debouncedSearch.toLowerCase())
       
       const matchesRole = roleFilter === 'ALL' || u.role === roleFilter
       
@@ -160,7 +170,7 @@ export default function UserManagement() {
     () => [
       {
         accessorKey: 'full_name',
-        header: 'Docente / Administrador',
+        header: 'Docente / Colaborador',
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9">
@@ -179,13 +189,54 @@ export default function UserManagement() {
         ),
       },
       {
+        accessorKey: 'id_user',
+        header: 'ID / Cédula',
+        cell: ({ row }) => (
+          <span className="font-mono font-bold text-xs text-slate-700 dark:text-slate-350">
+            {row.original.id_user || '—'}
+          </span>
+        ),
+      },
+      {
         accessorKey: 'role',
-        header: 'Rol de Sistema',
+        header: 'Rol',
         cell: ({ row }) => (
           <Badge variant={roleVariants[row.original.role] || 'outline'} className="font-extrabold text-[10px] uppercase">
             {roleLabels[row.original.role] || row.original.role}
           </Badge>
         ),
+      },
+      {
+        id: 'academic_load',
+        header: 'Carga Académica',
+        cell: ({ row }) => {
+          const isDocente = row.original.role === 'DOCENTE';
+          if (!isDocente) return <span className="text-slate-400 font-medium text-xs">—</span>;
+          
+          const subjectStr = row.original.subject_code || '';
+          const sectionStr = row.original.section || '';
+          
+          const subjects = subjectStr.split(',').map(s => s.trim()).filter(Boolean);
+          const sections = sectionStr.split(',').map(s => s.trim()).filter(Boolean);
+          
+          return (
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <Badge className="font-extrabold text-[9px] bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border border-blue-500/25">
+                  {subjects.length} {subjects.length === 1 ? 'materia' : 'materias'}
+                </Badge>
+                <Badge variant="outline" className="font-extrabold text-[9px] bg-orange-500/5 text-orange-500 border border-orange-500/30">
+                  {sections.length} {sections.length === 1 ? 'sección' : 'secciones'}
+                </Badge>
+              </div>
+              {(subjects.length > 0 || sections.length > 0) && (
+                <p className="text-[10px] text-muted-foreground font-medium max-w-[180px] truncate" title={`${subjectStr} | ${sectionStr}`}>
+                  {subjects.join(', ')} ({sections.join(', ')})
+                </p>
+              )}
+            </div>
+          );
+        }
       },
       {
         accessorKey: 'mfa_enabled',
@@ -248,6 +299,12 @@ export default function UserManagement() {
     data: filteredUsers,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
   })
 
   const activePendingInvs = invitations.filter((inv: any) => !inv.is_revoked && new Date(inv.expires_at) > new Date())
@@ -393,54 +450,125 @@ export default function UserManagement() {
                 ))}
               </div>
             ) : (
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
-                    {table.getHeaderGroups().map((headerGroup) => (
-                      <TableRow key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
-                          <TableHead key={header.id} className="p-3.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext()
-                                )}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableHeader>
-                  <TableBody>
-                    {table.getRowModel().rows.length ? (
-                      table.getRowModel().rows.map((row) => (
-                        <TableRow
-                          key={row.id}
-                          className={`hover:bg-slate-50/20 dark:hover:bg-slate-950/10 font-medium ${!row.original.is_active ? 'opacity-50' : ''}`}
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id} className="p-3.5">
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext()
-                              )}
-                            </TableCell>
+              <>
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id} className="p-3.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                            </TableHead>
                           ))}
                         </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={columns.length}
-                          className="text-center h-32 text-muted-foreground font-semibold"
-                        >
-                          Ningún usuario coincide con los filtros especificados.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {table.getRowModel().rows.length ? (
+                        table.getRowModel().rows.map((row) => (
+                          <TableRow
+                            key={row.id}
+                            className={`hover:bg-slate-50/20 dark:hover:bg-slate-950/10 font-medium ${!row.original.is_active ? 'opacity-50' : ''}`}
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell key={cell.id} className="p-3.5">
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell
+                            colSpan={columns.length}
+                            className="text-center h-32 text-muted-foreground font-semibold"
+                          >
+                            Ningún usuario coincide con los filtros especificados.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Premium Pagination Controls */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200/60 dark:border-slate-800/60 text-sm text-slate-500 font-medium">
+                  <div className="flex items-center gap-2">
+                    <span>Mostrar</span>
+                    <Select
+                      value={table.getState().pagination.pageSize.toString()}
+                      onValueChange={(val) => table.setPageSize(parseInt(val, 10))}
+                    >
+                      <SelectTrigger className="w-[80px] h-9 bg-card border-slate-200/80">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span>por página</span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <span>
+                      Página <strong>{table.getState().pagination.pageIndex + 1}</strong> de{' '}
+                      <strong>{table.getPageCount() || 1}</strong>
+                    </span>
+                    <span className="mx-2 text-slate-350">•</span>
+                    <span>Total: <strong>{filteredUsers.length}</strong> usuarios</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => table.setPageIndex(0)}
+                      disabled={!table.getCanPreviousPage()}
+                      className="h-9 px-3 border-slate-200/85"
+                    >
+                      «
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => table.previousPage()}
+                      disabled={!table.getCanPreviousPage()}
+                      className="h-9 px-3 font-semibold border-slate-200/85"
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => table.nextPage()}
+                      disabled={!table.getCanNextPage()}
+                      className="h-9 px-3 font-semibold border-slate-200/85"
+                    >
+                      Siguiente
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                      disabled={!table.getCanNextPage()}
+                      className="h-9 px-3 border-slate-200/85"
+                    >
+                      »
+                    </Button>
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
