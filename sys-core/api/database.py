@@ -18,16 +18,15 @@ elif DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 
 # Configurar SSL según DB_SSLMODE (coincide con la variable de Django)
-DB_SSLMODE = os.getenv("DB_SSLMODE", "disable")
-connect_args = {}
-if DB_SSLMODE in ("require", "prefer", "allow"):
-    connect_args["ssl"] = DB_SSLMODE
-elif DB_SSLMODE == "disable":
-    connect_args["ssl"] = False
+# Se inyecta directamente en la URL para garantizar que asyncpg lo reciba correctamente
+DB_SSLMODE = os.getenv("DB_SSLMODE", "disable").strip()
+if "ssl=" not in DATABASE_URL:
+    separator = "&" if "?" in DATABASE_URL else "?"
+    DATABASE_URL += f"{separator}ssl={DB_SSLMODE}"
 
 # FastAPI connects directly to the same DB that Django manages.
 # Tables are created by Django migrations -- FastAPI never runs create_all.
-engine = create_async_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+engine = create_async_engine(DATABASE_URL, echo=False)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
