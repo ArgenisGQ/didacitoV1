@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 from api.routers import health, auth, plans, users, admin, syllabus_proxy
 from slowapi.errors import RateLimitExceeded
@@ -30,7 +33,11 @@ async def startup_event():
     import asyncio
     from api.core.settings_manager import SettingsManager
     from api.core.scheduler import run_daily_inactivity_cleanup
-    await SettingsManager.initialize()
+    try:
+        await SettingsManager.initialize()
+        logger.info("SettingsManager initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize SettingsManager on startup: {e}. App will continue without cached settings.")
     asyncio.create_task(run_daily_inactivity_cleanup())
 
 
