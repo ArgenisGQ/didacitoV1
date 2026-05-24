@@ -100,6 +100,7 @@ export default function UserManagement() {
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserData | null>(null)
   const [selectedAcademicLoadUser, setSelectedAcademicLoadUser] = useState<UserData | null>(null)
+  const [expandedSubjectCode, setExpandedSubjectCode] = useState<string | null>(null)
   
   // Search & Filter States
   const [searchInput, setSearchInput] = useState('')
@@ -712,7 +713,12 @@ export default function UserManagement() {
       {selectedAcademicLoadUser && (
         <Dialog 
           open={!!selectedAcademicLoadUser} 
-          onOpenChange={(open) => { if (!open) setSelectedAcademicLoadUser(null) }}
+          onOpenChange={(open) => { 
+            if (!open) {
+              setSelectedAcademicLoadUser(null);
+              setExpandedSubjectCode(null);
+            }
+          }}
         >
           <DialogContent className="sm:max-w-[600px] border-slate-200/80 dark:border-slate-800/80 glass-morphism shadow-2xl animate-fadeIn">
             <DialogHeader>
@@ -725,7 +731,7 @@ export default function UserManagement() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 my-3 max-h-[380px] overflow-y-auto pr-1">
+            <div className="space-y-4 my-3 max-h-[420px] overflow-y-auto pr-1">
               {(() => {
                 const subjectCodes = (selectedAcademicLoadUser.subject_code || '').split(',').map(s => s.trim()).filter(Boolean);
                 const sections = (selectedAcademicLoadUser.section || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -748,35 +754,66 @@ export default function UserManagement() {
                       return (
                         <div 
                           key={idx} 
-                          className="flex items-start justify-between gap-4 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/30 border border-slate-200/50 dark:border-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-900/30 transition-all duration-300 animate-fadeIn"
+                          className="flex flex-col rounded-2xl bg-slate-50/50 dark:bg-slate-950/30 border border-slate-200/50 dark:border-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-900/30 transition-all duration-300 animate-fadeIn"
                         >
-                          <div className="space-y-1">
-                            <span className="font-mono font-black text-xs text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md uppercase">
-                              {code}
-                            </span>
-                            <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 pt-1 leading-snug">
-                              {subjectName}
-                            </h4>
-                            <p className="text-[11px] font-semibold text-muted-foreground">
-                              Programa: {resolvedSubject?.program || 'Por asignar'}
-                            </p>
+                          {/* Tarjeta Principal */}
+                          <div className="flex items-start justify-between gap-4 p-4 w-full">
+                            <div className="space-y-1">
+                              <span className="font-mono font-black text-xs text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md uppercase">
+                                {code}
+                              </span>
+                              <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 pt-1 leading-snug">
+                                {subjectName}
+                              </h4>
+                              <p className="text-[11px] font-semibold text-muted-foreground">
+                                Programa: {resolvedSubject?.program || 'Por asignar'}
+                              </p>
+                            </div>
+                            
+                            <div className="flex flex-col items-end shrink-0 gap-2">
+                              <Badge variant="outline" className="font-extrabold text-[10px] bg-orange-500/5 text-orange-500 border border-orange-500/20 px-2 py-0.5 rounded-lg uppercase shrink-0">
+                                {sectionName}
+                              </Badge>
+                              {resolvedSubject && (
+                                <button
+                                  onClick={() => {
+                                    setExpandedSubjectCode(expandedSubjectCode === code ? null : code);
+                                  }}
+                                  className="text-[11px] font-bold text-primary hover:underline cursor-pointer select-none"
+                                >
+                                  {expandedSubjectCode === code ? 'Ocultar Detalle' : 'Vista Rápida'}
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          
-                          <div className="flex flex-col items-end shrink-0 gap-2">
-                            <Badge variant="outline" className="font-extrabold text-[10px] bg-orange-500/5 text-orange-500 border border-orange-500/20 px-2 py-0.5 rounded-lg uppercase shrink-0">
-                              {sectionName}
-                            </Badge>
-                            {resolvedSubject && (
-                              <button
-                                onClick={() => {
-                                  alert(`Detalle Rápido de ${code}:\n\n• Nombre: ${subjectName}\n• Créditos: ${resolvedSubject.academic_credits}\n• Horas HAD: ${resolvedSubject.had_hours}\n• Nivel: ${resolvedSubject.level}\n• Período Académico: ${resolvedSubject.academic_period || 'N/A'}`);
-                                }}
-                                className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
-                              >
-                                Vista Rápida
-                              </button>
-                            )}
-                          </div>
+
+                          {/* Acordeón Expansible Inline (Opción A) */}
+                          {resolvedSubject && expandedSubjectCode === code && (
+                            <div className="mx-4 mb-4 p-4 rounded-xl bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200/40 dark:border-slate-800/40 animate-fadeIn space-y-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {/* Tarjeta de Nivel */}
+                                <div className="p-3 bg-card border rounded-xl text-center space-y-1 shadow-sm">
+                                  <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest block">Nivel</span>
+                                  <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">{resolvedSubject.level}</span>
+                                </div>
+                                {/* Tarjeta de Créditos */}
+                                <div className="p-3 bg-card border rounded-xl text-center space-y-1 shadow-sm">
+                                  <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest block">Créditos</span>
+                                  <span className="text-[11px] font-black text-slate-800 dark:text-slate-200">{resolvedSubject.academic_credits}</span>
+                                </div>
+                                {/* Tarjeta de Horas HAD */}
+                                <div className="p-3 bg-card border rounded-xl text-center space-y-1 shadow-sm">
+                                  <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest block">Horas HAD</span>
+                                  <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">{resolvedSubject.had_hours}h</span>
+                                </div>
+                                {/* Tarjeta de Periodo */}
+                                <div className="p-3 bg-card border rounded-xl text-center space-y-1 shadow-sm">
+                                  <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest block">Periodo</span>
+                                  <span className="text-[11px] font-black text-slate-800 dark:text-slate-200">{resolvedSubject.academic_period || 'N/A'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -786,7 +823,13 @@ export default function UserManagement() {
             </div>
 
             <DialogFooter>
-              <Button onClick={() => setSelectedAcademicLoadUser(null)} className="font-bold w-full sm:w-auto">
+              <Button 
+                onClick={() => {
+                  setSelectedAcademicLoadUser(null);
+                  setExpandedSubjectCode(null);
+                }} 
+                className="font-bold w-full sm:w-auto"
+              >
                 Cerrar Carga Académica
               </Button>
             </DialogFooter>
