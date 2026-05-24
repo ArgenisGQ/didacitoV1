@@ -11,6 +11,10 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://user:password@planning-db:5432/planning_db"
 )
 
+# Robustecer la URL para producción en Dokploy (convertir a driver asíncrono si viene síncrono)
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 engine = create_async_engine(DATABASE_URL, echo=False)
 
 AsyncSessionLocal = async_sessionmaker(
