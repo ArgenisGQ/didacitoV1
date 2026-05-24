@@ -14,6 +14,8 @@ DATABASE_URL = os.getenv(
 # Robustecer la URL para producción en Dokploy (convertir a driver asíncrono si viene síncrono)
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 
 # FastAPI connects directly to the same DB that Django manages.
 # Tables are created by Django migrations -- FastAPI never runs create_all.

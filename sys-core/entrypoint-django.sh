@@ -2,10 +2,19 @@
 set -e
 
 echo ">>> [Django] Waiting for PostgreSQL..."
-while ! pg_isready -h "$DB_HOST" -U user -d planning_db -q; do
-    echo "  DB not ready... retrying in 3s"
-    sleep 3
-done
+DB_URI="${DATABASE_URL_SYNC:-$DATABASE_URL}"
+if [ -n "$DB_URI" ]; then
+    CLEAN_URI=$(echo "$DB_URI" | sed 's/postgresql+asyncpg/postgresql/g' | sed 's/postgres/postgresql/g')
+    while ! pg_isready -d "$CLEAN_URI" -q; do
+        echo "  DB (URI) not ready... retrying in 3s"
+        sleep 3
+    done
+else
+    while ! pg_isready -h "${DB_HOST:-planning-db}" -U "${DB_USER:-user}" -d "${DB_NAME:-planning_db}" -q; do
+        echo "  DB not ready... retrying in 3s"
+        sleep 3
+    done
+fi
 echo ">>> [Django] PostgreSQL is ready!"
 
 echo ">>> [Django] Generating migrations..."
