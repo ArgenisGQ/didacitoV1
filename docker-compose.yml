@@ -11,9 +11,10 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./pg-start.sh:/pg-start.sh:ro
-    entrypoint: ["sh", "/pg-start.sh"]
-    command: ["postgres"]
+    entrypoint:
+      - "sh"
+      - "-c"
+      - "if [ -f /var/lib/postgresql/data/pg_hba.conf ]; then sed -i 's/hostssl/host/g' /var/lib/postgresql/data/pg_hba.conf; fi; exec /usr/local/bin/docker-entrypoint.sh postgres"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user -d planning_db"]
       interval: 5s
