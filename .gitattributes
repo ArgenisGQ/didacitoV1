@@ -1,0 +1,2 @@
+# Garantizar que todos los archivos shell script tengan finales de línea UNIX (LF)
+*.sh text eol=lf

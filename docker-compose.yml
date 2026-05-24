@@ -6,19 +6,16 @@ services:
       POSTGRES_DB: planning_db
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
       PGSSLMODE: disable
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./pg-start.sh:/pg-start.sh:ro
-    entrypoint: ["sh", "/pg-start.sh"]
     healthcheck:
-      test: ["CMD", "pg_isready"]
+      test: ["CMD-SHELL", "pg_isready -U user -d planning_db"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 5
     networks:
       - dokploy-network
 
@@ -41,7 +38,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-super_secret_key_shared_with_frontend}
     depends_on:
       planning-db:
-        condition: service_started
+        condition: service_healthy
       #ports:
     #  - "8000:8000"
     networks:
@@ -98,7 +95,7 @@ services:
       ALGORITHM: ${ALGORITHM:-HS256}
     depends_on:
       planning-db:
-        condition: service_started
+        condition: service_healthy
     networks:
       - dokploy-network
 
