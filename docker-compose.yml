@@ -7,6 +7,7 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+      PGSSLMODE: disable
     ports:
       - "5432:5432"
     volumes:
@@ -14,13 +15,13 @@ services:
     command: >
       sh -c "
         if [ -f /var/lib/postgresql/data/pg_hba.conf ]; then
-          sed -i 's/hostssl\b/host/g' /var/lib/postgresql/data/pg_hba.conf;
+          sed -i 's/hostssl/host/g' /var/lib/postgresql/data/pg_hba.conf;
           echo 'pg_hba.conf: hostssl -> host (SSL disabled)';
         fi;
         exec postgres -c ssl=off
       "
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U user -d planning_db" ]
+      test: [ "CMD-SHELL", "pg_isready -h 127.0.0.1 -U user -d planning_db" ]
       interval: 5s
       timeout: 5s
       retries: 10
