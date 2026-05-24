@@ -20,6 +20,8 @@ elif DATABASE_URL.startswith("postgres://"):
 # Configurar SSL según DB_SSLMODE (coincide con la variable de Django)
 # Se inyecta directamente en la URL para garantizar que asyncpg lo reciba correctamente
 DB_SSLMODE = os.getenv("DB_SSLMODE", "disable").strip()
+if not DB_SSLMODE:
+    DB_SSLMODE = "disable"
 if "ssl=" not in DATABASE_URL:
     separator = "&" if "?" in DATABASE_URL else "?"
     DATABASE_URL += f"{separator}ssl={DB_SSLMODE}"
