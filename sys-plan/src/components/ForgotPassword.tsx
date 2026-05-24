@@ -22,7 +22,7 @@ export default function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
     setError('');
 
     try {
-      await api.post('/api/auth/forgot-password', { email });
+      await api.post('/auth/forgot-password', { email });
       setSuccess(true);
     } catch (err: any) {
       setError(

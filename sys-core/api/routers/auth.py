@@ -356,7 +356,7 @@ async def login_mfa(
     }
 
 
-@router.post("/api/auth/mfa/setup", response_model=MFASetupResponse)
+@router.post("/auth/mfa/setup", response_model=MFASetupResponse)
 async def setup_mfa(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -387,7 +387,7 @@ async def setup_mfa(
     }
 
 
-@router.post("/api/auth/mfa/verify-and-enable")
+@router.post("/auth/mfa/verify-and-enable")
 async def verify_and_enable_mfa(
     verify_req: MFAVerifyRequest,
     current_user: User = Depends(get_current_user),
@@ -411,7 +411,7 @@ async def verify_and_enable_mfa(
         )
 
 
-@router.post("/api/auth/mfa/disable")
+@router.post("/auth/mfa/disable")
 async def disable_mfa(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -422,7 +422,7 @@ async def disable_mfa(
     return {"message": "Autenticación multifactor desactivada exitosamente"}
 
 
-@router.post("/api/auth/first-login-change-password", response_model=LoginResponse)
+@router.post("/auth/first-login-change-password", response_model=LoginResponse)
 async def first_login_change_password(
     request: Request,
     response: Response,
@@ -530,7 +530,7 @@ async def first_login_change_password(
     }
 
 
-@router.post("/api/auth/refresh", response_model=TokenResponse)
+@router.post("/auth/refresh", response_model=TokenResponse)
 async def refresh_token(
     request: Request,
     response: Response,
@@ -626,7 +626,7 @@ async def refresh_token(
     }
 
 
-@router.post("/api/auth/logout")
+@router.post("/auth/logout")
 async def logout(
     request: Request,
     response: Response,
@@ -665,7 +665,7 @@ async def logout(
     return {"message": "Sesión cerrada exitosamente"}
 
 
-@router.post("/api/auth/forgot-password")
+@router.post("/auth/forgot-password")
 @limiter.limit("5/minute")
 async def forgot_password(
     request: Request,
@@ -725,7 +725,7 @@ async def forgot_password(
     }
 
 
-@router.post("/api/auth/validate-reset-token")
+@router.post("/auth/validate-reset-token")
 async def validate_reset_token(
     validate_req: ValidateTokenRequest,
     db: AsyncSession = Depends(get_db),
@@ -769,7 +769,7 @@ async def validate_reset_token(
     }
 
 
-@router.post("/api/auth/reset-password")
+@router.post("/auth/reset-password")
 async def reset_password(
     reset_req: ResetPasswordRequest,
     background_tasks: BackgroundTasks,

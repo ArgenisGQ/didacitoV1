@@ -88,7 +88,7 @@ export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) 
     setError('');
 
     try {
-      const response = await api.post('/api/auth/first-login-change-password', {
+      const response = await api.post('/auth/first-login-change-password', {
         temp_token: tempPasswordToken,
         new_password: newPassword,
       });

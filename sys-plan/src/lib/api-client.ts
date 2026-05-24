@@ -55,7 +55,7 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     // Prevent infinite loops if refresh requests fail
-    if (originalRequest.url?.includes('/api/auth/refresh')) {
+    if (originalRequest.url?.includes('/auth/refresh')) {
       setAccessToken(null);
       return Promise.reject(error);
     }
@@ -76,7 +76,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshResponse = await api.post('/api/auth/refresh');
+        const refreshResponse = await api.post('/auth/refresh');
         const { access_token } = refreshResponse.data;
         setAccessToken(access_token);
 

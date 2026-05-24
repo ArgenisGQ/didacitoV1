@@ -38,7 +38,7 @@ function App() {
       }
 
       try {
-        const response = await api.post('/api/auth/refresh');
+        const response = await api.post('/auth/refresh');
         const { access_token } = response.data;
         setToken(access_token);
         setAccessToken(access_token);
@@ -66,7 +66,7 @@ function App() {
   const handleLogout = async () => {
     setIsLoading(true);
     try {
-      await api.post('/api/auth/logout');
+      await api.post('/auth/logout');
     } catch (e) {
       // Ignore network errors on logout
     }

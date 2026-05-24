@@ -46,7 +46,7 @@ export default function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
 
     const validateToken = async () => {
       try {
-        const response = await api.post('/api/auth/validate-reset-token', { token: t });
+        const response = await api.post('/auth/validate-reset-token', { token: t });
         setEmail(response.data.email);
       } catch (err: any) {
         setTokenError(
@@ -69,7 +69,7 @@ export default function ResetPassword({ onResetSuccess }: ResetPasswordProps) {
     setError('');
 
     try {
-      await api.post('/api/auth/reset-password', {
+      await api.post('/auth/reset-password', {
         token,
         password,
       });

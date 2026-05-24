@@ -41,7 +41,7 @@ export default function SecuritySettings() {
     setIsLoading(true);
     setActionError('');
     try {
-      const response = await api.post('/api/auth/mfa/setup');
+      const response = await api.post('/auth/mfa/setup');
       setQrCode(response.data.qr_code_base64);
       setSecret(response.data.secret);
       setStep(2);
@@ -63,7 +63,7 @@ export default function SecuritySettings() {
     setIsLoading(true);
     setActionError('');
     try {
-      await api.post('/api/auth/mfa/verify-and-enable', { token: totpCode });
+      await api.post('/auth/mfa/verify-and-enable', { token: totpCode });
       setMfaEnabled(true);
       setStep(1); // Return to main tab showing active status
       setTotpCode('');
@@ -82,7 +82,7 @@ export default function SecuritySettings() {
     setIsLoading(true);
     setActionError('');
     try {
-      await api.post('/api/auth/mfa/disable');
+      await api.post('/auth/mfa/disable');
       setMfaEnabled(false);
       setStep(1);
     } catch (err: any) {
