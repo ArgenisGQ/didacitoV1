@@ -17,9 +17,17 @@ if DATABASE_URL.startswith("postgresql://"):
 elif DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 
+# Configurar SSL según DB_SSLMODE (coincide con la variable de Django)
+DB_SSLMODE = os.getenv("DB_SSLMODE", "disable")
+connect_args = {}
+if DB_SSLMODE in ("require", "prefer", "allow"):
+    connect_args["ssl"] = DB_SSLMODE
+elif DB_SSLMODE == "disable":
+    connect_args["ssl"] = False
+
 # FastAPI connects directly to the same DB that Django manages.
 # Tables are created by Django migrations -- FastAPI never runs create_all.
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(DATABASE_URL, echo=False, connect_args=connect_args)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
