@@ -11,7 +11,14 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    command: ["postgres", "-c", "ssl=off"]
+    command: >
+      sh -c "
+        if [ -f /var/lib/postgresql/data/pg_hba.conf ]; then
+          sed -i 's/hostssl\b/host/g' /var/lib/postgresql/data/pg_hba.conf;
+          echo 'pg_hba.conf: hostssl -> host (SSL disabled)';
+        fi;
+        exec postgres -c ssl=off
+      "
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U user -d planning_db" ]
       interval: 5s
