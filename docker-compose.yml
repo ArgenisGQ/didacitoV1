@@ -15,7 +15,7 @@ services:
       - ./pg-start.sh:/pg-start.sh:ro
     entrypoint: ["sh", "/pg-start.sh"]
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -h 127.0.0.1 -U user -d planning_db" ]
+      test: ["CMD", "pg_isready"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -41,8 +41,8 @@ services:
       SECRET_KEY: ${SECRET_KEY:-super_secret_key_shared_with_frontend}
     depends_on:
       planning-db:
-        condition: service_healthy
-    #ports:
+        condition: service_started
+      #ports:
     #  - "8000:8000"
     networks:
       - dokploy-network
@@ -98,7 +98,7 @@ services:
       ALGORITHM: ${ALGORITHM:-HS256}
     depends_on:
       planning-db:
-        condition: service_healthy
+        condition: service_started
     networks:
       - dokploy-network
 
