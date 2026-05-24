@@ -6,12 +6,11 @@ services:
       POSTGRES_DB: planning_db
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./sys-core/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-    command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U user -d planning_db" ]
       interval: 5s
@@ -26,8 +25,6 @@ services:
       dockerfile: Dockerfile.django
     entrypoint: [ "sh", "/app/entrypoint-django.sh" ]
     container_name: planning_django
-    volumes:
-      - ./sys-core:/app
     environment:
       DB_NAME: planning_db
       DB_USER: user
@@ -54,8 +51,6 @@ services:
       dockerfile: Dockerfile.fastapi
     entrypoint: [ "sh", "/app/entrypoint-fastapi.sh" ]
     container_name: planning_fastapi
-    volumes:
-      - ./sys-core:/app
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://user:password@planning-db:5432/planning_db}
       DATABASE_URL_SYNC: ${DATABASE_URL_SYNC:-postgresql://user:password@planning-db:5432/planning_db}
@@ -76,9 +71,6 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8009}
     container_name: planning_frontend
-    volumes:
-      - ./sys-plan:/app
-      - /app/node_modules
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8009}
     #ports:
@@ -95,8 +87,7 @@ services:
     entrypoint: [ "sh", "/app/entrypoint-syllabus.sh" ]
     container_name: planning_syllabus
     volumes:
-      - ./sys-syllabus:/app
-      - ./sys-core/syllabus_pdfs:/app/syllabus_pdfs
+      - syllabus_pdfs_data:/app/syllabus_pdfs
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://user:password@planning-db:5432/planning_db}
       SECRET_KEY: ${SECRET_KEY:-super_secret_key_shared_with_frontend}
@@ -109,6 +100,7 @@ services:
 
 volumes:
   postgres_data:
+  syllabus_pdfs_data:
 
 networks:
   dokploy-network:

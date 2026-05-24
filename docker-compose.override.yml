@@ -8,10 +8,15 @@ services:
         VITE_API_URL: "http://localhost:8009"
     environment:
       VITE_API_URL: "http://localhost:8009"
+    volumes:
+      - ./sys-plan:/app
+      - /app/node_modules
 
   django-admin:
     ports:
       - "8000:8000" # Para entrar al admin de Django en local
+    volumes:
+      - ./sys-core:/app
 
   fastapi-api:
     ports:
@@ -21,6 +26,8 @@ services:
       APP_ENV: local
       ENABLE_DOCS: "true"
       DISABLE_RATE_LIMIT: "true"
+    volumes:
+      - ./sys-core:/app
 
   syllabus-service:
     ports:
@@ -28,6 +35,9 @@ services:
     environment:
       APP_ENV: local
       ENABLE_DOCS: "true"
+    volumes:
+      - ./sys-syllabus:/app
+      - ./sys-core/syllabus_pdfs:/app/syllabus_pdfs
 
 networks:
   dokploy-network:
