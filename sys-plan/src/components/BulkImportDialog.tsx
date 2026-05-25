@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   UploadCloud,
   FileText,
@@ -25,6 +25,13 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface BulkImportDialogProps {
   isOpen: boolean
@@ -86,6 +93,7 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [result, setResult] = useState<ImportConfirmResponse | null>(null)
   const [activationMethod, setActivationMethod] = useState<'activate' | 'invite'>('activate')
+  const [globalAcademicPeriodId, setGlobalAcademicPeriodId] = useState<string>('none')
 
   // 1. Upload & Preview Mutation
   const previewMutation = useMutation({
@@ -166,6 +174,7 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
     setOmitErrors(false)
     setResult(null)
     setActivationMethod('activate')
+    setGlobalAcademicPeriodId('none')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -192,6 +201,7 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
         subject_code: r.subject_code || null,
         section: r.section || null,
         academic_period: r.academic_period || null,
+        academic_period_id: globalAcademicPeriodId !== 'none' ? parseInt(globalAcademicPeriodId, 10) : null
       }))
 
     if (usersPayload.length === 0) {
@@ -204,6 +214,15 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
       activation_method: activationMethod
     })
   }
+
+  const { data: periods = [] } = useQuery<any[]>({
+    queryKey: ['academic-periods-dropdown'],
+    queryFn: async () => {
+      const { data } = await api.get('/academic-periods')
+      return data
+    },
+    enabled: isOpen
+  })
 
   const copyToClipboard = (text: string, index: number) => {
     navigator.clipboard.writeText(text)
@@ -375,6 +394,34 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
                     </p>
                   </button>
                 </div>
+              </div>
+
+              {/* Asignación de Periodo Académico Global */}
+              <div className="space-y-2 bg-slate-50/50 dark:bg-slate-950/30 p-4 rounded-2xl border border-slate-200/55 dark:border-slate-800/55">
+                <label className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                  Asignar Periodo Académico al Lote (Opcional)
+                </label>
+                <div className="w-full">
+                  <Select
+                    value={globalAcademicPeriodId}
+                    onValueChange={setGlobalAcademicPeriodId}
+                  >
+                    <SelectTrigger className="bg-card border-slate-200/80 h-11 w-full">
+                      <SelectValue placeholder="Seleccionar periodo académico para asociar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ninguno / Mantener el definido en el archivo</SelectItem>
+                      {periods.map((period: any) => (
+                        <SelectItem key={period.id} value={String(period.id)}>
+                          {period.name} {period.is_active ? '(Activo)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-[10px] text-muted-foreground font-semibold leading-relaxed mt-1">
+                  Si selecciona un periodo aquí, todos los docentes importados en este lote serán asociados a él prioritariamente (sobreescribiendo o rellenando el valor del archivo).
+                </p>
               </div>
 
               {/* Options */}

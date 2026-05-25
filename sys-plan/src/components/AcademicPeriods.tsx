@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Wand2, Plus, Calendar as CalendarIcon, Trash2, CheckCircle2, Clock, History, Pencil, Power } from 'lucide-react'
+import { Wand2, Plus, Calendar as CalendarIcon, Trash2, CheckCircle2, Clock, History, Pencil, Power, Users } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 interface AcademicPeriod {
@@ -19,6 +19,7 @@ interface AcademicPeriod {
   end_date: string
   is_active: boolean
   type: string
+  user_count?: number
 }
 
 export default function AcademicPeriods() {
@@ -341,6 +342,10 @@ export default function AcademicPeriods() {
                     <span className="text-muted-foreground block mb-1">Fin:</span>
                     <span className="font-semibold">{format(parseISO(activePeriod.end_date), 'dd/MM/yyyy')}</span>
                   </div>
+                  <div>
+                    <span className="text-muted-foreground block mb-1">Usuarios Registrados:</span>
+                    <span className="font-bold text-lg text-primary">{activePeriod.user_count ?? 0}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -378,6 +383,7 @@ export default function AcademicPeriods() {
                       <div className="text-sm text-muted-foreground mb-4 space-y-1">
                         <div className="flex items-center gap-2"><CalendarIcon size={14} /> Inicio: {format(parseISO(period.start_date), 'dd/MM/yyyy')}</div>
                         <div className="flex items-center gap-2"><CalendarIcon size={14} /> Fin: {format(parseISO(period.end_date), 'dd/MM/yyyy')}</div>
+                        <div className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-350"><Users size={14} /> Usuarios: {period.user_count ?? 0}</div>
                       </div>
                        <div className="flex gap-2">
                         <Button variant="outline" size="sm" className="flex-1 font-bold" onClick={() => updateMutation.mutate({ id: period.id, is_active: true })}>
@@ -445,9 +451,10 @@ export default function AcademicPeriods() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-sm text-muted-foreground space-y-1">
                         <div className="flex items-center gap-2"><CalendarIcon size={14} /> Inicio: {format(parseISO(period.start_date), 'dd/MM/yyyy')}</div>
                         <div className="flex items-center gap-2"><CalendarIcon size={14} /> Fin: {format(parseISO(period.end_date), 'dd/MM/yyyy')}</div>
+                        <div className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-350"><Users size={14} /> Usuarios: {period.user_count ?? 0}</div>
                       </div>
                           <div className="mt-4 flex gap-2">
                             <Button variant="outline" size="sm" className="flex-1 font-bold" onClick={() => updateMutation.mutate({ id: period.id, is_active: true })}>

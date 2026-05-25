@@ -6,7 +6,7 @@ from typing import List
 from api.database import get_db
 from api.core.dependencies import get_current_user, check_role
 from api.core.security import get_password_hash
-from api.models import User, UserRole
+from api.models import User, UserRole, AcademicPeriod, UserAcademicPeriod, CreationMethod
 from api.schemas import UserResponse, UserCreate, UserUpdate
 
 from pydantic import BaseModel
@@ -124,14 +124,137 @@ async def change_my_password(
 
 
 
+from sqlalchemy.orm import selectinload, joinedload
+
 @router.get("", response_model=List[UserResponse])
 async def list_users(
+    period_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    check_role(current_user, [UserRole.SUPER_ADMIN])
-    result = await db.execute(select(User))
-    return result.scalars().all()
+    check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION])
+    
+    users_response = []
+    if period_id is not None and period_id > 0:
+        # Filter by a specific academic period
+        query = (
+            select(UserAcademicPeriod)
+            .options(
+                joinedload(UserAcademicPeriod.user),
+                joinedload(UserAcademicPeriod.academic_period),
+                joinedload(UserAcademicPeriod.creator)
+            )
+            .where(UserAcademicPeriod.academic_period_id == period_id)
+        )
+        res = await db.execute(query)
+        assignments = res.scalars().all()
+        
+        for ass in assignments:
+            u = ass.user
+            if u:
+                users_response.append(
+                    UserResponse(
+                        id=u.id,
+                        email=u.email,
+                        full_name=u.full_name,
+                        role=u.role,
+                        is_active=ass.is_active,
+                        is_staff=u.is_staff,
+                        is_superuser=u.is_superuser,
+                        mfa_enabled=u.mfa_enabled,
+                        last_login=u.last_login,
+                        date_joined=u.date_joined,
+                        id_user=u.id_user,
+                        username=u.username,
+                        first_name=u.first_name,
+                        last_name=u.last_name,
+                        needs_password_change=u.needs_password_change,
+                        # Pivot relation details
+                        subject_code=ass.subject_code,
+                        section=ass.section,
+                        academic_period=ass.academic_period.name,
+                        academic_period_id=ass.academic_period_id,
+                        period_is_active=ass.is_active,
+                        period_created_at=ass.created_at,
+                        period_created_by_email=ass.creator.email if ass.creator else None,
+                        period_creation_method=ass.creation_method
+                    )
+                )
+    elif period_id == 0:
+        # Filter for users with "No Academic Period" (Sin Periodo Académico)
+        # Find users who have NO associations in UserAcademicPeriod
+        query = (
+            select(User)
+            .outerjoin(UserAcademicPeriod, User.id == UserAcademicPeriod.user_id)
+            .where(UserAcademicPeriod.id == None)
+        )
+        res = await db.execute(query)
+        users = res.scalars().all()
+        
+        for u in users:
+            users_response.append(
+                UserResponse(
+                    id=u.id,
+                    email=u.email,
+                    full_name=u.full_name,
+                    role=u.role,
+                    is_active=u.is_active,
+                    is_staff=u.is_staff,
+                    is_superuser=u.is_superuser,
+                    mfa_enabled=u.mfa_enabled,
+                    last_login=u.last_login,
+                    date_joined=u.date_joined,
+                    id_user=u.id_user,
+                    username=u.username,
+                    first_name=u.first_name,
+                    last_name=u.last_name,
+                    needs_password_change=u.needs_password_change
+                )
+            )
+    else:
+        # Return all users, and if they have any period associations, attach the first one
+        query = (
+            select(User)
+            .options(
+                selectinload(User.academic_period_assignments).joinedload(UserAcademicPeriod.academic_period),
+                selectinload(User.academic_period_assignments).joinedload(UserAcademicPeriod.creator)
+            )
+        )
+        res = await db.execute(query)
+        users = res.scalars().all()
+        
+        for u in users:
+            ass = u.academic_period_assignments[0] if u.academic_period_assignments else None
+            users_response.append(
+                UserResponse(
+                    id=u.id,
+                    email=u.email,
+                    full_name=u.full_name,
+                    role=u.role,
+                    is_active=u.is_active,
+                    is_staff=u.is_staff,
+                    is_superuser=u.is_superuser,
+                    mfa_enabled=u.mfa_enabled,
+                    last_login=u.last_login,
+                    date_joined=u.date_joined,
+                    id_user=u.id_user,
+                    username=u.username,
+                    first_name=u.first_name,
+                    last_name=u.last_name,
+                    needs_password_change=u.needs_password_change,
+                    # Pivot relation details (if any)
+                    subject_code=ass.subject_code if ass else None,
+                    section=ass.section if ass else None,
+                    academic_period=ass.academic_period.name if ass else None,
+                    academic_period_id=ass.academic_period_id if ass else None,
+                    period_is_active=ass.is_active if ass else None,
+                    period_created_at=ass.created_at if ass else None,
+                    period_created_by_email=ass.creator.email if ass and ass.creator else None,
+                    period_creation_method=ass.creation_method if ass else None
+                )
+            )
+            
+    return users_response
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -140,15 +263,15 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    check_role(current_user, [UserRole.SUPER_ADMIN])
+    check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION])
 
     existing = await db.execute(select(User).where(User.email == user_in.email))
     if existing.scalars().first():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="El correo ya se encuentra registrado")
 
     new_user = User(
-        email=user_in.email,
-        full_name=user_in.full_name,
+        email=user_in.email.strip().lower(),
+        full_name=user_in.full_name.strip(),
         role=user_in.role,
         password=get_password_hash(user_in.password),
         is_active=True,
@@ -156,9 +279,53 @@ async def create_user(
         is_superuser=False,
     )
     db.add(new_user)
+    await db.flush() # get new_user.id
+
+    created_rel = None
+    ap_name = None
+    if user_in.academic_period_id:
+        ap_res = await db.execute(select(AcademicPeriod).where(AcademicPeriod.id == user_in.academic_period_id))
+        ap = ap_res.scalar_one_or_none()
+        if not ap:
+            raise HTTPException(status_code=404, detail="Periodo academico no encontrado")
+        ap_name = ap.name
+        
+        created_rel = UserAcademicPeriod(
+            user_id=new_user.id,
+            academic_period_id=user_in.academic_period_id,
+            is_active=True,
+            created_by_id=current_user.id,
+            creation_method=CreationMethod.MANUAL
+        )
+        db.add(created_rel)
+        await db.flush()
+
     await db.commit()
-    await db.refresh(new_user)
-    return new_user
+    
+    return UserResponse(
+        id=new_user.id,
+        email=new_user.email,
+        full_name=new_user.full_name,
+        role=new_user.role,
+        is_active=new_user.is_active,
+        is_staff=new_user.is_staff,
+        is_superuser=new_user.is_superuser,
+        mfa_enabled=new_user.mfa_enabled,
+        last_login=new_user.last_login,
+        date_joined=new_user.date_joined,
+        id_user=new_user.id_user,
+        username=new_user.username,
+        first_name=new_user.first_name,
+        last_name=new_user.last_name,
+        needs_password_change=new_user.needs_password_change,
+        # Pivot fields
+        academic_period=ap_name,
+        academic_period_id=user_in.academic_period_id if created_rel else None,
+        period_is_active=created_rel.is_active if created_rel else None,
+        period_created_at=created_rel.created_at if created_rel else None,
+        period_created_by_email=current_user.email if created_rel else None,
+        period_creation_method=created_rel.creation_method if created_rel else None
+    )
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -168,29 +335,114 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    check_role(current_user, [UserRole.SUPER_ADMIN])
+    check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION])
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalars().first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     if user_in.email is not None:
-        user.email = user_in.email
+        user.email = user_in.email.strip().lower()
     if user_in.full_name is not None:
-        user.full_name = user_in.full_name
+        user.full_name = user_in.full_name.strip()
     if user_in.role is not None:
         user.role = user_in.role
-    if user_in.password is not None:
+    if user_in.password is not None and user_in.password.strip() != "":
         user.password = get_password_hash(user_in.password)
     if user_in.is_active is not None:
         if user_id == current_user.id and user_in.is_active is False:
             raise HTTPException(status_code=400, detail="No puedes desactivar tu propia cuenta")
         user.is_active = user_in.is_active
 
+    ap_name = None
+    period_rel = None
+    
+    # Check if period was updated
+    if user_in.academic_period_id is not None:
+        if user_in.academic_period_id > 0:
+            ap_res = await db.execute(select(AcademicPeriod).where(AcademicPeriod.id == user_in.academic_period_id))
+            ap = ap_res.scalar_one_or_none()
+            if not ap:
+                raise HTTPException(status_code=404, detail="Periodo academico no encontrado")
+            ap_name = ap.name
+            
+            # Check if relationship already exists
+            rel_res = await db.execute(
+                select(UserAcademicPeriod)
+                .where(
+                    UserAcademicPeriod.user_id == user.id,
+                    UserAcademicPeriod.academic_period_id == user_in.academic_period_id
+                )
+            )
+            period_rel = rel_res.scalars().first()
+            if not period_rel:
+                # Create relation
+                period_rel = UserAcademicPeriod(
+                    user_id=user.id,
+                    academic_period_id=user_in.academic_period_id,
+                    is_active=True,
+                    created_by_id=current_user.id,
+                    creation_method=CreationMethod.MANUAL
+                )
+                db.add(period_rel)
+            else:
+                # Mark as active if already exists
+                period_rel.is_active = True
+                
+        else:
+            # academic_period_id is 0 or null (unassigned) -> delete all relationships for this user
+            from sqlalchemy import delete
+            await db.execute(delete(UserAcademicPeriod).where(UserAcademicPeriod.user_id == user.id))
+    else:
+        # Period not specified in update. Get the first existing relationship if any.
+        rel_res = await db.execute(
+            select(UserAcademicPeriod)
+            .options(joinedload(UserAcademicPeriod.academic_period), joinedload(UserAcademicPeriod.creator))
+            .where(UserAcademicPeriod.user_id == user.id)
+        )
+        period_rel = rel_res.scalars().first()
+        if period_rel:
+            ap_name = period_rel.academic_period.name
+
+    db.add(user)
     await db.commit()
     await db.refresh(user)
-    return user
+    
+    # If relationship was created/updated, refresh it or load creator
+    creator_email = None
+    if period_rel:
+        if not getattr(period_rel, 'creator', None):
+            c_res = await db.execute(select(User).where(User.id == period_rel.created_by_id))
+            creator = c_res.scalar_one_or_none()
+            creator_email = creator.email if creator else None
+        else:
+            creator_email = period_rel.creator.email if period_rel.creator else None
+            
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        is_active=user.is_active,
+        is_staff=user.is_staff,
+        is_superuser=user.is_superuser,
+        mfa_enabled=user.mfa_enabled,
+        last_login=user.last_login,
+        date_joined=user.date_joined,
+        id_user=user.id_user,
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        needs_password_change=user.needs_password_change,
+        # Pivot fields
+        academic_period=ap_name,
+        academic_period_id=user_in.academic_period_id if user_in.academic_period_id and user_in.academic_period_id > 0 else (period_rel.academic_period_id if period_rel else None),
+        period_is_active=period_rel.is_active if period_rel else None,
+        period_created_at=period_rel.created_at if period_rel else None,
+        period_created_by_email=creator_email,
+        period_creation_method=period_rel.creation_method if period_rel else None
+    )
 
 
 @router.delete("/{user_id}")

@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     User, Catalog, Parameter, LessonPlan,
-    EvaluationPlan, WeeklyContent
+    EvaluationPlan, WeeklyContent, AcademicPeriod, UserAcademicPeriod
 )
 
 
@@ -83,3 +83,19 @@ class EvaluationPlanAdmin(admin.ModelAdmin):
 class WeeklyContentAdmin(admin.ModelAdmin):
     list_display = ("id", "lesson_plan", "week_number")
     list_filter = ("week_number",)
+
+
+@admin.register(AcademicPeriod)
+class AcademicPeriodAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "start_date", "end_date", "is_active", "type")
+    list_filter = ("is_active", "type")
+    search_fields = ("name",)
+
+
+@admin.register(UserAcademicPeriod)
+class UserAcademicPeriodAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "academic_period", "subject_code", "section", "is_active", "created_at", "creation_method", "created_by")
+    list_filter = ("is_active", "creation_method", "academic_period")
+    search_fields = ("user__email", "user__full_name", "academic_period__name", "subject_code")
+
+

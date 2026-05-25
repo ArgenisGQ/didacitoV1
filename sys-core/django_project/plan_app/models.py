@@ -67,20 +67,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=150, blank=True, null=True)
     last_name = models.CharField(max_length=150, blank=True, null=True)
     
-    # Relación lógica por código de materia con Subject
-    subject_code = models.TextField(blank=True, null=True)
-    subject = models.ForeignKey(
-        "Subject",
-        to_field="code",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="teachers",
-        db_constraint=False  # Relación lógica sin restricción física estricta a nivel de base de datos
-    )
-    
-    section = models.TextField(blank=True, null=True)
-    academic_period = models.TextField(blank=True, null=True)
+    # El usuario conserva sus datos generales; su carga académica y periodos se administran en la tabla pivot UserAcademicPeriod.
     
     # Bandera para forzar cambio de clave en primer inicio de sesión
     needs_password_change = models.BooleanField(default=False)
@@ -413,3 +400,42 @@ class AcademicPeriod(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_type_display()})"
+
+
+class CreationMethod(models.TextChoices):
+    BULK = "BULK", "Carga por Lote"
+    MANUAL = "MANUAL", "Individual"
+
+
+class UserAcademicPeriod(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="academic_period_assignments")
+    academic_period = models.ForeignKey(AcademicPeriod, on_delete=models.CASCADE, related_name="user_assignments")
+    subject_code = models.TextField(blank=True, null=True)
+    section = models.TextField(blank=True, null=True)
+    
+    # Auditoría, control de activación y método de carga
+    is_active = models.BooleanField(default=True, verbose_name="Activo en este periodo")
+    created_at = models.DateTimeField(default=timezone.now, verbose_name="Fecha de asignación")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_assignments",
+        verbose_name="Asignado por"
+    )
+    creation_method = models.CharField(
+        max_length=20,
+        choices=CreationMethod.choices,
+        default=CreationMethod.MANUAL,
+        verbose_name="Método de Creación"
+    )
+
+    class Meta:
+        db_table = "plan_app_user_academic_period"
+        unique_together = ("user", "academic_period")
+        verbose_name = "Relación Usuario - Periodo Académico"
+        verbose_name_plural = "Relaciones Usuario - Periodos Académicos"
+
+    def __str__(self):
+        return f"{self.user.email} en {self.academic_period.name}"

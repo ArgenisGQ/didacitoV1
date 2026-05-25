@@ -15,6 +15,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
+    academic_period_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -23,6 +24,7 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = None
     password: Optional[str] = Field(None, min_length=6)
     is_active: Optional[bool] = None
+    academic_period_id: Optional[int] = None
 
 
 class UserResponse(BaseModel):
@@ -43,7 +45,14 @@ class UserResponse(BaseModel):
     subject_code: Optional[str] = None
     section: Optional[str] = None
     academic_period: Optional[str] = None
+    academic_period_id: Optional[int] = None
     needs_password_change: bool = False
+    
+    # Period-specific relation attributes (from pivot table UserAcademicPeriod)
+    period_is_active: Optional[bool] = None
+    period_created_at: Optional[datetime] = None
+    period_created_by_email: Optional[str] = None
+    period_creation_method: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -239,6 +248,7 @@ class BulkImportRowInput(BaseModel):
     subject_code: Optional[str] = None
     section: Optional[str] = None
     academic_period: Optional[str] = None
+    academic_period_id: Optional[int] = None
 
 
 class BulkImportConfirmRequest(BaseModel):
@@ -292,4 +302,5 @@ class AcademicPeriodUpdate(BaseModel):
 
 class AcademicPeriodResponse(AcademicPeriodBase):
     id: int
+    user_count: int = 0
     model_config = ConfigDict(from_attributes=True)

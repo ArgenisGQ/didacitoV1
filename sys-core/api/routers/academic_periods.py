@@ -6,7 +6,7 @@ from typing import List, Optional
 from datetime import date
 
 from api.database import get_db
-from api.models import AcademicPeriod, User, UserRole
+from api.models import AcademicPeriod, User, UserRole, UserAcademicPeriod
 from api.schemas import AcademicPeriodCreate, AcademicPeriodUpdate, AcademicPeriodResponse
 from api.core.dependencies import get_current_user
 
@@ -32,11 +32,21 @@ async def get_academic_periods(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_super_admin)
 ):
-    query = select(AcademicPeriod).order_by(AcademicPeriod.start_date.desc())
+    query = (
+        select(AcademicPeriod, func.count(UserAcademicPeriod.user_id).label("user_count"))
+        .outerjoin(UserAcademicPeriod, UserAcademicPeriod.academic_period_id == AcademicPeriod.id)
+        .group_by(AcademicPeriod.id)
+        .order_by(AcademicPeriod.start_date.desc())
+    )
     if limit is not None:
         query = query.offset(skip).limit(limit)
     result = await db.execute(query)
-    periods = result.scalars().all()
+    
+    periods = []
+    for row in result.all():
+        period, count = row
+        period.user_count = count
+        periods.append(period)
     return periods
 
 @router.get("/suggest-dates")
@@ -106,6 +116,7 @@ async def create_academic_period(period_in: AcademicPeriodCreate, db: AsyncSessi
     db.add(new_period)
     await db.commit()
     await db.refresh(new_period)
+    new_period.user_count = 0
     return new_period
 
 @router.put("/{id}", response_model=AcademicPeriodResponse)
@@ -155,6 +166,9 @@ async def update_academic_period(id: int, period_in: AcademicPeriodUpdate, db: A
 
     await db.commit()
     await db.refresh(period)
+    
+    count_res = await db.execute(select(func.count(UserAcademicPeriod.user_id)).where(UserAcademicPeriod.academic_period_id == id))
+    period.user_count = count_res.scalar() or 0
     return period
 
 @router.delete("/{id}")

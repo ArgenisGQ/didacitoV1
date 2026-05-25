@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt
 
 from api.database import get_db
-from api.models import User, UserRole, SystemSetting, Invitation, AuditLog
+from api.models import User, UserRole, SystemSetting, Invitation, AuditLog, AcademicPeriod, UserAcademicPeriod, CreationMethod
 from api.core.dependencies import get_current_user, check_role, get_current_audit_viewer
 from api.core.settings_manager import SettingsManager
 from api.core.security import SECRET_KEY, ALGORITHM, get_password_hash
@@ -253,6 +253,7 @@ async def import_users_preview(
     
     valid_count = 0
     invalid_count = 0
+    emails_in_file = set()
     
     if is_teacher_import:
         teacher_records = {} # keyed by email
@@ -284,7 +285,7 @@ async def import_users_preview(
                 if not is_valid_email(email_val):
                     errors.append(f"Formato de correo invalido: '{email_val}'")
                 if email_val in existing_emails:
-                    errors.append(f"El usuario ya esta registrado en la base de datos: '{email_val}'")
+                    warnings.append(f"El usuario ya esta registrado en la base de datos: '{email_val}'. Se asociará a este periodo académico.")
                 if email_val in pending_emails:
                     warnings.append(f"Ya existe una invitacion pendiente enviada a '{email_val}'")
                     
@@ -293,7 +294,7 @@ async def import_users_preview(
                 if not cedula_raw or cedula_raw == "nan":
                     errors.append("La cédula es obligatoria")
                 elif cedula_raw in existing_cedulas:
-                    errors.append(f"La cédula ya está registrada en la base de datos: '{cedula_raw}'")
+                    warnings.append(f"La cédula ya está registrada en la base de datos: '{cedula_raw}'. Se asociará a este periodo académico.")
                     
                 if not first_name_val or first_name_val == "nan":
                     errors.append("El nombre es obligatorio")
@@ -393,7 +394,7 @@ async def import_users_preview(
                 emails_in_file.add(email_val)
                 
                 if email_val in existing_emails:
-                    errors.append(f"El usuario ya esta registrado en la base de datos: '{email_val}'")
+                    warnings.append(f"El usuario ya esta registrado en la base de datos: '{email_val}'. Se asociará a este periodo académico.")
                 
                 if email_val in pending_emails:
                     warnings.append(f"Ya existe una invitacion pendiente enviada a '{email_val}'")
@@ -451,14 +452,54 @@ async def import_users_confirm(
     auto_activate = (activation_method == "activate")
     expire_hours = SettingsManager.get_setting_as_int("INVITATION_TOKEN_EXPIRE_HOURS", 24)
     
+    # Pre-fetch all academic periods to resolve IDs efficiently
+    ap_res = await db.execute(select(AcademicPeriod))
+    ap_map = {ap.name.strip().lower(): ap.id for ap in ap_res.scalars().all()}
+    
     imported_count = 0
     invitations_created = []
+    processed_periods = set()
     
     async with db.begin_nested(): # nested transaction for atomic operations
         for row in payload.users:
             email_clean = row.email.strip().lower()
+            
+            # Resolve period id
+            resolved_ap_id = row.academic_period_id
+            if not resolved_ap_id and row.academic_period:
+                ap_clean = row.academic_period.strip().lower()
+                resolved_ap_id = ap_map.get(ap_clean)
+                
+            if resolved_ap_id:
+                processed_periods.add(resolved_ap_id)
+            
             existing_res = await db.execute(select(User).where(User.email == email_clean))
-            if existing_res.scalars().first():
+            existing_user = existing_res.scalars().first()
+            
+            if existing_user:
+                # User already exists globally. Check if they are associated with the selected period.
+                if resolved_ap_id:
+                    rel_res = await db.execute(
+                        select(UserAcademicPeriod)
+                        .where(
+                            UserAcademicPeriod.user_id == existing_user.id,
+                            UserAcademicPeriod.academic_period_id == resolved_ap_id
+                        )
+                    )
+                    existing_rel = rel_res.scalars().first()
+                    if not existing_rel:
+                        # Associate existing user with new period
+                        new_rel = UserAcademicPeriod(
+                            user_id=existing_user.id,
+                            academic_period_id=resolved_ap_id,
+                            subject_code=row.subject_code.strip() if row.subject_code else None,
+                            section=row.section.strip() if row.section else None,
+                            is_active=True,
+                            created_by_id=current_user.id,
+                            creation_method=CreationMethod.BULK
+                        )
+                        db.add(new_rel)
+                        imported_count += 1
                 continue
                 
             if row.id_user:
@@ -488,13 +529,23 @@ async def import_users_confirm(
                     username=row.username.strip() if row.username else None,
                     first_name=row.first_name.strip() if row.first_name else None,
                     last_name=row.last_name.strip() if row.last_name else None,
-                    subject_code=row.subject_code.strip() if row.subject_code else None,
-                    section=row.section.strip() if row.section else None,
-                    academic_period=row.academic_period.strip() if row.academic_period else None,
                     needs_password_change=needs_pwd_change_val
                 )
                 db.add(new_user)
                 await db.flush() # get new_user.id
+                
+                # Now associate with the academic period
+                if resolved_ap_id:
+                    new_rel = UserAcademicPeriod(
+                        user_id=new_user.id,
+                        academic_period_id=resolved_ap_id,
+                        subject_code=row.subject_code.strip() if row.subject_code else None,
+                        section=row.section.strip() if row.section else None,
+                        is_active=True,
+                        created_by_id=current_user.id,
+                        creation_method=CreationMethod.BULK
+                    )
+                    db.add(new_rel)
                 
                 if not auto_activate:
                     payload_jwt = {
@@ -541,6 +592,19 @@ async def import_users_confirm(
                 db.add(new_user)
                 await db.flush() # get new_user.id
                 
+                # Associate standard user if period is provided
+                if resolved_ap_id:
+                    new_rel = UserAcademicPeriod(
+                        user_id=new_user.id,
+                        academic_period_id=resolved_ap_id,
+                        subject_code=row.subject_code.strip() if row.subject_code else None,
+                        section=row.section.strip() if row.section else None,
+                        is_active=True,
+                        created_by_id=current_user.id,
+                        creation_method=CreationMethod.BULK
+                    )
+                    db.add(new_rel)
+                
                 if not auto_activate:
                     payload_jwt = {
                         "sub": email_clean,
@@ -568,6 +632,49 @@ async def import_users_confirm(
                         "token": inv_token
                     })
                 imported_count += 1
+            
+        # Automatic deactivation logic for teachers not in the import list for the processed periods
+        for period_id in processed_periods:
+            # 1. Get emails of all users from payload who were explicitly associated with this period
+            imported_emails = {
+                row.email.strip().lower()
+                for row in payload.users
+                if (row.academic_period_id == period_id or (row.academic_period and ap_map.get(row.academic_period.strip().lower()) == period_id))
+            }
+            
+            # 2. Get all existing teachers (role = 'DOCENTE') in the database
+            teacher_res = await db.execute(
+                select(User.id, User.email)
+                .where(User.role == UserRole.DOCENTE)
+            )
+            all_teachers = teacher_res.all()
+            
+            # 3. For teachers not in the imported list, insert or update UserAcademicPeriod with is_active = False
+            for t_id, t_email in all_teachers:
+                t_email_clean = t_email.strip().lower()
+                if t_email_clean not in imported_emails:
+                    # Check if relationship already exists
+                    rel_res = await db.execute(
+                        select(UserAcademicPeriod)
+                        .where(
+                            UserAcademicPeriod.user_id == t_id,
+                            UserAcademicPeriod.academic_period_id == period_id
+                        )
+                    )
+                    existing_rel = rel_res.scalars().first()
+                    if existing_rel:
+                        # Update existing relationship to is_active = False
+                        existing_rel.is_active = False
+                    else:
+                        # Create new relationship with is_active = False
+                        new_inactive_rel = UserAcademicPeriod(
+                            user_id=t_id,
+                            academic_period_id=period_id,
+                            is_active=False,
+                            created_by_id=current_user.id,
+                            creation_method=CreationMethod.BULK
+                        )
+                        db.add(new_inactive_rel)
             
     await db.commit()
     

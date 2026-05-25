@@ -78,6 +78,7 @@ interface UserData {
   subject_code?: string
   section?: string
   academic_period?: string
+  academic_period_id?: number
 }
 
 const roleLabels: Record<string, string> = {
@@ -108,6 +109,7 @@ export default function UserManagement() {
   const [roleFilter, setRoleFilter] = useState<string>('ALL')
   const [mfaFilter, setMfaFilter] = useState<string>('ALL')
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
+  const [periodFilter, setPeriodFilter] = useState<string>('ACTIVE')
   
   const queryClient = useQueryClient()
 
@@ -154,10 +156,29 @@ export default function UserManagement() {
     return () => clearTimeout(handler)
   }, [searchInput])
 
-  const { data: users = [], isLoading } = useQuery<UserData[]>({
-    queryKey: ['users'],
+  // Fetch academic periods to filter
+  const { data: periods = [] } = useQuery<any[]>({
+    queryKey: ['academic-periods'],
     queryFn: async () => {
-      const { data } = await api.get('/users')
+      const { data } = await api.get('/academic-periods')
+      return data
+    },
+  })
+
+  const activePeriodObj = useMemo(() => periods.find((p: any) => p.is_active), [periods])
+
+  const { data: users = [], isLoading } = useQuery<UserData[]>({
+    queryKey: ['users', periodFilter, activePeriodObj?.id],
+    queryFn: async () => {
+      let url = '/users'
+      if (periodFilter === 'ACTIVE' && activePeriodObj) {
+        url += `?period_id=${activePeriodObj.id}`
+      } else if (periodFilter === 'NONE') {
+        url += `?period_id=0`
+      } else if (periodFilter !== 'ALL' && periodFilter !== 'ACTIVE') {
+        url += `?period_id=${periodFilter}`
+      }
+      const { data } = await api.get(url)
       return data
     },
   })
@@ -235,9 +256,24 @@ export default function UserManagement() {
         (statusFilter === 'ACTIVE' && u.is_active) || 
         (statusFilter === 'INACTIVE' && !u.is_active)
 
-      return matchesSearch && matchesRole && matchesMFA && matchesStatus
+      let matchesPeriod = true
+      if (periodFilter === 'ACTIVE') {
+        if (activePeriodObj) {
+          matchesPeriod = (u.academic_period_id === activePeriodObj.id) || 
+                          (u.academic_period?.trim().toLowerCase() === activePeriodObj.name.trim().toLowerCase())
+        }
+      } else if (periodFilter === 'NONE') {
+        matchesPeriod = !u.academic_period_id && !u.academic_period
+      } else if (periodFilter !== 'ALL') {
+        const targetPeriodId = parseInt(periodFilter, 10)
+        const targetPeriodObj = periods.find((p: any) => p.id === targetPeriodId)
+        matchesPeriod = (u.academic_period_id === targetPeriodId) ||
+                        (targetPeriodObj && u.academic_period?.trim().toLowerCase() === targetPeriodObj.name.trim().toLowerCase())
+      }
+
+      return matchesSearch && matchesRole && matchesMFA && matchesStatus && matchesPeriod
     })
-  }, [users, debouncedSearch, roleFilter, mfaFilter, statusFilter])
+  }, [users, debouncedSearch, roleFilter, mfaFilter, statusFilter, periodFilter, activePeriodObj, periods])
 
   const columns = useMemo<ColumnDef<UserData>[]>(
     () => [
@@ -503,7 +539,27 @@ export default function UserManagement() {
               </div>
 
               {/* Filters */}
-              <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+              <div className="flex items-center gap-3 w-full md:w-auto shrink-0 flex-wrap md:flex-nowrap">
+                <div className="w-full md:w-56">
+                  <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                    <SelectTrigger className="bg-card border-slate-200/80 h-11">
+                      <SelectValue placeholder="Periodo Académico" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ACTIVE">
+                        Periodo Actual {activePeriodObj ? `(${activePeriodObj.name})` : ''}
+                      </SelectItem>
+                      <SelectItem value="ALL">Todos los Periodos</SelectItem>
+                      <SelectItem value="NONE">Sin Periodo Académico</SelectItem>
+                      {periods.filter((p: any) => !p.is_active).map((period: any) => (
+                        <SelectItem key={period.id} value={String(period.id)}>
+                          {period.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="w-full md:w-44">
                   <Select value={roleFilter} onValueChange={setRoleFilter}>
                     <SelectTrigger className="bg-card border-slate-200/80 h-11">
@@ -545,11 +601,17 @@ export default function UserManagement() {
                   </Select>
                 </div>
 
-                {(roleFilter !== 'ALL' || mfaFilter !== 'ALL' || statusFilter !== 'ALL' || searchInput) && (
+                {(roleFilter !== 'ALL' || mfaFilter !== 'ALL' || statusFilter !== 'ALL' || periodFilter !== 'ACTIVE' || searchInput) && (
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => { setSearchInput(''); setRoleFilter('ALL'); setMfaFilter('ALL'); setStatusFilter('ALL'); }}
+                    onClick={() => { 
+                      setSearchInput(''); 
+                      setRoleFilter('ALL'); 
+                      setMfaFilter('ALL'); 
+                      setStatusFilter('ALL'); 
+                      setPeriodFilter('ACTIVE'); 
+                    }}
                     className="h-11 font-bold text-xs"
                   >
                     Restablecer
@@ -732,6 +794,48 @@ export default function UserManagement() {
             </DialogHeader>
 
             <div className="space-y-4 my-3 max-h-[420px] overflow-y-auto pr-1">
+              {/* Información de Registro en Periodo */}
+              {(selectedAcademicLoadUser as any).period_created_at && (
+                <div className="p-3.5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/70 border border-slate-200/50 dark:border-slate-800/50 space-y-2 text-xs animate-fadeIn">
+                  <h4 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <ShieldCheck size={14} className="text-primary" />
+                    Detalles de Registro en {selectedAcademicLoadUser.academic_period || 'Periodo Actual'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-muted-foreground font-medium">
+                    <div>
+                      <span className="block text-[10px] uppercase tracking-wider text-slate-400">Método de Registro</span>
+                      <span className="text-slate-700 dark:text-slate-350 font-bold">
+                        {(selectedAcademicLoadUser as any).period_creation_method === 'BULK' ? 'Carga por Lote' : 'Individual / Manual'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] uppercase tracking-wider text-slate-400">Registrado por</span>
+                      <span className="text-slate-700 dark:text-slate-350 font-bold truncate block" title={(selectedAcademicLoadUser as any).period_created_by_email}>
+                        {(selectedAcademicLoadUser as any).period_created_by_email || 'Sistema / Automático'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] uppercase tracking-wider text-slate-400">Fecha de Registro</span>
+                      <span className="text-slate-700 dark:text-slate-350 font-bold">
+                        {new Date((selectedAcademicLoadUser as any).period_created_at).toLocaleString('es-ES', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] uppercase tracking-wider text-slate-400">Estado en Periodo</span>
+                      <span className={`font-bold inline-flex items-center gap-1 ${(selectedAcademicLoadUser as any).period_is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
+                        {(selectedAcademicLoadUser as any).period_is_active ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {(() => {
                 const subjectCodes = (selectedAcademicLoadUser.subject_code || '').split(',').map(s => s.trim()).filter(Boolean);
                 const sections = (selectedAcademicLoadUser.section || '').split(',').map(s => s.trim()).filter(Boolean);

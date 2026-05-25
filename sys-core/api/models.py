@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float, Text, CheckConstraint, JSON, Date
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from api.database import Base
 from datetime import datetime, timezone
@@ -59,17 +59,7 @@ class User(Base):
     first_name = Column(String(150), nullable=True)
     last_name = Column(String(150), nullable=True)
     
-    # Relación lógica por código de materia con Subject
-    subject_code = Column(Text, ForeignKey("plan_app_subject.code"), nullable=True)
-    subject = relationship(
-        "Subject",
-        primaryjoin="User.subject_code == Subject.code",
-        foreign_keys=[subject_code],
-        backref="teachers"
-    )
-    
-    section = Column(Text, nullable=True)
-    academic_period = Column(Text, nullable=True)
+    # El usuario conserva sus datos generales; su carga académica y periodos se administran en la tabla pivot UserAcademicPeriod.
     
     # Bandera para forzar cambio de clave en primer inicio de sesión
     needs_password_change = Column(Boolean, default=False, nullable=False)
@@ -318,3 +308,34 @@ class AcademicPeriod(Base):
     end_date = Column(Date, nullable=False)
     is_active = Column(Boolean, default=False, nullable=False)
     type = Column(String(20), default="NORMAL", nullable=False)
+
+
+class CreationMethod(str, enum.Enum):
+    BULK = "BULK"
+    MANUAL = "MANUAL"
+
+
+class UserAcademicPeriod(Base):
+    __tablename__ = "plan_app_user_academic_period"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("plan_app_user.id", ondelete="CASCADE"), nullable=False)
+    academic_period_id = Column(Integer, ForeignKey("plan_app_academicperiod.id", ondelete="CASCADE"), nullable=False)
+    subject_code = Column(Text, nullable=True)
+    section = Column(Text, nullable=True)
+    
+    # Nuevos campos de auditoría e historial
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False
+    )
+    created_by_id = Column("created_by_id", Integer, ForeignKey("plan_app_user.id", ondelete="SET_NULL"), nullable=True)
+    creation_method = Column(String(20), default=CreationMethod.MANUAL, nullable=False)
+
+    user = relationship("User", backref=backref("academic_period_assignments", cascade="all, delete-orphan"), foreign_keys=[user_id])
+    academic_period = relationship("AcademicPeriod", backref=backref("user_assignments", cascade="all, delete-orphan"))
+    creator = relationship("User", backref="created_assignments", foreign_keys=[created_by_id])
+

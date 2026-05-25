@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -33,6 +33,7 @@ interface UserModalProps {
     full_name: string
     role: string
     is_active?: boolean
+    academic_period_id?: number | null
   } | null
 }
 
@@ -54,6 +55,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
             })
           : z.string().min(6, 'Minimo 6 caracteres'),
         is_active: z.boolean().optional(),
+        academic_period_id: z.string().optional().or(z.literal('')),
       }),
     [isEditing]
   )
@@ -68,6 +70,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
       role: (initialData?.role as FormData['role']) || 'DOCENTE',
       password: '',
       is_active: initialData?.is_active ?? true,
+      academic_period_id: initialData?.academic_period_id ? String(initialData.academic_period_id) : 'none',
     },
   })
 
@@ -79,6 +82,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
         role: (initialData?.role as FormData['role']) || 'DOCENTE',
         password: '',
         is_active: initialData?.is_active ?? true,
+        academic_period_id: initialData?.academic_period_id ? String(initialData.academic_period_id) : 'none',
       })
       setServerError(null)
     }
@@ -97,6 +101,11 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
       }
       if (isEditing && data.is_active !== undefined) {
         payload.is_active = data.is_active
+      }
+      if (data.academic_period_id && data.academic_period_id !== 'none') {
+        payload.academic_period_id = parseInt(data.academic_period_id, 10)
+      } else {
+        payload.academic_period_id = null
       }
 
       if (isEditing) {
@@ -134,6 +143,15 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
   })
 
   const onSubmit = (data: FormData) => mutation.mutate(data)
+  
+  const { data: periods = [] } = useQuery<any[]>({
+    queryKey: ['academic-periods-dropdown'],
+    queryFn: async () => {
+      const { data } = await api.get('/academic-periods')
+      return data
+    },
+    enabled: isOpen
+  })
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -196,6 +214,26 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
                 <SelectItem value="ADMIN_GESTION">Admin de Gestion</SelectItem>
                 <SelectItem value="COORDINADOR">Coordinador</SelectItem>
                 <SelectItem value="DOCENTE">Docente</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="academic_period_id">Periodo Académico</Label>
+            <Select
+              value={form.watch('academic_period_id') || 'none'}
+              onValueChange={(v) => form.setValue('academic_period_id', v)}
+            >
+              <SelectTrigger id="academic_period_id">
+                <SelectValue placeholder="Seleccionar periodo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Ninguno / Sin asignar</SelectItem>
+                {periods.map((period) => (
+                  <SelectItem key={period.id} value={String(period.id)}>
+                    {period.name} {period.is_active ? '(Activo)' : ''}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
