@@ -20,7 +20,10 @@ async def proxy_to_syllabus_service(
     Injects custom header fields detailing the actor's system attributes.
     """
     # 1. Authorize role access
-    check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION])
+    if request.method != "GET":
+        check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION])
+    else:
+        check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION, UserRole.COORDINADOR, UserRole.DOCENTE])
 
     # 2. Build target URL with incoming query string
     url = f"{SYLLABUS_SERVICE_URL}/{path}"

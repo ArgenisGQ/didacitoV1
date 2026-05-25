@@ -28,6 +28,7 @@ import {
   Clock,
   BookOpen,
   Calendar as CalendarIcon,
+  AlertTriangle,
 } from 'lucide-react'
 import api, { getAccessToken } from '../lib/api-client'
 import SecuritySettings from './SecuritySettings'
@@ -53,6 +54,7 @@ import {
 } from '@/components/ui/table'
 import { LessonPlanWizard } from './wizard/LessonPlanWizard'
 import UserManagement from './UserManagement'
+import { SubjectDetailModal } from './SubjectDetailModal'
 
 interface LessonPlan {
   id: number
@@ -70,6 +72,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userName, setUserName] = useState<string>('Admin')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null)
+  const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false)
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -120,6 +124,15 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       const { data } = await api.get('/users/me/profile-config')
       return data
     },
+  })
+
+  const { data: academicLoad, isLoading: isLoadingLoad } = useQuery({
+    queryKey: ['academicLoad'],
+    queryFn: async () => {
+      const { data } = await api.get('/users/me/academic-load')
+      return data
+    },
+    enabled: userRole === 'DOCENTE'
   })
 
   const isAuditViewer = useMemo(() => {
@@ -281,7 +294,9 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                   { id: 'users', icon: Users, label: 'Gestion de Usuarios' },
                   { id: 'academic_periods', icon: CalendarIcon, label: 'Periodos Académicos' }
                 ]
-              : [{ id: 'teachers', icon: Users, label: 'Profesores' }]),
+              : (userRole === 'ADMIN_GESTION'
+                  ? [{ id: 'users', icon: Users, label: 'Gestion de Usuarios' }]
+                  : [])),
             ...(isAuditViewer
               ? [
                   { id: 'audit', icon: Clock, label: 'Auditoría y Control' }
@@ -412,6 +427,99 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 </Button>
               </div>
 
+              {/* BLOQUE DE CARGA ACADÉMICA ACTIVA (Solo para docentes) */}
+              {userRole === 'DOCENTE' && (
+                <Card className="border rounded-3xl overflow-hidden bg-card/65 shadow-md">
+                  <CardHeader className="bg-muted/15 border-b pb-4">
+                    <CardTitle className="text-2xl font-black tracking-tight flex items-center gap-2.5">
+                      <div className="bg-primary/10 text-primary p-2 rounded-xl">
+                        <BookOpen size={20} />
+                      </div>
+                      <span>
+                        Carga Académica — Periodo Académico: {academicLoad?.active_period?.name || (isLoadingLoad ? 'Cargando...' : 'Sin periodo activo')}
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {isLoadingLoad ? (
+                      <div className="p-8 text-center text-muted-foreground animate-pulse flex flex-col items-center justify-center gap-2">
+                        <Clock className="animate-spin text-primary" size={24} />
+                        <span>Cargando carga académica...</span>
+                      </div>
+                    ) : !academicLoad?.active_period ? (
+                      <div className="p-8 text-center text-muted-foreground">
+                        <AlertTriangle className="mx-auto mb-2 text-amber-500" size={32} />
+                        <p className="font-bold">No hay un período académico marcado como activo en el sistema.</p>
+                      </div>
+                    ) : academicLoad.subjects.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground">
+                        <BookOpen className="mx-auto mb-2 text-muted-foreground/50" size={32} />
+                        <p className="font-bold">No tienes carga académica asignada para el periodo actual.</p>
+                        <p className="text-xs mt-1">Si consideras esto un error, por favor contacta al administrador de gestión.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader className="bg-muted/30">
+                            <TableRow>
+                              <TableHead className="font-bold pl-6">Código</TableHead>
+                              <TableHead className="font-bold">Asignatura / Carga Académica</TableHead>
+                              <TableHead className="font-bold">Programa Académico</TableHead>
+                              <TableHead className="font-bold text-center">Nivel</TableHead>
+                              <TableHead className="font-bold text-center">Créditos</TableHead>
+                              {academicLoad.section && <TableHead className="font-bold text-center">Sección</TableHead>}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {academicLoad.subjects.map((sub: any) => (
+                              <TableRow key={sub.code} className="hover:bg-muted/10">
+                                <TableCell className="font-bold pl-6 text-primary">
+                                  {sub.id ? (
+                                    <Button
+                                      variant="link"
+                                      className="p-0 font-black text-primary hover:text-primary/80 transition-colors h-auto text-sm"
+                                      onClick={() => {
+                                        setSelectedSubjectId(sub.id)
+                                        setIsSubjectModalOpen(true)
+                                      }}
+                                    >
+                                      {sub.code}
+                                    </Button>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-muted-foreground text-sm">{sub.code}</span>
+                                      <Badge variant="outline" className="text-[9px] text-amber-500 border-amber-500/20 bg-amber-500/5 font-extrabold px-1.5 py-0">
+                                        Pendiente
+                                      </Badge>
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-bold text-sm">{sub.name}</TableCell>
+                                <TableCell className="text-muted-foreground text-xs font-semibold">{sub.program || 'No Asignado'}</TableCell>
+                                <TableCell className="text-center">
+                                  <Badge
+                                    variant={sub.level.toUpperCase() === 'PREGRADO' ? 'default' : 'secondary'}
+                                    className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5"
+                                  >
+                                    {sub.level}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-center font-bold text-sm">{sub.academic_credits} UC</TableCell>
+                                {academicLoad.section && (
+                                  <TableCell className="text-center text-muted-foreground font-extrabold text-sm">
+                                    {academicLoad.section}
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle>Planes de Clase</CardTitle>
@@ -496,6 +604,16 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           onSave={handleSavePlan}
           initialData={editingPlan}
           planId={editingPlan?.id ?? null}
+        />
+      )}
+
+      {isSubjectModalOpen && selectedSubjectId && (
+        <SubjectDetailModal
+          subjectId={selectedSubjectId}
+          onClose={() => {
+            setIsSubjectModalOpen(false)
+            setSelectedSubjectId(null)
+          }}
         />
       )}
     </div>

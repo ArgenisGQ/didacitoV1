@@ -42,6 +42,96 @@ async def get_profile_config():
     }
 
 
+@router.get("/me/academic-load")
+async def get_my_academic_load(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # 1. Buscar periodo académico activo
+    period_res = await db.execute(
+        select(AcademicPeriod).where(AcademicPeriod.is_active == True)
+    )
+    active_period = period_res.scalar_one_or_none()
+    
+    if not active_period:
+        return {
+            "active_period": None,
+            "section": None,
+            "subjects": []
+        }
+        
+    # 2. Buscar asignación del docente para este periodo activo
+    assignment_res = await db.execute(
+        select(UserAcademicPeriod)
+        .where(
+            UserAcademicPeriod.user_id == current_user.id,
+            UserAcademicPeriod.academic_period_id == active_period.id,
+            UserAcademicPeriod.is_active == True
+        )
+    )
+    assignment = assignment_res.scalar_one_or_none()
+    
+    if not assignment or not assignment.subject_code:
+        return {
+            "active_period": {
+                "id": active_period.id,
+                "name": active_period.name,
+                "start_date": active_period.start_date.isoformat(),
+                "end_date": active_period.end_date.isoformat(),
+                "type": active_period.type
+            },
+            "section": assignment.section if assignment else None,
+            "subjects": []
+        }
+        
+    # 3. Parsear códigos separados por coma
+    codes = [c.strip() for c in assignment.subject_code.split(",") if c.strip()]
+    
+    # 4. Obtener detalles de la tabla Subject
+    from api.models import Subject
+    subjects_res = await db.execute(
+        select(Subject).where(Subject.code.in_(codes))
+    )
+    subjects_dict = {s.code: s for s in subjects_res.scalars().all()}
+    
+    # 5. Mapear respuesta
+    subjects_list = []
+    for code in codes:
+        if code in subjects_dict:
+            s = subjects_dict[code]
+            subjects_list.append({
+                "id": s.id,
+                "code": s.code,
+                "name": s.name,
+                "program": s.program,
+                "level": s.level,
+                "academic_credits": s.academic_credits,
+                "has_syllabus": True
+            })
+        else:
+            subjects_list.append({
+                "id": None,
+                "code": code,
+                "name": "Asignatura Asignada (Syllabus pendiente de carga)",
+                "program": "Pendiente",
+                "level": "N/A",
+                "academic_credits": 0,
+                "has_syllabus": False
+            })
+        
+    return {
+        "active_period": {
+            "id": active_period.id,
+            "name": active_period.name,
+            "start_date": active_period.start_date.isoformat(),
+            "end_date": active_period.end_date.isoformat(),
+            "type": active_period.type
+        },
+        "section": assignment.section,
+        "subjects": subjects_list
+    }
+
+
 @router.patch("/me", response_model=UserResponse)
 async def update_my_profile(
     payload: dict,
