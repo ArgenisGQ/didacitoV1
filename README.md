@@ -90,7 +90,27 @@ Recientemente, el ecosistema de **DIDACTICO** ha sido enriquecido con un módulo
    * **KPIs Dinámicos en Tiempo Real:** Tarjetas premium en cabecera con recuentos globales de asignaturas, distribución de Pregrado/Postgrado e indicador de horas promedio HAD.
    * **Visor Estructurado de Asignaturas:** Un modal premium en pestañas interactivas que muestra detalladamente toda la estructura modular de la materia, la grilla interactiva de Unidades de Aprendizaje y sus materias correspondientes/requisitos.
    * **Historial de Auditoría Interno:** Modal de historial que detalla cronológicamente las versiones subidas de una materia, el usuario administrativo responsable de la carga, la fecha/hora y firma SHA-256 con botón de copiado rápido al portapapeles.
-   * **Edición Manual Flexible:** Permite corregir o actualizar manualmente datos de asignaturas de forma directa sin alterar el PDF original de soporte, sincronizándose reactivamente con React Query.
+    * **Edición Manual Flexible:** Permite corregir o actualizar manualmente datos de asignaturas de forma directa sin alterar el PDF original de soporte, sincronizándose reactivamente con React Query.
+
+### 🏫 Categoría D: Gestión Relacional Multiperiodo (Many-to-Many) y Auditoría de Planta Docente
+
+Para dar soporte a la evolución organizativa de la institución, se diseñó e implementó un sistema de asignación de muchos a muchos (`many-to-many`) para los docentes, desvinculando la carga académica directa del modelo físico del usuario e introduciendo una tabla pivot relacional de auditoría.
+
+1. **Arquitectura Relacional Muchos a Muchos (`UserAcademicPeriod`)**
+   * **Tabla Pivot en PostgreSQL:** Introducción del modelo `plan_app_user_academic_period` con llaves foráneas a las tablas de usuarios y periodos académicos con integridad en cascada.
+   * **Separación de Contextos Curriculares:** Los campos de carga académica (`subject_code`, `section`) se administran de forma independiente por cada periodo, permitiendo que el mismo docente físico posea cargas horarias y materias completamente distintas a lo largo del historial institucional sin duplicar su cuenta global.
+
+2. **Auditoría IT y Logs de Asignación por Periodo**
+   * **Metadatos de Registro:** Cada vinculación de un docente a un periodo académico registra automáticamente el usuario administrativo responsable del alta (`created_by_id`), la fecha y hora exacta localizada del registro (`created_at`) y el canal de alta (`creation_method`), distinguiendo entre `"MANUAL"` (creación individual en el modal) y `"BULK"` (carga masiva en lote).
+   * **Activación por Periodo:** Introducción del switch de estado `is_active` específico en la relación. Permite inhabilitar a un docente para operar en un periodo académico en particular sin dar de baja ni bloquear su acceso global al sistema.
+
+3. **Lógica de Previsualización Flexibilizada y Carga Masiva Tolerante**
+   * **Validación no Bloqueante de Duplicados (Warnings):** Adaptación del parseador en la importación masiva. Si un docente ya existe globalmente en la base de datos (por correo o cédula), el preview lo cataloga como una advertencia (Warning) en lugar de un error crítico. La fila se marca como válida (`VALID`), lo que permite proceder con la importación y crear automáticamente su relación en el periodo elegido de forma transparente.
+   * **Inactivación Automática por Lote:** Al consolidar una carga masiva en un periodo académico, el backend asocia a todos los docentes de la lista como activos (`is_active = True`). En paralelo, identifica a toda la planta de profesores global no incluida y les asocia un registro inactivo (`is_active = False`) en ese periodo, garantizando la consistencia total del listado.
+
+4. **Experiencia de Usuario Premium e Interfaces Interactivas**
+   * **Filtros e Integraciones en Servidor:** El selector de periodo en el panel de control de usuarios (`UserManagement.tsx`) realiza consultas asíncronas optimizadas enviando el parámetro `period_id` directamente al backend (incluyendo la opción `0` para docentes sin periodo), acelerando la velocidad de visualización.
+   * **Tarjeta de Auditoría en Modal Curricular:** Diseño ultra-premium de un bloque de auditoría integrado en la vista rápida del modal de carga académica del docente. Muestra detalladamente los metadatos de quién registró al profesor, cuándo, bajo qué método y su estado exacto en ese trimestre.
 
 ## 🏗️ Arquitectura y Tecnologías (Stack Detallado)
 
