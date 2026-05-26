@@ -25,7 +25,7 @@ async def require_super_admin(current_user: User = Depends(get_current_user)):
         )
     return current_user
 
-@router.get("/", response_model=List[AcademicPeriodResponse])
+@router.get("", response_model=List[AcademicPeriodResponse])
 async def get_academic_periods(
     limit: Optional[int] = None,
     skip: int = 0,
@@ -76,7 +76,7 @@ async def suggest_dates(type: str = "NORMAL", db: AsyncSession = Depends(get_db)
         today = date.today()
         return {"start_date": today, "end_date": today}
 
-@router.post("/", response_model=AcademicPeriodResponse)
+@router.post("", response_model=AcademicPeriodResponse)
 async def create_academic_period(period_in: AcademicPeriodCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_super_admin)):
     today = date.today()
 
