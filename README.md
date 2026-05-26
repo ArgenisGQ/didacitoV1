@@ -92,6 +92,10 @@ Recientemente, el ecosistema de **DIDACTICO** ha sido enriquecido con un módulo
    * **Historial de Auditoría Interno:** Modal de historial que detalla cronológicamente las versiones subidas de una materia, el usuario administrativo responsable de la carga, la fecha/hora y firma SHA-256 con botón de copiado rápido al portapapeles.
     * **Edición Manual Flexible:** Permite corregir o actualizar manualmente datos de asignaturas de forma directa sin alterar el PDF original de soporte, sincronizándose reactivamente con React Query.
 
+6. **Integración Automática con Distribución Académica**
+   * **Auto-creación de Carreras:** Al procesar un PDF (individual o por lote), el sistema detecta de forma inteligente el nombre de la carrera y la crea automáticamente en el módulo de Distribución Académica.
+   * **Facultad Base Dinámica:** Toda nueva carrera descubierta mediante la carga de PDFs se asocia de forma predeterminada a una "Facultad Base", la cual también es generada por el sistema si no existe, centralizando los datos sin requerir intervención manual previa.
+
 ### 🏫 Categoría D: Gestión Relacional Multiperiodo (Many-to-Many) y Auditoría de Planta Docente
 
 Para dar soporte a la evolución organizativa de la institución, se diseñó e implementó un sistema de asignación de muchos a muchos (`many-to-many`) para los docentes, desvinculando la carga académica directa del modelo físico del usuario e introduciendo una tabla pivot relacional de auditoría.
