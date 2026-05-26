@@ -162,6 +162,15 @@ class LessonPlan(models.Model):
         verbose_name = "Plan de Clase"
         verbose_name_plural = "Planes de Clase"
 
+    @property
+    def author_name(self):
+        if self.author:
+            if getattr(self.author, 'full_name', None):
+                return self.author.full_name
+            name = f"{getattr(self.author, 'first_name', '') or ''} {getattr(self.author, 'last_name', '') or ''}".strip()
+            return name if name else getattr(self.author, 'email', 'Desconocido')
+        return "Desconocido"
+
     def __str__(self):
         return self.title
 

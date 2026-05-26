@@ -20,6 +20,7 @@ async def list_plans(
 ):
     from sqlalchemy.orm import selectinload
     query = select(LessonPlan).options(
+        selectinload(LessonPlan.author),
         selectinload(LessonPlan.evaluation_plans),
         selectinload(LessonPlan.weekly_contents)
     ).execution_options(populate_existing=True)

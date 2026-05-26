@@ -5,6 +5,7 @@ import { useLessonPlanMutations } from '../hooks/useLessonPlanMutations'
 import {
   useReactTable,
   getCoreRowModel,
+  getPaginationRowModel,
   type ColumnDef,
   flexRender,
 } from '@tanstack/react-table'
@@ -68,6 +69,7 @@ interface LessonPlan {
   subject_code?: string | null
   section?: string | null
   academic_period_id?: number | null
+  author_name?: string
 }
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
@@ -226,8 +228,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     });
   }, [teacherRequiredPlans, searchQuery])
 
-  const columns = useMemo<ColumnDef<LessonPlan>[]>(
-    () => [
+  const columns = useMemo<ColumnDef<LessonPlan>[]>(() => {
+    const baseCols: ColumnDef<LessonPlan>[] = [
       {
         accessorKey: 'title',
         header: 'Titulo',
@@ -267,7 +269,21 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           return <Badge variant={variant as any}>{label}</Badge>
         },
       },
-      {
+    ];
+
+    if (userRole !== 'DOCENTE') {
+      baseCols.splice(1, 0, {
+        accessorKey: 'author_name',
+        header: 'Docente',
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <User size={16} className="text-muted-foreground" />
+            <span className="font-bold">{row.original.author_name || 'Desconocido'}</span>
+          </div>
+        ),
+      });
+    } else {
+      baseCols.push({
         accessorKey: 'content',
         header: 'Objetivos',
         cell: ({ row }) => (
@@ -276,23 +292,26 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             {row.original.content?.objectives?.length || 0} objetivos
           </div>
         ),
-      },
-      {
-        id: 'actions',
-        header: () => <div className="text-right">Accion</div>,
-        cell: ({ row }) => (
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5"
-                onClick={() => {
-                  setPreviewPlanTitle(row.original.title)
-                  setPreviewPlanId(row.original.id!)
-                }}
-              >
-                Ver Documento
-              </Button>
+      });
+    }
+
+    baseCols.push({
+      id: 'actions',
+      header: () => <div className="text-right">Accion</div>,
+      cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5"
+              onClick={() => {
+                setPreviewPlanTitle(row.original.title)
+                setPreviewPlanId(row.original.id!)
+              }}
+            >
+              Ver Documento
+            </Button>
+            {userRole === 'DOCENTE' && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -305,17 +324,24 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 Editar
                 <ChevronRight size={16} />
               </Button>
-            </div>
-        ),
-      },
-    ],
-    []
-  )
+            )}
+          </div>
+      ),
+    });
+
+    return baseCols;
+  }, [profileConfig, userRole]);
 
   const table = useReactTable({
     data: filteredPlans,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
   })
 
   return (
@@ -479,20 +505,22 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
                 <div className="space-y-2">
                   <h1 className="text-4xl lg:text-5xl font-black tracking-tighter">
-                    Mis Planificaciones
+                    {userRole === 'DOCENTE' ? 'Mis Planificaciones' : 'Listado de Planificaciones'}
                   </h1>
                   <p className="text-lg text-muted-foreground font-medium">
-                    Gestiona y disena estrategias academicas de alto impacto.
+                    {userRole === 'DOCENTE' ? 'Gestiona y disena estrategias academicas de alto impacto.' : 'Visualiza las planificaciones creadas por los docentes.'}
                   </p>
                 </div>
-                <Button
-                  size="lg"
-                  className="gap-2 font-extrabold text-base h-14 px-8"
-                  onClick={() => setIsModalOpen(true)}
-                >
-                  <Plus size={22} strokeWidth={2.5} />
-                  Nueva Planificacion
-                </Button>
+                {userRole === 'DOCENTE' && (
+                  <Button
+                    size="lg"
+                    className="gap-2 font-extrabold text-base h-14 px-8"
+                    onClick={() => setIsModalOpen(true)}
+                  >
+                    <Plus size={22} strokeWidth={2.5} />
+                    Nueva Planificacion
+                  </Button>
+                )}
               </div>
 
               {/* BLOQUE DE CARGA ACADÉMICA ACTIVA (Solo para docentes) */}
@@ -762,38 +790,84 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                       )}
                     </div>
                   ) : (
-                    <Table>
-                      <TableHeader>
-                        {table.getHeaderGroups().map((hg) => (
-                          <TableRow key={hg.id}>
-                            {hg.headers.map((h) => (
-                              <TableHead key={h.id}>
-                                {h.isPlaceholder
-                                  ? null
-                                  : flexRender(
-                                      h.column.columnDef.header,
-                                      h.getContext()
+                    <div className="space-y-4">
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            {table.getHeaderGroups().map((hg) => (
+                              <TableRow key={hg.id}>
+                                {hg.headers.map((h) => (
+                                  <TableHead key={h.id}>
+                                    {h.isPlaceholder
+                                      ? null
+                                      : flexRender(
+                                          h.column.columnDef.header,
+                                          h.getContext()
+                                        )}
+                                  </TableHead>
+                                ))}
+                              </TableRow>
+                            ))}
+                          </TableHeader>
+                          <TableBody>
+                            {table.getRowModel().rows.map((row) => (
+                              <TableRow key={row.id}>
+                                {row.getVisibleCells().map((cell) => (
+                                  <TableCell key={cell.id}>
+                                    {flexRender(
+                                      cell.column.columnDef.cell,
+                                      cell.getContext()
                                     )}
-                              </TableHead>
+                                  </TableCell>
+                                ))}
+                              </TableRow>
                             ))}
-                          </TableRow>
-                        ))}
-                      </TableHeader>
-                      <TableBody>
-                        {table.getRowModel().rows.map((row) => (
-                          <TableRow key={row.id}>
-                            {row.getVisibleCells().map((cell) => (
-                              <TableCell key={cell.id}>
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                          </TableBody>
+                        </Table>
+                      </div>
+                      <div className="flex items-center justify-between px-2">
+                        <div className="flex-1 text-sm text-muted-foreground">
+                          Página {table.getState().pagination.pageIndex + 1} de{' '}
+                          {table.getPageCount() || 1} ({table.getFilteredRowModel?.().rows.length || filteredPlans.length} planificaciones)
+                        </div>
+                        <div className="flex items-center space-x-6 lg:space-x-8">
+                          <div className="flex items-center space-x-2">
+                            <p className="text-sm font-medium hidden sm:block">Filas por página</p>
+                            <select
+                              className="h-8 w-[70px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                              value={table.getState().pagination.pageSize}
+                              onChange={(e) => {
+                                table.setPageSize(Number(e.target.value))
+                              }}
+                            >
+                              {[10, 20, 50].map((pageSize) => (
+                                <option key={pageSize} value={pageSize}>
+                                  {pageSize}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => table.previousPage()}
+                              disabled={!table.getCanPreviousPage()}
+                            >
+                              Anterior
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => table.nextPage()}
+                              disabled={!table.getCanNextPage()}
+                            >
+                              Siguiente
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </CardContent>
               </Card>

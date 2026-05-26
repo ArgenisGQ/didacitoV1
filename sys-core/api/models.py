@@ -128,6 +128,16 @@ class LessonPlan(Base):
         "User", back_populates="authored_plans",
         foreign_keys=[author_id]
     )
+
+    @property
+    def author_name(self):
+        if self.author:
+            if getattr(self.author, 'full_name', None):
+                return self.author.full_name
+            name = f"{getattr(self.author, 'first_name', '') or ''} {getattr(self.author, 'last_name', '') or ''}".strip()
+            return name if name else getattr(self.author, 'email', 'Desconocido')
+        return "Desconocido"
+
     coordinator = relationship(
         "User", back_populates="coordinated_plans",
         foreign_keys=[coordinator_id]

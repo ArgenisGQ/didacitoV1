@@ -118,6 +118,7 @@ class LessonPlanResponse(BaseModel):
     id: int
     title: str
     author_id: int
+    author_name: Optional[str] = None
     program_id: Optional[int] = None
     status: str
     coordinator_id: Optional[int] = None
