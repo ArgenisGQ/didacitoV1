@@ -31,6 +31,7 @@ import {
   Calendar as CalendarIcon,
   AlertTriangle,
   Lock,
+  Building,
 } from 'lucide-react'
 import api, { getAccessToken } from '../lib/api-client'
 import SecuritySettings from './SecuritySettings'
@@ -39,6 +40,7 @@ import UserProfile from './UserProfile'
 import AuditManagement from './AuditManagement'
 import SyllabusManagement from './SyllabusManagement'
 import AcademicPeriods from './AcademicPeriods'
+import { AcademicDistribution } from './AcademicDistribution'
 import { PdfPreviewModal } from './PdfPreviewModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -390,7 +392,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             ...(userRole === 'SUPER_ADMIN'
               ? [
                   { id: 'users', icon: Users, label: 'Gestion de Usuarios' },
-                  { id: 'academic_periods', icon: CalendarIcon, label: 'Periodos Académicos' }
+                  { id: 'academic_periods', icon: CalendarIcon, label: 'Periodos Académicos' },
+                { id: 'academic_distribution', icon: Building, label: 'Distribución Académica' }
                 ]
               : (userRole === 'ADMIN_GESTION'
                   ? [{ id: 'users', icon: Users, label: 'Gestion de Usuarios' }]
@@ -496,6 +499,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             <SyllabusManagement />
           ) : activeTab === 'academic_periods' && userRole === 'SUPER_ADMIN' ? (
             <AcademicPeriods />
+          ) : activeTab === 'academic_distribution' && userRole === 'SUPER_ADMIN' ? (
+            <AcademicDistribution />
           ) : activeTab === 'settings' && userRole === 'SUPER_ADMIN' ? (
             <AdminSettings />
           ) : activeTab === 'security' ? (

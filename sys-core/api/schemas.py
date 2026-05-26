@@ -315,3 +315,65 @@ class AcademicPeriodResponse(AcademicPeriodBase):
     id: int
     user_count: int = 0
     model_config = ConfigDict(from_attributes=True)
+
+
+class FacultyBase(BaseModel):
+    name: str
+    code: str
+    is_active: bool = True
+
+class FacultyCreate(FacultyBase):
+    pass
+
+class FacultyUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class FacultyResponse(FacultyBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CareerBase(BaseModel):
+    name: str
+    code: str
+    faculty_id: int
+    is_active: bool = True
+
+class CareerCreate(CareerBase):
+    pass
+
+class CareerUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    faculty_id: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class CareerResponse(CareerBase):
+    id: int
+    faculty_code: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DepartmentBase(BaseModel):
+    name: str
+    code: str
+    faculty_id: int
+    subject_codes: Optional[str] = None
+    is_active: bool = True
+
+class DepartmentCreate(DepartmentBase):
+    pass
+
+class DepartmentUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    faculty_id: Optional[int] = None
+    subject_codes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class DepartmentResponse(DepartmentBase):
+    id: int
+    faculty_code: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)

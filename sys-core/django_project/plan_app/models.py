@@ -461,3 +461,54 @@ class UserAcademicPeriod(models.Model):
 
     def __str__(self):
         return f"{self.user.email} en {self.academic_period.name}"
+
+
+class Faculty(models.Model):
+    name = models.CharField(max_length=255, verbose_name="Nombre de Facultad")
+    code = models.CharField(max_length=50, unique=True, db_index=True, verbose_name="Código de Facultad")
+    is_active = models.BooleanField(default=True, verbose_name="Vigente")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "plan_app_faculty"
+        verbose_name = "Facultad"
+        verbose_name_plural = "Facultades"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Career(models.Model):
+    name = models.CharField(max_length=255, verbose_name="Nombre de Carrera")
+    code = models.CharField(max_length=50, unique=True, db_index=True, verbose_name="Código de Carrera")
+    faculty = models.ForeignKey(Faculty, on_delete=models.CASCADE, related_name="careers", verbose_name="Facultad")
+    is_active = models.BooleanField(default=True, verbose_name="Vigente")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "plan_app_career"
+        verbose_name = "Carrera"
+        verbose_name_plural = "Carreras"
+
+    def __str__(self):
+        return f"{self.code} - {self.name} ({self.faculty.code})"
+
+
+class Department(models.Model):
+    name = models.CharField(max_length=255, verbose_name="Nombre de Departamento")
+    code = models.CharField(max_length=50, unique=True, db_index=True, verbose_name="Código de Departamento")
+    faculty = models.ForeignKey(Faculty, on_delete=models.CASCADE, related_name="departments", verbose_name="Facultad")
+    subject_codes = models.TextField(blank=True, null=True, verbose_name="Códigos de Cursos Relacionados", help_text="Separados por coma")
+    is_active = models.BooleanField(default=True, verbose_name="Vigente")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "plan_app_department"
+        verbose_name = "Departamento"
+        verbose_name_plural = "Departamentos"
+
+    def __str__(self):
+        return f"{self.code} - {self.name} ({self.faculty.code})"

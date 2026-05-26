@@ -360,3 +360,45 @@ class UserAcademicPeriod(Base):
     academic_period = relationship("AcademicPeriod", backref=backref("user_assignments", cascade="all, delete-orphan"))
     creator = relationship("User", backref="created_assignments", foreign_keys=[created_by_id])
 
+
+class Faculty(Base):
+    __tablename__ = "plan_app_faculty"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+    careers = relationship("Career", back_populates="faculty")
+    departments = relationship("Department", back_populates="faculty")
+
+
+class Career(Base):
+    __tablename__ = "plan_app_career"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    faculty_id = Column(Integer, ForeignKey("plan_app_faculty.id", ondelete="CASCADE"), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+    faculty = relationship("Faculty", back_populates="careers")
+
+
+class Department(Base):
+    __tablename__ = "plan_app_department"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    faculty_id = Column(Integer, ForeignKey("plan_app_faculty.id", ondelete="CASCADE"), nullable=False)
+    subject_codes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+    faculty = relationship("Faculty", back_populates="departments")
