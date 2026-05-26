@@ -103,6 +103,8 @@ class Faculty(Base):
     name = Column(String(255), nullable=False)
     code = Column(String(50), unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
 
 class Career(Base):
@@ -113,3 +115,5 @@ class Career(Base):
     code = Column(String(50), unique=True, index=True, nullable=False)
     faculty_id = Column(Integer, ForeignKey("plan_app_faculty.id", ondelete="CASCADE"), nullable=False)
     is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
