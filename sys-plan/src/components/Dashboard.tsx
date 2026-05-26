@@ -176,10 +176,14 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   const filteredPlans = useMemo(() => {
-    return plans.filter(
-      (p) =>
-        p.title.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    return plans.filter((p) => {
+      const query = searchQuery.toLowerCase();
+      return (
+        p.title.toLowerCase().includes(query) ||
+        (p.author_name && p.author_name.toLowerCase().includes(query)) ||
+        (p.subject_code && p.subject_code.toLowerCase().includes(query))
+      );
+    })
   }, [plans, searchQuery])
 
   const teacherRequiredPlans = useMemo(() => {
@@ -766,33 +770,52 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                         </Table>
                       </div>
                     )
-                  ) : filteredPlans.length === 0 ? (
-                    <div className="text-center py-16 space-y-4">
-                      <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mx-auto">
-                        <FileText size={40} className="text-muted-foreground" />
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-bold">
-                          {searchQuery
-                            ? 'Sin resultados'
-                            : 'No hay planes registrados'}
-                        </h3>
-                        <p className="text-muted-foreground mt-1">
-                          {searchQuery
-                            ? 'Intenta con otra busqueda.'
-                            : 'Comienza creando tu primera planificacion.'}
-                        </p>
-                      </div>
-                      {!searchQuery && (
-                        <Button onClick={() => setIsModalOpen(true)}>
-                          Crear Plan Ahora
-                        </Button>
-                      )}
-                    </div>
                   ) : (
-                    <div className="space-y-4">
-                      <div className="rounded-md border">
-                        <Table>
+                    <div className="space-y-6">
+                      <div className="flex flex-col md:flex-row items-center gap-4 bg-slate-50/50 dark:bg-slate-950/50 p-4 rounded-xl border border-slate-200/50 dark:border-slate-850/50">
+                        <div className="relative flex-1 w-full">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                          <Input
+                            placeholder="Buscar planificaciones por título, docente, materia o código..."
+                            className="pl-10 bg-card border-slate-200/80 h-11"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                          />
+                        </div>
+                        {searchQuery && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setSearchQuery('')}
+                            className="h-11 font-bold text-xs shrink-0"
+                          >
+                            Restablecer
+                          </Button>
+                        )}
+                      </div>
+
+                      {filteredPlans.length === 0 ? (
+                        <div className="text-center py-16 space-y-4">
+                          <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mx-auto">
+                            <FileText size={40} className="text-muted-foreground" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-bold">
+                              {searchQuery
+                                ? 'Sin resultados'
+                                : 'No hay planes registrados'}
+                            </h3>
+                            <p className="text-muted-foreground mt-1">
+                              {searchQuery
+                                ? 'Intenta con otra búsqueda.'
+                                : 'Las planificaciones de los docentes aparecerán aquí.'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="rounded-md border">
+                            <Table>
                           <TableHeader>
                             {table.getHeaderGroups().map((hg) => (
                               <TableRow key={hg.id}>
@@ -869,7 +892,9 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                       </div>
                     </div>
                   )}
-                </CardContent>
+                  </div>
+                )}
+              </CardContent>
               </Card>
             </>
           )}
