@@ -29,6 +29,7 @@ import {
   BookOpen,
   Calendar as CalendarIcon,
   AlertTriangle,
+  Lock,
 } from 'lucide-react'
 import api, { getAccessToken } from '../lib/api-client'
 import SecuritySettings from './SecuritySettings'
@@ -37,6 +38,7 @@ import UserProfile from './UserProfile'
 import AuditManagement from './AuditManagement'
 import SyllabusManagement from './SyllabusManagement'
 import AcademicPeriods from './AcademicPeriods'
+import { PdfPreviewModal } from './PdfPreviewModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -57,12 +59,15 @@ import UserManagement from './UserManagement'
 import { SubjectDetailModal } from './SubjectDetailModal'
 
 interface LessonPlan {
-  id: number
+  id?: number
   title: string
-  status: string
-  content: any
-  created_at: string
+  status?: string
+  content?: any
+  created_at?: string
   updated_at?: string
+  subject_code?: string | null
+  section?: string | null
+  academic_period_id?: number | null
 }
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
@@ -74,6 +79,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null)
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false)
+  const [previewPlanId, setPreviewPlanId] = useState<number | null>(null)
+  const [previewPlanTitle, setPreviewPlanTitle] = useState<string>('')
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -152,6 +159,9 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       status: payload.status || 'DRAFT',
       evaluation_plans: payload.evaluation_plans || [],
       weekly_contents: payload.weekly_contents || [],
+      subject_code: payload.subject_code || editingPlan?.subject_code || null,
+      section: payload.section || editingPlan?.section || null,
+      academic_period_id: payload.academic_period_id || editingPlan?.academic_period_id || null,
     }
 
     if (existingId || editingPlan) {
@@ -170,6 +180,52 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     )
   }, [plans, searchQuery])
 
+  const teacherRequiredPlans = useMemo(() => {
+    if (userRole !== 'DOCENTE' || !academicLoad || !academicLoad.active_period) {
+      return []
+    }
+    const assignedSections = academicLoad.section
+      ? academicLoad.section.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : []
+    const required: any[] = []
+
+    academicLoad.subjects.forEach((subject: any) => {
+      const sections = assignedSections.length > 0 ? assignedSections : ['N/A']
+
+      sections.forEach((sec: string) => {
+        const existingPlan = plans.find(
+          (p: any) =>
+            p.subject_code === subject.code &&
+            p.section === sec &&
+            p.academic_period_id === academicLoad.active_period.id
+        )
+
+        required.push({
+          subjectCode: subject.code,
+          subjectName: subject.name,
+          section: sec,
+          academicPeriodId: academicLoad.active_period.id,
+          academicPeriodName: academicLoad.active_period.name,
+          plan: existingPlan || null,
+          hasSyllabus: subject.has_syllabus,
+        })
+      })
+    })
+
+    return required
+  }, [userRole, academicLoad, plans])
+
+  const filteredTeacherRequiredPlans = useMemo(() => {
+    return teacherRequiredPlans.filter((item) => {
+      const query = searchQuery.toLowerCase();
+      return (
+        item.subjectCode.toLowerCase().includes(query) ||
+        item.subjectName.toLowerCase().includes(query) ||
+        (item.plan && item.plan.title.toLowerCase().includes(query))
+      );
+    });
+  }, [teacherRequiredPlans, searchQuery])
+
   const columns = useMemo<ColumnDef<LessonPlan>[]>(
     () => [
       {
@@ -184,6 +240,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               <p className="font-bold">{row.original.title}</p>
               <p className="text-xs text-muted-foreground">
                 {(() => {
+                  if (!row.original.created_at) return 'Sin fecha';
                   const tz = profileConfig?.system_timezone || 'America/Caracas';
                   try {
                     return new Intl.DateTimeFormat('es-ES', {
@@ -224,20 +281,31 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         id: 'actions',
         header: () => <div className="text-right">Accion</div>,
         cell: ({ row }) => (
-          <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1"
-              onClick={() => {
-                setEditingPlan(row.original)
-                setIsModalOpen(true)
-              }}
-            >
-              Editar
-              <ChevronRight size={16} />
-            </Button>
-          </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5"
+                onClick={() => {
+                  setPreviewPlanTitle(row.original.title)
+                  setPreviewPlanId(row.original.id!)
+                }}
+              >
+                Ver Documento
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1"
+                onClick={() => {
+                  setEditingPlan(row.original)
+                  setIsModalOpen(true)
+                }}
+              >
+                Editar
+                <ChevronRight size={16} />
+              </Button>
+            </div>
         ),
       },
     ],
@@ -531,6 +599,145 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                         <Skeleton key={i} className="h-16 w-full rounded-xl" />
                       ))}
                     </div>
+                  ) : userRole === 'DOCENTE' ? (
+                    // Vista dinámica personalizada para el Docente
+                    filteredTeacherRequiredPlans.length === 0 ? (
+                      <div className="text-center py-16 space-y-4">
+                        <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mx-auto">
+                          <BookOpen size={40} className="text-muted-foreground" />
+                        </div>
+                        <div>
+                          <h3 className="text-2xl font-bold">Sin asignaciones</h3>
+                          <p className="text-muted-foreground mt-1">
+                            No tienes materias o secciones asignadas en el periodo activo.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader className="bg-muted/30">
+                            <TableRow>
+                              <TableHead className="font-bold pl-6">Asignatura</TableHead>
+                              <TableHead className="font-bold text-center">Sección</TableHead>
+                              <TableHead className="font-bold text-center">Estado de Planificación</TableHead>
+                              <TableHead className="font-bold text-center">Estado del Flujo</TableHead>
+                              <TableHead className="font-bold text-right pr-6">Acción</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredTeacherRequiredPlans.map((item: any, idx: number) => {
+                              const isRealizado = !!item.plan
+                              const planStatus = item.plan?.status
+                              const displayStatus = planStatus === 'DRAFT' ? 'Borrador' : planStatus === 'IN_REVIEW' ? 'En Revision' : planStatus === 'APPROVED' ? 'Aprobado' : '-'
+                              const isBlocked = !item.hasSyllabus
+                              
+                              return (
+                                <TableRow key={idx} className="hover:bg-muted/10">
+                                  <TableCell className="font-bold pl-6">
+                                    <div className="flex items-center gap-3">
+                                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isBlocked ? 'bg-muted text-muted-foreground' : isRealizado ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                                        <BookOpen size={20} />
+                                      </div>
+                                      <div>
+                                        <p className="font-bold text-sm">{item.subjectName}</p>
+                                        <p className="text-xs text-muted-foreground font-semibold">{item.subjectCode}</p>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-center font-extrabold text-sm">{item.section}</TableCell>
+                                  <TableCell className="text-center">
+                                    {isBlocked ? (
+                                      <Badge variant="outline" className="text-[10px] text-destructive border-destructive/20 bg-destructive/5 font-extrabold px-1.5 py-0">
+                                        Sin Programa Sinóptico
+                                      </Badge>
+                                    ) : (
+                                      <Badge
+                                        className={`font-black text-xs px-3 py-1 rounded-xl shadow-sm ${
+                                          isRealizado 
+                                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' 
+                                            : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                        }`}
+                                      >
+                                        {isRealizado ? 'Realizado' : 'Pendiente'}
+                                      </Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    {isRealizado && !isBlocked ? (
+                                      <Badge
+                                        variant={planStatus === 'DRAFT' ? 'outline' : planStatus === 'APPROVED' ? 'default' : 'secondary'}
+                                        className="text-xs font-bold px-2 py-0.5"
+                                      >
+                                        {displayStatus}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground text-xs font-medium">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right pr-6">
+                                    {isBlocked ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled
+                                        className="gap-1 font-extrabold shadow-sm"
+                                      >
+                                        <Lock size={14} strokeWidth={2.5} />
+                                        Bloqueado
+                                      </Button>
+                                    ) : isRealizado ? (
+                                      <div className="flex items-center gap-2 justify-end">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
+                                          onClick={() => {
+                                            setPreviewPlanTitle(item.plan.title)
+                                            setPreviewPlanId(item.plan.id)
+                                          }}
+                                        >
+                                          Ver Documento
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
+                                          onClick={() => {
+                                            setEditingPlan(item.plan)
+                                            setIsModalOpen(true)
+                                          }}
+                                        >
+                                          Editar
+                                          <ChevronRight size={16} />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        className="gap-1 font-extrabold shadow-md hover:shadow-lg transition-all"
+                                        onClick={() => {
+                                          setEditingPlan({
+                                            title: `Plan de Clase: ${item.subjectName} (${item.subjectCode}) - Sección ${item.section}`,
+                                            subject_code: item.subjectCode,
+                                            section: item.section,
+                                            academic_period_id: item.academicPeriodId,
+                                          })
+                                          setIsModalOpen(true)
+                                        }}
+                                      >
+                                        <Plus size={14} strokeWidth={2.5} />
+                                        Realizar Planificación
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )
                   ) : filteredPlans.length === 0 ? (
                     <div className="text-center py-16 space-y-4">
                       <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mx-auto">
@@ -613,6 +820,17 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           onClose={() => {
             setIsSubjectModalOpen(false)
             setSelectedSubjectId(null)
+          }}
+        />
+      )}
+
+      {previewPlanId && (
+        <PdfPreviewModal
+          planId={previewPlanId}
+          title={previewPlanTitle}
+          onClose={() => {
+            setPreviewPlanId(null)
+            setPreviewPlanTitle('')
           }}
         />
       )}

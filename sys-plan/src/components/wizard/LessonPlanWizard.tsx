@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { WizardProvider, useWizard } from '@/context/WizardContext'
 import { useAutosave } from '@/hooks/useAutosave'
+import api from '@/lib/api-client'
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ import { WizardObjectives } from './WizardObjectives'
 import { WizardWeeklyContent } from './WizardWeeklyContent'
 import { WizardEvaluation } from './WizardEvaluation'
 import { WizardReview } from './WizardReview'
+import { PdfPreviewModal } from '../PdfPreviewModal'
 
 const STEP_LABELS = [
   'Datos Generales',
@@ -40,6 +42,8 @@ function WizardInner({
   planId: number | null
 }) {
   const { step, totalSteps, state, nextStep, prevStep, goToStep } = useWizard()
+  const [showPreview, setShowPreview] = useState(false)
+  const [activePlanId, setActivePlanId] = useState<number | null>(planId)
 
   const payload = useMemo(
     () => ({
@@ -49,6 +53,9 @@ function WizardInner({
       strategies: state.strategies.filter((s) => s.trim()),
       evaluation_plans: state.evaluation_plans.filter((e) => e.competence.trim()),
       weekly_contents: state.weekly_contents.filter((w) => w.content_description.trim()),
+      subject_code: state.subject_code,
+      section: state.section,
+      academic_period_id: state.academic_period_id,
     }),
     [state]
   )
@@ -56,22 +63,55 @@ function WizardInner({
   const { saveState, saving, markDirty, forceSave } = useAutosave(
     () => payload,
     {
-      planId,
-      enabled: planId !== null,
+      planId: activePlanId,
+      enabled: activePlanId !== null,
       intervalMs: 10000,
     }
   )
+
+  const saveCurrentStateToDB = async () => {
+    try {
+      if (activePlanId === null) {
+        const { data } = await api.post('/plans', payload)
+        setActivePlanId(data.id)
+      } else {
+        await api.put(`/plans/${activePlanId}`, payload)
+      }
+    } catch (err) {
+      console.error('Error saving plan state:', err)
+    }
+  }
+
+  const handleNextStep = async () => {
+    await saveCurrentStateToDB()
+    nextStep()
+  }
+
+  const handlePrevStep = async () => {
+    await saveCurrentStateToDB()
+    prevStep()
+  }
+
+  const handleGoToStep = async (i: number) => {
+    await saveCurrentStateToDB()
+    goToStep(i)
+  }
+
+  const handlePreview = async () => {
+    await saveCurrentStateToDB()
+    setShowPreview(true)
+  }
 
   const isLastStep = step === totalSteps - 1
   const isFirstStep = step === 0
 
   // Mark dirty when state changes
   useEffect(() => {
-    if (planId !== null) markDirty()
-  }, [state, planId, markDirty])
+    if (activePlanId !== null) markDirty()
+  }, [state, activePlanId, markDirty])
 
   const handleSubmit = () => {
-    onSave({ ...payload, planId })
+    onSave({ ...payload, planId: activePlanId })
   }
 
   return (
@@ -91,7 +131,7 @@ function WizardInner({
           <button
             key={i}
             className="flex-1 group"
-            onClick={() => goToStep(i)}
+            onClick={() => handleGoToStep(i)}
           >
             <div className="flex flex-col items-center gap-1">
               <div
@@ -143,11 +183,11 @@ function WizardInner({
       <DialogFooter className="flex-row justify-between items-center sm:justify-between gap-2">
         <div className="flex gap-2">
           {!isFirstStep && (
-            <Button variant="outline" onClick={prevStep}>
+            <Button variant="outline" onClick={handlePrevStep}>
               <ChevronLeft size={16} /> Anterior
             </Button>
           )}
-          {planId && (
+          {activePlanId && (
             <Button
               variant="ghost"
               size="sm"
@@ -162,16 +202,30 @@ function WizardInner({
         </div>
 
         {isLastStep ? (
-          <Button onClick={handleSubmit} className="gap-2 font-extrabold">
-            <Check size={18} strokeWidth={2.5} />
-            {planId ? 'Actualizar Planificacion' : 'Crear Planificacion'}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={handlePreview} className="gap-2 font-bold bg-muted hover:bg-muted/80">
+              Previsualizar Plan
+            </Button>
+            <Button onClick={handleSubmit} className="gap-2 font-extrabold">
+              <Check size={18} strokeWidth={2.5} />
+              {activePlanId ? 'Actualizar Planificacion' : 'Crear Planificacion'}
+            </Button>
+          </div>
         ) : (
-          <Button onClick={nextStep}>
+          <Button onClick={handleNextStep}>
             Siguiente <ChevronRight size={16} />
           </Button>
         )}
       </DialogFooter>
+
+      {showPreview && (
+        <PdfPreviewModal
+          title={payload.title || 'Plan de Clase Borrador'}
+          draftData={payload.status === 'PRUEBA' ? undefined : payload}
+          planId={payload.status === 'PRUEBA' ? activePlanId || undefined : undefined}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
     </DialogContent>
   )
 }

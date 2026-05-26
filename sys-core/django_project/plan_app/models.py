@@ -15,6 +15,7 @@ class PlanStatus(models.TextChoices):
     IN_REVIEW = "IN_REVIEW", "En Revision"
     OBSERVED = "OBSERVED", "Observado"
     APPROVED = "APPROVED", "Aprobado"
+    TEST = "PRUEBA", "Prueba"
 
 
 class CatalogType(models.TextChoices):
@@ -141,6 +142,18 @@ class LessonPlan(models.Model):
         blank=True,
         related_name="coordinated_plans",
     )
+    
+    # Nuevos campos para vincular la planificación a un curso y sección específicos del periodo académico
+    subject_code = models.CharField(max_length=50, blank=True, null=True, db_index=True)
+    section = models.CharField(max_length=50, blank=True, null=True, db_index=True)
+    academic_period = models.ForeignKey(
+        "AcademicPeriod",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="lesson_plans"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -19,11 +19,24 @@ export function WizardBasicInfo() {
         <CardTitle className="text-xl">Informacion General</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {state.subject_code && (
+          <div className="grid grid-cols-2 gap-4 bg-primary/5 p-4 rounded-2xl border border-primary/10">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase font-extrabold">Materia / Curso</Label>
+              <p className="font-black text-primary text-base mt-0.5">{state.subject_code}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase font-extrabold">Sección Activa</Label>
+              <p className="font-black text-primary text-base mt-0.5">{state.section}</p>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="title">Titulo de la Planificacion</Label>
           <Input
             id="title"
-            className="h-12 text-base"
+            className="h-12 text-base font-semibold"
             placeholder="Ej. Introduccion a la Inteligencia Artificial"
             value={state.title}
             onChange={(e) => updateField('title', e.target.value)}
@@ -41,6 +54,7 @@ export function WizardBasicInfo() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="DRAFT">Borrador</SelectItem>
+              <SelectItem value="PRUEBA">Prueba</SelectItem>
               <SelectItem value="IN_REVIEW">Enviar a Revision</SelectItem>
             </SelectContent>
           </Select>

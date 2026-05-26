@@ -97,6 +97,10 @@ class EvaluationPlanResponse(EvaluationPlanBase):
 # ---------------------------------------------------------------------------
 class LessonPlanCreate(BaseModel):
     title: str
+    subject_code: Optional[str] = None
+    section: Optional[str] = None
+    academic_period_id: Optional[int] = None
+    status: Optional[PlanStatus] = None
 
 
 class LessonPlanUpdate(BaseModel):
@@ -105,6 +109,9 @@ class LessonPlanUpdate(BaseModel):
     status: Optional[PlanStatus] = None
     evaluation_plans: Optional[List[EvaluationPlanBase]] = None
     weekly_contents: Optional[List[WeeklyContentBase]] = None
+    subject_code: Optional[str] = None
+    section: Optional[str] = None
+    academic_period_id: Optional[int] = None
 
 
 class LessonPlanResponse(BaseModel):
@@ -114,6 +121,9 @@ class LessonPlanResponse(BaseModel):
     program_id: Optional[int] = None
     status: str
     coordinator_id: Optional[int] = None
+    subject_code: Optional[str] = None
+    section: Optional[str] = None
+    academic_period_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     evaluation_plans: List[EvaluationPlanResponse] = []

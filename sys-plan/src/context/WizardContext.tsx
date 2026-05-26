@@ -27,6 +27,9 @@ export interface WizardState {
   strategies: string[]
   evaluation_plans: EvaluationItem[]
   weekly_contents: WeeklyItem[]
+  subject_code: string | null
+  section: string | null
+  academic_period_id: number | null
 }
 
 const EMPTY_EVALUATION: EvaluationItem = {
@@ -78,6 +81,9 @@ const initialState: WizardState = {
   strategies: [''],
   evaluation_plans: [EMPTY_EVALUATION],
   weekly_contents: makeDefaultWeeks(),
+  subject_code: null,
+  section: null,
+  academic_period_id: null,
 }
 
 export function WizardProvider({ children }: { children: ReactNode }) {
@@ -150,6 +156,9 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       title: plan.title || '',
       program_id: plan.program_id || null,
       status: plan.status || 'DRAFT',
+      subject_code: plan.subject_code || null,
+      section: plan.section || null,
+      academic_period_id: plan.academic_period_id || null,
       objectives: plan.objectives?.length ? plan.objectives : [''],
       strategies: plan.strategies?.length ? plan.strategies : [''],
       evaluation_plans: plan.evaluation_plans?.length

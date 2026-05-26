@@ -30,7 +30,7 @@ export function useAutosave(serialize: () => unknown, options: AutosaveOptions) 
       setSaving(true)
       try {
         const payload = serialize()
-        await api.put(`/plans/${planId}`, { ...(payload as any), status: 'DRAFT' })
+        await api.put(`/plans/${planId}`, payload)
         setLastSaved(new Date())
       } catch {
         dirtyRef.current = true
@@ -49,7 +49,7 @@ export function useAutosave(serialize: () => unknown, options: AutosaveOptions) 
     dirtyRef.current = false
     setSaving(true)
     try {
-      await api.put(`/plans/${planId}`, { ...(serialize() as any), status: 'DRAFT' })
+      await api.put(`/plans/${planId}`, serialize())
       setLastSaved(new Date())
     } finally {
       setSaving(false)

@@ -18,6 +18,7 @@ class PlanStatus(str, enum.Enum):
     IN_REVIEW = "IN_REVIEW"
     OBSERVED = "OBSERVED"
     APPROVED = "APPROVED"
+    TEST = "PRUEBA"
 
 
 class CatalogType(str, enum.Enum):
@@ -106,6 +107,12 @@ class LessonPlan(Base):
     program_id = Column(Integer, ForeignKey("plan_app_catalog.id"), nullable=True)
     status = Column(String(20), default=PlanStatus.DRAFT)
     coordinator_id = Column(Integer, ForeignKey("plan_app_user.id"), nullable=True)
+    
+    # Nuevos campos de vinculación curricular y periodo académico
+    subject_code = Column(String(50), nullable=True, index=True)
+    section = Column(String(50), nullable=True, index=True)
+    academic_period_id = Column(Integer, ForeignKey("plan_app_academicperiod.id"), nullable=True)
+
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -124,6 +131,10 @@ class LessonPlan(Base):
     coordinator = relationship(
         "User", back_populates="coordinated_plans",
         foreign_keys=[coordinator_id]
+    )
+    academic_period = relationship(
+        "AcademicPeriod",
+        foreign_keys=[academic_period_id]
     )
     evaluation_plans = relationship(
         "EvaluationPlan", back_populates="lesson_plan",
