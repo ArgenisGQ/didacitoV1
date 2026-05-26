@@ -168,15 +168,18 @@ export default function UserManagement() {
   const activePeriodObj = useMemo(() => periods.find((p: any) => p.is_active), [periods])
 
   const { data: users = [], isLoading } = useQuery<UserData[]>({
-    queryKey: ['users', periodFilter, activePeriodObj?.id],
+    queryKey: ['users', periodFilter, activePeriodObj?.id, debouncedSearch],
     queryFn: async () => {
-      let url = '/users'
+      let url = '/users?'
       if (periodFilter === 'ACTIVE' && activePeriodObj) {
-        url += `?period_id=${activePeriodObj.id}`
+        url += `period_id=${activePeriodObj.id}&`
       } else if (periodFilter === 'NONE') {
-        url += `?period_id=0`
+        url += `period_id=0&`
       } else if (periodFilter !== 'ALL' && periodFilter !== 'ACTIVE') {
-        url += `?period_id=${periodFilter}`
+        url += `period_id=${periodFilter}&`
+      }
+      if (debouncedSearch) {
+        url += `search=${encodeURIComponent(debouncedSearch)}&`
       }
       const { data } = await api.get(url)
       return data

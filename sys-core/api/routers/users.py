@@ -216,9 +216,12 @@ async def change_my_password(
 
 from sqlalchemy.orm import selectinload, joinedload
 
+from sqlalchemy import or_
+
 @router.get("", response_model=List[UserResponse])
 async def list_users(
     period_id: Optional[int] = None,
+    search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -234,8 +237,17 @@ async def list_users(
                 joinedload(UserAcademicPeriod.academic_period),
                 joinedload(UserAcademicPeriod.creator)
             )
+            .join(UserAcademicPeriod.user)
             .where(UserAcademicPeriod.academic_period_id == period_id)
         )
+        if search:
+            query = query.where(or_(
+                User.full_name.ilike(f"%{search}%"),
+                User.email.ilike(f"%{search}%"),
+                User.id_user.ilike(f"%{search}%"),
+                User.username.ilike(f"%{search}%")
+            ))
+        query = query.limit(500)
         res = await db.execute(query)
         assignments = res.scalars().all()
         
@@ -278,6 +290,14 @@ async def list_users(
             .outerjoin(UserAcademicPeriod, User.id == UserAcademicPeriod.user_id)
             .where(UserAcademicPeriod.id == None)
         )
+        if search:
+            query = query.where(or_(
+                User.full_name.ilike(f"%{search}%"),
+                User.email.ilike(f"%{search}%"),
+                User.id_user.ilike(f"%{search}%"),
+                User.username.ilike(f"%{search}%")
+            ))
+        query = query.limit(500)
         res = await db.execute(query)
         users = res.scalars().all()
         
@@ -310,6 +330,14 @@ async def list_users(
                 selectinload(User.academic_period_assignments).joinedload(UserAcademicPeriod.creator)
             )
         )
+        if search:
+            query = query.where(or_(
+                User.full_name.ilike(f"%{search}%"),
+                User.email.ilike(f"%{search}%"),
+                User.id_user.ilike(f"%{search}%"),
+                User.username.ilike(f"%{search}%")
+            ))
+        query = query.limit(500)
         res = await db.execute(query)
         users = res.scalars().all()
         
