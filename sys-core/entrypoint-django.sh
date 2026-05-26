@@ -23,6 +23,9 @@ python manage.py makemigrations plan_app --noinput
 echo ">>> [Django] Running migrations..."
 python manage.py migrate --noinput
 
+echo ">>> [Django] Running data migration for careers..."
+python migrate_careers.py || true
+
 echo ">>> [Django] Collecting static files..."
 python manage.py collectstatic --noinput || true
 

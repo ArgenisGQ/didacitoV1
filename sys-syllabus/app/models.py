@@ -95,3 +95,21 @@ class SyllabusVersion(Base):
 
     subject = relationship("Subject", back_populates="syllabuses")
     uploaded_by = relationship("User")
+
+class Faculty(Base):
+    __tablename__ = "plan_app_faculty"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    is_active = Column(Boolean, default=True)
+
+
+class Career(Base):
+    __tablename__ = "plan_app_career"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    faculty_id = Column(Integer, ForeignKey("plan_app_faculty.id", ondelete="CASCADE"), nullable=False)
+    is_active = Column(Boolean, default=True)

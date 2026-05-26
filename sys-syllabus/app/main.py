@@ -14,7 +14,7 @@ from sqlalchemy import select, update, and_, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, engine
-from app.models import Subject, SubjectUnit, SubjectCorrespondence, SyllabusVersion, User
+from app.models import Subject, SubjectUnit, SubjectCorrespondence, SyllabusVersion, User, Faculty, Career
 from app.parser import parse_syllabus_pdf, calculate_sha256
 
 app = FastAPI(
@@ -48,6 +48,49 @@ def get_proxy_user_id(
         except ValueError:
             pass
     return None
+
+async def ensure_career_exists(db: AsyncSession, program_name: str):
+    if not program_name:
+        return
+    clean_name = program_name.strip().upper()
+    if not clean_name:
+        return
+
+    # Check if career exists by name
+    career_res = await db.execute(select(Career).where(func.upper(Career.name) == clean_name))
+    career = career_res.scalars().first()
+    
+    if not career:
+        # Find or create FAC-BASE
+        fac_res = await db.execute(select(Faculty).where(Faculty.code == 'FAC-BASE'))
+        fac = fac_res.scalars().first()
+        if not fac:
+            fac = Faculty(name='Facultad Base', code='FAC-BASE', is_active=True)
+            db.add(fac)
+            await db.flush()
+            
+        # Generate code
+        base_code = "CAR-NEW"
+        words = [w for w in clean_name.split() if len(w) > 2]
+        if words:
+            if len(words) == 1:
+                base_code = f"CAR-{words[0][:4]}"
+            else:
+                base_code = f"CAR-{words[0][:3]}-{words[-1][:3]}"
+        
+        # Check code uniqueness
+        code = base_code
+        counter = 1
+        while True:
+            exist_code = await db.execute(select(Career).where(Career.code == code))
+            if not exist_code.scalars().first():
+                break
+            code = f"{base_code}-{counter}"
+            counter += 1
+            
+        new_career = Career(name=clean_name, code=code, faculty_id=fac.id, is_active=True)
+        db.add(new_career)
+        await db.flush()
 
 
 @app.get("/health")
@@ -108,6 +151,9 @@ async def upload_pdf(
 
     # Execute DB operations in atomic block
     try:
+        # Ensure Career exists in Academic Distribution
+        await ensure_career_exists(db, parsed["program"])
+
         # Check if subject already exists
         subject_res = await db.execute(
             select(Subject).where(Subject.code == code)
@@ -312,6 +358,9 @@ async def upload_zip(
                         if not code:
                             errors.append(f"{f_name}: No se encontró código de materia.")
                             continue
+                            
+                        # Ensure Career exists in Academic Distribution
+                        await ensure_career_exists(db, parsed["program"])
 
                         # Check Subject
                         sub_res = await db.execute(select(Subject).where(Subject.code == code))
