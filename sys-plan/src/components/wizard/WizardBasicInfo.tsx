@@ -54,7 +54,6 @@ export function WizardBasicInfo() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="DRAFT">Borrador</SelectItem>
-              <SelectItem value="PRUEBA">Prueba</SelectItem>
               <SelectItem value="IN_REVIEW">Enviar a Revision</SelectItem>
             </SelectContent>
           </Select>

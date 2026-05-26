@@ -115,7 +115,7 @@ function WizardInner({
   }
 
   return (
-    <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col">
+    <DialogContent className="sm:max-w-4xl h-[92vh] flex flex-col">
       <DialogHeader>
         <DialogTitle className="text-2xl font-bold">
           {planId ? 'Editar Planificacion' : 'Nueva Planificacion'}
@@ -221,8 +221,8 @@ function WizardInner({
       {showPreview && (
         <PdfPreviewModal
           title={payload.title || 'Plan de Clase Borrador'}
-          draftData={payload.status === 'PRUEBA' ? undefined : payload}
-          planId={payload.status === 'PRUEBA' ? activePlanId || undefined : undefined}
+          draftData={payload}
+          planId={undefined}
           onClose={() => setShowPreview(false)}
         />
       )}

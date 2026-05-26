@@ -349,7 +349,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         <nav className="flex-1 p-4 space-y-1">
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { id: 'plans', icon: FileText, label: 'Planificaciones', count: plans.length },
+            { id: 'plans', icon: FileText, label: 'Planificaciones', count: userRole === 'DOCENTE' ? `${teacherRequiredPlans.filter((p: any) => p.plan).length}/${teacherRequiredPlans.filter((p: any) => p.hasSyllabus).length}` : plans.length },
             ...((userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_GESTION')
               ? [
                   { id: 'syllabus', icon: BookOpen, label: 'Programas Sinópticos' }
