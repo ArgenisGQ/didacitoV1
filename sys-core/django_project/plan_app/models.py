@@ -54,6 +54,38 @@ class Role(models.Model):
         return self.name
 
 
+class Widget(models.Model):
+    code = models.CharField(max_length=100, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    component_name = models.CharField(max_length=100)
+    
+    class Meta:
+        db_table = "plan_app_widget"
+        verbose_name = "Widget"
+        verbose_name_plural = "Widgets"
+
+    def __str__(self):
+        return self.name
+
+
+class DashboardWidgetRole(models.Model):
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="dashboard_widgets")
+    widget = models.ForeignKey(Widget, on_delete=models.CASCADE, related_name="role_assignments")
+    is_active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "plan_app_dashboard_widget_role"
+        unique_together = ("role", "widget")
+        ordering = ["order"]
+        verbose_name = "Widget por Rol"
+        verbose_name_plural = "Widgets por Rol"
+
+    def __str__(self):
+        return f"{self.role.name} - {self.widget.name} ({'Activo' if self.is_active else 'Inactivo'})"
+
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:

@@ -36,6 +36,8 @@ import {
 import api, { getAccessToken } from '../lib/api-client'
 import SecuritySettings from './SecuritySettings'
 import AdminSettings from './AdminSettings'
+import { DashboardSettings } from './DashboardSettings'
+import { DashboardView } from './DashboardView'
 import UserProfile from './UserProfile'
 import AuditManagement from './AuditManagement'
 import SyllabusManagement from './SyllabusManagement'
@@ -77,7 +79,7 @@ interface LessonPlan {
 }
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
-  const [activeTab, setActiveTab] = useState('plans')
+  const [activeTab, setActiveTab] = useState('dashboard')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPlan, setEditingPlan] = useState<LessonPlan | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -442,7 +444,15 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 onClick={() => setActiveTab('settings')}
               >
                 <Settings size={20} />
-                Configuracion
+                Configuración del Sistema
+              </Button>
+              <Button
+                variant={activeTab === 'dashboard_settings' ? 'default' : 'ghost'}
+                className="w-full justify-start gap-3 h-12 text-base font-semibold mt-1"
+                onClick={() => setActiveTab('dashboard_settings')}
+              >
+                <LayoutDashboard size={20} />
+                Módulos del Dashboard
               </Button>
             </>
           )}
@@ -506,7 +516,9 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8">
-          {activeTab === 'users' ? (
+          {activeTab === 'dashboard' ? (
+            <DashboardView userRole={userRole || ''} />
+          ) : activeTab === 'users' ? (
             <UserManagement />
           ) : activeTab === 'roles' && hasPermission('roles:read') ? (
             <RoleManagement />
@@ -518,6 +530,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             <AcademicDistribution />
           ) : activeTab === 'settings' && hasPermission('settings:manage') ? (
             <AdminSettings />
+          ) : activeTab === 'dashboard_settings' && hasPermission('settings:manage') ? (
+            <DashboardSettings />
           ) : activeTab === 'security' ? (
             <SecuritySettings />
           ) : activeTab === 'audit' ? (

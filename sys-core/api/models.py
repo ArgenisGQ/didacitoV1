@@ -63,6 +63,28 @@ class Role(Base):
     permissions = relationship("Permission", secondary=role_permissions, backref="roles")
 
 
+class Widget(Base):
+    __tablename__ = "plan_app_widget"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(100), unique=True, index=True)
+    name = Column(String(255))
+    description = Column(String)
+    component_name = Column(String(100))
+
+
+class DashboardWidgetRole(Base):
+    __tablename__ = "plan_app_dashboard_widget_role"
+
+    id = Column(Integer, primary_key=True, index=True)
+    role_id = Column(Integer, ForeignKey("plan_app_role.id", ondelete="CASCADE"))
+    widget_id = Column(Integer, ForeignKey("plan_app_widget.id", ondelete="CASCADE"))
+    is_active = Column(Boolean, default=True)
+    order = Column(Integer, default=0)
+
+    role = relationship("Role", backref="dashboard_widgets")
+    widget = relationship("Widget", backref="role_assignments")
+
 
 class User(Base):
     """Reads the Django-managed plan_app_user table. Do NOT run create_all."""

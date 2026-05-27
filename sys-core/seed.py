@@ -59,7 +59,55 @@ def seed_permissions_and_roles():
 
 
 def seed():
+    def seed_widgets_and_assignments():
+        print("Seeding widgets...")
+        widgets_data = [
+            ("active_users", "Usuarios Activos", "Gráfico de accesos al sistema", "LineChartWidget"),
+            ("total_plans", "Planes Totales", "Total de planes creados", "StatCard"),
+            ("plan_status", "Estado de Planes", "Proporción por estados", "DonutChartWidget"),
+            ("pending_approvals", "Aprobación Pendiente", "Planes esperando revisión", "StatCard"),
+            ("creation_time", "Tiempo Promedio", "Tiempo promedio de creación", "StatCard"),
+            ("my_progress", "Mis Planes en Progreso", "Acceso rápido a borradores", "TeacherProgressWidget"),
+            ("my_rejected", "Mis Planes Observados", "Planes que requieren atención", "TeacherAlertWidget"),
+            ("my_semester", "Mi Progreso", "Progreso del semestre", "TeacherSemesterWidget"),
+            ("my_history", "Últimos Accesos", "Historial de conexiones", "TeacherHistoryWidget"),
+            ("coordinator_inbox", "Bandeja de Aprobación", "Planes por revisar", "CoordInboxWidget"),
+            ("teacher_productivity", "Productividad Docente", "Planes subidos por docente", "CoordProductivityWidget"),
+        ]
+
+        from plan_app.models import Widget, DashboardWidgetRole
+        
+        widget_objs = {}
+        for code, name, desc, comp in widgets_data:
+            w, _ = Widget.objects.get_or_create(code=code, defaults={
+                "name": name,
+                "description": desc,
+                "component_name": comp
+            })
+            widget_objs[code] = w
+
+        role_widgets = {
+            "SUPER_ADMIN": ["active_users", "total_plans", "plan_status", "pending_approvals", "creation_time"],
+            "ADMIN_GESTION": ["active_users", "total_plans", "plan_status"],
+            "COORDINADOR": ["coordinator_inbox", "teacher_productivity", "plan_status", "pending_approvals"],
+            "DOCENTE": ["my_progress", "my_rejected", "my_semester", "my_history"],
+        }
+
+        print("Seeding dashboard widget roles...")
+        for role_name, w_codes in role_widgets.items():
+            try:
+                role = Role.objects.get(name=role_name)
+                for order, w_code in enumerate(w_codes):
+                    DashboardWidgetRole.objects.get_or_create(
+                        role=role, 
+                        widget=widget_objs[w_code],
+                        defaults={"order": order, "is_active": True}
+                    )
+            except Role.DoesNotExist:
+                continue
+
     seed_permissions_and_roles()
+    seed_widgets_and_assignments()
     
     print("Seeding initial users via Django ORM...")
 
