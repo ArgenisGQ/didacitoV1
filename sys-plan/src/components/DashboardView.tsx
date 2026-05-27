@@ -142,22 +142,34 @@ export function DashboardView({ userRole }: { userRole: string }) {
     );
   };
 
-  const renderTeacherProgressWidget = () => (
-    <Card className="shadow-md border-slate-200 border-l-4 border-l-indigo-500">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Clock size={20} className="text-indigo-500"/> Mis Planes en Progreso</CardTitle>
-        <CardDescription>Planes guardados como borrador (Continuar editando)</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-            <span className="font-semibold text-slate-700">Matemáticas I</span>
-            <span className="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded-full font-bold">Borrador</span>
+  const renderTeacherProgressWidget = () => {
+    const drafts = analytics?.draft_plans || [];
+    
+    return (
+      <Card className="shadow-md border-border bg-card border-l-4 border-l-indigo-500">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-card-foreground"><Clock size={20} className="text-indigo-500"/> Mis Planes en Progreso</CardTitle>
+          <CardDescription>Planes guardados como borrador (Continuar editando)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {drafts.length > 0 ? (
+              drafts.map((d: any) => (
+                <div key={d.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg border border-border">
+                  <span className="font-semibold text-card-foreground truncate max-w-[70%]">{d.title}</span>
+                  <span className="text-xs bg-indigo-500/10 text-indigo-500 px-2 py-1 rounded-full font-bold">Borrador</span>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+                <p>No tienes planes en progreso.</p>
+              </div>
+            )}
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderTeacherAlertWidget = () => (
     <Card className="shadow-md border-slate-200 border-l-4 border-l-rose-500">

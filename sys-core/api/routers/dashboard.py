@@ -22,12 +22,21 @@ async def get_my_widgets(
     )
     user = result.scalars().first()
     
-    if not user or not user.roles:
+    if not user:
         return []
-    
-    # Asumimos que toma el widget de su rol principal (el primero) o combina.
-    # Por simplicidad, tomaremos los widgets del primer rol para el dashboard modular.
-    primary_role_id = user.roles[0].id
+        
+    primary_role_id = None
+    if user.roles:
+        primary_role_id = user.roles[0].id
+    elif user.role:
+        # Fallback to string role column
+        role_result = await db.execute(select(Role).where(Role.name == user.role))
+        fallback_role = role_result.scalars().first()
+        if fallback_role:
+            primary_role_id = fallback_role.id
+            
+    if not primary_role_id:
+        return []
     
     widgets_query = await db.execute(
         select(DashboardWidgetRole)
@@ -108,14 +117,21 @@ async def get_personal_analytics(
     my_plans = plans_result.scalars().all()
     
     status_counts = {"DRAFT": 0, "IN_REVIEW": 0, "OBSERVED": 0, "APPROVED": 0}
+    draft_plans = []
     for p in my_plans:
         if p.status in status_counts:
             status_counts[p.status] += 1
+        if p.status == "DRAFT":
+            draft_plans.append({
+                "id": p.id,
+                "title": getattr(p, "title", getattr(p, "topic", f"Plan Borrador #{p.id}"))
+            })
             
     return {
         "my_total_plans": len(my_plans),
         "status_counts": status_counts,
-        "needs_attention": status_counts.get("OBSERVED", 0)
+        "needs_attention": status_counts.get("OBSERVED", 0),
+        "draft_plans": draft_plans
     }
 
 from pydantic import BaseModel
