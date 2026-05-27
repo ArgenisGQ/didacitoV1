@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import apiClient from '../lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Loader2, Users, FileText, CheckCircle2, Clock, AlertTriangle, LayoutDashboard, PieChart as PieChartIcon } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 interface DashboardWidget {
   id: number;
@@ -19,23 +19,35 @@ export function DashboardView({ userRole }: { userRole: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [userRole]);
+    let isMounted = true;
+    
+    const fetchDashboardData = async () => {
+      try {
+        const [widgetsRes, analyticsRes] = await Promise.all([
+          apiClient.get('/dashboard/widgets'),
+          apiClient.get(userRole === 'DOCENTE' ? '/dashboard/analytics/personal' : '/dashboard/analytics/global')
+        ]);
+        if (isMounted) {
+          setWidgets(widgetsRes.data);
+          setAnalytics(analyticsRes.data);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard data", error);
+        if (isMounted) setLoading(false);
+      }
+    };
 
-  const fetchDashboardData = async () => {
-    try {
-      const [widgetsRes, analyticsRes] = await Promise.all([
-        apiClient.get('/dashboard/widgets'),
-        apiClient.get(userRole === 'DOCENTE' ? '/dashboard/analytics/personal' : '/dashboard/analytics/global')
-      ]);
-      setWidgets(widgetsRes.data);
-      setAnalytics(analyticsRes.data);
-    } catch (error) {
-      console.error("Error fetching dashboard data", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchDashboardData();
+    
+    // Polling cada 30 segundos
+    const intervalId = setInterval(fetchDashboardData, 30000);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [userRole]);
 
   if (loading) {
     return (
@@ -64,32 +76,57 @@ export function DashboardView({ userRole }: { userRole: string }) {
 
   const renderActiveUsersWidget = () => {
     let data = analytics?.active_users_series || [];
-    if (data.length === 0) {
-      data = [
-        { name: 'Lun', users: 12 }, { name: 'Mar', users: 15 }, { name: 'Mie', users: 18 },
-        { name: 'Jue', users: 14 }, { name: 'Vie', users: 20 }, { name: 'Sab', users: 9 }, { name: 'Dom', users: 6 }
-      ];
-    }
+    
+    // Safety fallback for old cache keys if needed, but normally we just trust the new backend format
+    data = data.map((d: any) => ({
+      name: d.name,
+      connections: typeof d.connections === 'number' ? d.connections : (d.users || 0),
+      plans: typeof d.plans === 'number' ? d.plans : 0
+    }));
+
+    const currentOnline = analytics?.current_online_users || 0;
+    
     return (
       <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-3">
-        <CardHeader>
-          <CardTitle className="text-card-foreground">Accesos en la Semana</CardTitle>
-          <CardDescription>Conexiones activas de usuarios al sistema</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-card-foreground">Accesos en la Semana</CardTitle>
+            <CardDescription>Actividad global: Conexiones y Creación de Planes</CardDescription>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Conectados Ahora</span>
+            <div className="flex items-center gap-2">
+              <div className="relative flex h-3 w-3 mt-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              </div>
+              <span className="text-3xl font-bold text-emerald-500">{currentOnline}</span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--card-foreground))', borderRadius: '8px' }}
-                  itemStyle={{ color: 'hsl(var(--primary))' }}
-                />
-                <Line type="monotone" dataKey="users" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: 'hsl(var(--primary))' }} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="h-[300px] w-full mt-4 overflow-x-auto">
+            {data.length > 0 ? (
+              <div style={{ width: '800px', height: '300px' }}>
+                <LineChart width={800} height={300} data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+                  <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} tickLine={true} axisLine={true} />
+                  <YAxis stroke="#9ca3af" fontSize={12} tickLine={true} axisLine={true} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f9fafb', borderRadius: '8px' }}
+                    itemStyle={{ color: '#f9fafb' }}
+                  />
+                  <Legend verticalAlign="top" height={36}/>
+                  <Line name="Conexiones" type="monotone" dataKey="connections" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981' }} activeDot={{ r: 6 }} />
+                  <Line name="Planes Creados" type="monotone" dataKey="plans" stroke="#6366f1" strokeWidth={3} dot={{ r: 4, fill: '#6366f1' }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                <LayoutDashboard className="h-10 w-10 mb-2 opacity-50" />
+                <p>No hay datos suficientes para esta semana.</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -97,23 +134,30 @@ export function DashboardView({ userRole }: { userRole: string }) {
   };
 
   const renderPlanStatusWidget = () => {
+    const statusMap: Record<string, { label: string, color: string }> = {
+      'DRAFT': { label: 'Borradores', color: '#64748b' }, // Slate
+      'IN_REVIEW': { label: 'En Revisión', color: '#f59e0b' }, // Amber
+      'OBSERVED': { label: 'Observados', color: '#ef4444' }, // Red
+      'APPROVED': { label: 'Aprobados', color: '#10b981' } // Emerald
+    };
+
     let data: any[] = [];
+    let totalPlans = 0;
+
     if (analytics?.status_counts) {
-      data = Object.entries(analytics.status_counts).map(([status, count]) => ({
-        name: status,
-        value: count
-      })).filter((item: any) => item.value > 0);
+      data = Object.entries(analytics.status_counts)
+        .filter(([_, count]: any) => count > 0)
+        .map(([status, count]) => {
+          totalPlans += count as number;
+          return {
+            name: statusMap[status]?.label || status,
+            value: count,
+            color: statusMap[status]?.color || '#cbd5e1'
+          };
+        });
     }
     
-    if (data.length === 0) {
-      data = [
-        { name: 'Borradores', value: 3 },
-        { name: 'En Revisión', value: 2 },
-        { name: 'Aprobados', value: 8 }
-      ];
-    }
-    
-    const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444'];
+    const hasData = data.length > 0 && totalPlans > 0;
     
     return (
       <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-1">
@@ -123,19 +167,27 @@ export function DashboardView({ userRole }: { userRole: string }) {
         </CardHeader>
         <CardContent>
           <div className="h-[250px] w-full flex items-center justify-center mt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                  {data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--card-foreground))', borderRadius: '8px' }}
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            {hasData ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {data.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--card-foreground))', borderRadius: '8px' }}
+                    itemStyle={{ color: 'hsl(var(--foreground))' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center text-muted-foreground w-full h-full border-2 border-dashed border-border rounded-full p-8 max-w-[200px] max-h-[200px] text-center">
+                <PieChartIcon className="w-8 h-8 mb-2 opacity-50" />
+                <span className="text-sm font-medium">Sin datos</span>
+                <span className="text-xs opacity-75">No hay planes registrados</span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -199,7 +251,8 @@ export function DashboardView({ userRole }: { userRole: string }) {
       case 'pending_approvals':
         return renderStatCard('Por Aprobar', analytics?.pending_approvals || 0, 'Esperando revisión', <Clock className="text-orange-600" />, 'bg-orange-600/20');
       case 'creation_time':
-        return renderStatCard('Tiempo Promedio', '2.5h', 'Tiempo en diseñar un plan', <CheckCircle2 className="text-emerald-600" />, 'bg-emerald-600/20');
+        const avgTime = analytics?.average_creation_time || 'N/A';
+        return renderStatCard('Tiempo Promedio', avgTime, 'Tiempo en diseñar un plan', <CheckCircle2 className="text-emerald-600" />, 'bg-emerald-600/20');
       case 'coordinator_inbox':
         return renderStatCard('Bandeja Entrada', analytics?.pending_approvals || 0, 'Planes para hoy', <LayoutDashboard className="text-purple-600" />, 'bg-purple-600/20');
       case 'active_users':

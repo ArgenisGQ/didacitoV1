@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import api, { setAccessToken } from '@/lib/api-client';
-import zxcvbn from 'zxcvbn';
 
 interface LoginProps {
   onLoginSuccess: (token: string) => void;
@@ -56,8 +55,10 @@ export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) 
       setPasswordStrength(null);
       return;
     }
-    const result = zxcvbn(newPassword);
-    setPasswordStrength(result);
+    import('zxcvbn').then((zxcvbnModule) => {
+      const evaluation = zxcvbnModule.default ? zxcvbnModule.default(newPassword) : (zxcvbnModule as any)(newPassword);
+      setPasswordStrength(evaluation);
+    });
   }, [newPassword]);
 
   const getStrengthLabel = (score: number) => {
