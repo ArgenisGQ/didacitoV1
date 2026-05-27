@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
+from sqlalchemy.orm import selectinload
 import uuid
 import hashlib
 import pyotp
@@ -25,7 +26,7 @@ from api.core.security import (
     SECRET_KEY,
     ALGORITHM,
 )
-from api.models import User, RefreshToken, PasswordReset
+from api.models import User, RefreshToken, PasswordReset, Role, Permission
 from api.schemas import (
     LoginResponse,
     ForgotPasswordRequest,
@@ -60,7 +61,7 @@ async def login(
     from api.routers.admin import log_audit_background, update_last_login
     
     result = await db.execute(
-        select(User).where(User.email == form_data.username)
+        select(User).options(selectinload(User.roles).selectinload(Role.permissions)).where(User.email == form_data.username)
     )
     user = result.scalars().first()
 
@@ -163,8 +164,9 @@ async def login(
         }
 
     # 5. Issue access & refresh tokens
+    perms = list(set([p.code for r in user.roles for p in r.permissions]))
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role}
+        data={"sub": user.email, "role": user.role, "permissions": perms}
     )
     jti = uuid.uuid4().hex
     refresh_token_jwt = create_refresh_token(data={"sub": user.email}, jti=jti)
@@ -231,7 +233,7 @@ async def login_mfa(
         )
 
     user_id = int(payload.get("sub"))
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).options(selectinload(User.roles).selectinload(Role.permissions)).where(User.id == user_id))
     user = result.scalars().first()
 
     if not user or not user.is_active:
@@ -311,8 +313,9 @@ async def login_mfa(
     user.lockout_until = None
     await db.commit()
 
+    perms = list(set([p.code for r in user.roles for p in r.permissions]))
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role}
+        data={"sub": user.email, "role": user.role, "permissions": perms}
     )
     jti = uuid.uuid4().hex
     refresh_token_jwt = create_refresh_token(data={"sub": user.email}, jti=jti)
@@ -446,7 +449,7 @@ async def first_login_change_password(
         )
         
     user_id = int(payload.get("sub"))
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).options(selectinload(User.roles).selectinload(Role.permissions)).where(User.id == user_id))
     user = result.scalars().first()
     
     if not user or not user.is_active:
@@ -478,7 +481,8 @@ async def first_login_change_password(
     await db.commit()
     
     # 4. Generate definitive session tokens (RTR cookie refresh token)
-    access_token = create_access_token(data={"sub": user.email, "role": user.role})
+    perms = list(set([p.code for r in user.roles for p in r.permissions]))
+    access_token = create_access_token(data={"sub": user.email, "role": user.role, "permissions": perms})
     jti = uuid.uuid4().hex
     refresh_token_jwt = create_refresh_token(data={"sub": user.email}, jti=jti)
     token_hash = hashlib.sha256(refresh_token_jwt.encode()).hexdigest()
@@ -582,7 +586,7 @@ async def refresh_token(
         )
 
     # Success: verify user
-    result_user = await db.execute(select(User).where(User.id == token_record.user_id))
+    result_user = await db.execute(select(User).options(selectinload(User.roles).selectinload(Role.permissions)).where(User.id == token_record.user_id))
     user = result_user.scalars().first()
     if not user or not user.is_active:
         raise HTTPException(
@@ -594,7 +598,8 @@ async def refresh_token(
     token_record.is_revoked = True
 
     # Issue new token pair
-    access_token = create_access_token(data={"sub": user.email, "role": user.role})
+    perms = list(set([p.code for r in user.roles for p in r.permissions]))
+    access_token = create_access_token(data={"sub": user.email, "role": user.role, "permissions": perms})
     new_jti = uuid.uuid4().hex
     new_refresh_token_jwt = create_refresh_token(data={"sub": user.email}, jti=new_jti)
     new_token_hash = hashlib.sha256(new_refresh_token_jwt.encode()).hexdigest()

@@ -4,10 +4,11 @@ from sqlalchemy import select
 from typing import List
 
 from api.database import get_db
-from api.core.dependencies import get_current_user, check_role
+from api.core.dependencies import get_current_user, RequirePermission
 from api.core.security import get_password_hash
-from api.models import User, UserRole, AcademicPeriod, UserAcademicPeriod, CreationMethod
+from api.models import User, UserRole, AcademicPeriod, UserAcademicPeriod, CreationMethod, Role
 from api.schemas import UserResponse, UserCreate, UserUpdate
+from sqlalchemy.orm import selectinload
 
 from pydantic import BaseModel
 from typing import Optional
@@ -23,8 +24,14 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+async def get_me(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(User).options(selectinload(User.roles)).where(User.id == current_user.id))
+    user = res.scalars().first()
+    
+    user_dict = {c.name: getattr(user, c.name) for c in user.__table__.columns}
+    user_dict["role"] = user.role
+    user_dict["roles"] = [r.name for r in user.roles]
+    return user_dict
 
 
 @router.get("/me/profile-config")
@@ -156,13 +163,18 @@ async def update_my_profile(
         current_user.full_name = str(payload["full_name"]).strip()
     if "email" in payload and payload["email"]:
         current_user.email = str(payload["email"]).strip().lower()
-    if "role" in payload and payload["role"]:
-        current_user.role = str(payload["role"]).strip()
         
     db.add(current_user)
     await db.commit()
     await db.refresh(current_user)
-    return current_user
+    
+    res = await db.execute(select(User).options(selectinload(User.roles)).where(User.id == current_user.id))
+    user_refreshed = res.scalars().first()
+    
+    user_dict = {c.name: getattr(user_refreshed, c.name) for c in user_refreshed.__table__.columns}
+    user_dict["role"] = user_refreshed.role
+    user_dict["roles"] = [r.name for r in user_refreshed.roles]
+    return user_dict
 
 
 @router.post("/me/change-password")
@@ -223,9 +235,8 @@ async def list_users(
     period_id: Optional[int] = None,
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _=Depends(RequirePermission("users:read")),
 ):
-    check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION])
     
     users_response = []
     if period_id is not None and period_id > 0:
@@ -260,6 +271,7 @@ async def list_users(
                         email=u.email,
                         full_name=u.full_name,
                         role=u.role,
+                        roles=[r.name for r in u.roles] if hasattr(u, "roles") else [],
                         is_active=ass.is_active,
                         is_staff=u.is_staff,
                         is_superuser=u.is_superuser,
@@ -308,6 +320,7 @@ async def list_users(
                     email=u.email,
                     full_name=u.full_name,
                     role=u.role,
+                    roles=[r.name for r in u.roles] if hasattr(u, "roles") else [],
                     is_active=u.is_active,
                     is_staff=u.is_staff,
                     is_superuser=u.is_superuser,
@@ -349,6 +362,7 @@ async def list_users(
                     email=u.email,
                     full_name=u.full_name,
                     role=u.role,
+                    roles=[r.name for r in u.roles] if hasattr(u, "roles") else [],
                     is_active=u.is_active,
                     is_staff=u.is_staff,
                     is_superuser=u.is_superuser,
@@ -380,22 +394,30 @@ async def create_user(
     user_in: UserCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _=Depends(RequirePermission("users:create"))
 ):
-    check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION])
 
     existing = await db.execute(select(User).where(User.email == user_in.email))
     if existing.scalars().first():
         raise HTTPException(status_code=400, detail="El correo ya se encuentra registrado")
 
+    primary_role = user_in.role if user_in.role else (user_in.roles[0] if user_in.roles else UserRole.DOCENTE)
+
     new_user = User(
         email=user_in.email.strip().lower(),
         full_name=user_in.full_name.strip(),
-        role=user_in.role,
+        role=primary_role,
         password=get_password_hash(user_in.password),
         is_active=True,
         is_staff=False,
         is_superuser=False,
     )
+    
+    if user_in.roles:
+        roles_res = await db.execute(select(Role).where(Role.name.in_(user_in.roles)))
+        roles_db = roles_res.scalars().all()
+        new_user.roles.extend(roles_db)
+
     db.add(new_user)
     await db.flush() # get new_user.id
 
@@ -425,6 +447,7 @@ async def create_user(
         email=new_user.email,
         full_name=new_user.full_name,
         role=new_user.role,
+        roles=[r.name for r in new_user.roles],
         is_active=new_user.is_active,
         is_staff=new_user.is_staff,
         is_superuser=new_user.is_superuser,
@@ -452,10 +475,10 @@ async def update_user(
     user_in: UserUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _=Depends(RequirePermission("users:update"))
 ):
-    check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION])
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).options(selectinload(User.roles)).where(User.id == user_id))
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -464,8 +487,19 @@ async def update_user(
         user.email = user_in.email.strip().lower()
     if user_in.full_name is not None:
         user.full_name = user_in.full_name.strip()
-    if user_in.role is not None:
+    if user_in.roles is not None:
+        if user_in.roles:
+            user.role = user_in.roles[0] # primary role sync
+            roles_res = await db.execute(select(Role).where(Role.name.in_(user_in.roles)))
+            roles_db = roles_res.scalars().all()
+            user.roles.clear()
+            user.roles.extend(roles_db)
+        else:
+            user.role = None
+            user.roles.clear()
+    elif user_in.role is not None:
         user.role = user_in.role
+        
     if user_in.password is not None and user_in.password.strip() != "":
         user.password = get_password_hash(user_in.password)
     if user_in.is_active is not None:
@@ -542,6 +576,7 @@ async def update_user(
         email=user.email,
         full_name=user.full_name,
         role=user.role,
+        roles=[r.name for r in user.roles],
         is_active=user.is_active,
         is_staff=user.is_staff,
         is_superuser=user.is_superuser,
@@ -568,9 +603,8 @@ async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _=Depends(RequirePermission("users:delete"))
 ):
-    check_role(current_user, [UserRole.SUPER_ADMIN])
-
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta")
 

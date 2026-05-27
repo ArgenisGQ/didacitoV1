@@ -69,7 +69,7 @@ interface UserData {
   id: number
   email: string
   full_name: string
-  role: string
+  roles: string[]
   is_active: boolean
   date_joined: string
   mfa_enabled: boolean
@@ -247,7 +247,8 @@ export default function UserManagement() {
         idUser.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         username.toLowerCase().includes(debouncedSearch.toLowerCase())
       
-      const matchesRole = roleFilter === 'ALL' || u.role === roleFilter
+      const userRoles = u.roles || [];
+      const matchesRole = roleFilter === 'ALL' || userRoles.includes(roleFilter);
       
       const matchesMFA = 
         mfaFilter === 'ALL' || 
@@ -310,19 +311,23 @@ export default function UserManagement() {
         ),
       },
       {
-        accessorKey: 'role',
-        header: 'Rol',
+        accessorKey: 'roles',
+        header: 'Roles',
         cell: ({ row }) => (
-          <Badge variant={roleVariants[row.original.role] || 'outline'} className="font-extrabold text-[10px] uppercase">
-            {roleLabels[row.original.role] || row.original.role}
-          </Badge>
+          <div className="flex flex-wrap gap-1">
+            {(row.original.roles || []).map(r => (
+              <Badge key={r} variant={roleVariants[r] || 'outline'} className="font-extrabold text-[10px] uppercase">
+                {roleLabels[r] || r}
+              </Badge>
+            ))}
+          </div>
         ),
       },
       {
         id: 'academic_load',
         header: 'Carga Académica',
         cell: ({ row }) => {
-          const isDocente = row.original.role === 'DOCENTE';
+          const isDocente = (row.original.roles || []).includes('DOCENTE');
           if (!isDocente) return <span className="text-slate-400 font-medium text-xs">—</span>;
           
           const subjectStr = row.original.subject_code || '';
@@ -387,7 +392,7 @@ export default function UserManagement() {
         header: () => <div className="text-right">Acciones</div>,
         cell: ({ row }) => {
           const isCurrentUser = currentUserInfo?.email === row.original.email;
-          const isDocente = row.original.role === 'DOCENTE';
+          const isDocente = (row.original.roles || []).includes('DOCENTE');
           const isSuperAdmin = currentUserInfo?.role === 'SUPER_ADMIN';
 
           return (

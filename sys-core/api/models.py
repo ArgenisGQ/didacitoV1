@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float, Text, CheckConstraint, JSON, Date
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float, Text, CheckConstraint, JSON, Date, Table
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from api.database import Base
@@ -25,6 +25,43 @@ class CatalogType(str, enum.Enum):
     FACULTY = "FACULTY"
     ACADEMIC_PROGRAM = "ACADEMIC_PROGRAM"
     MODALITY = "MODALITY"
+
+
+role_permissions = Table(
+    'plan_app_role_permissions',
+    Base.metadata,
+    Column('id', Integer, primary_key=True),
+    Column('role_id', Integer, ForeignKey('plan_app_role.id')),
+    Column('permission_id', Integer, ForeignKey('plan_app_permission.id'))
+)
+
+user_roles = Table(
+    'plan_app_user_roles',
+    Base.metadata,
+    Column('id', Integer, primary_key=True),
+    Column('user_id', Integer, ForeignKey('plan_app_user.id')),
+    Column('role_id', Integer, ForeignKey('plan_app_role.id'))
+)
+
+
+class Permission(Base):
+    __tablename__ = "plan_app_permission"
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(100), unique=True, index=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    module_name = Column(String(100), nullable=False)
+
+
+class Role(Base):
+    __tablename__ = "plan_app_role"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    is_system = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+    
+    permissions = relationship("Permission", secondary=role_permissions, backref="roles")
+
 
 
 class User(Base):
@@ -64,6 +101,8 @@ class User(Base):
     
     # Bandera para forzar cambio de clave en primer inicio de sesión
     needs_password_change = Column(Boolean, default=False, nullable=False)
+
+    roles = relationship("Role", secondary=user_roles, backref="users")
 
     authored_plans = relationship(
         "LessonPlan", back_populates="author",

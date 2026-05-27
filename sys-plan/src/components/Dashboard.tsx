@@ -43,6 +43,7 @@ import AcademicPeriods from './AcademicPeriods'
 import { AcademicDistribution } from './AcademicDistribution'
 import { PdfPreviewModal } from './PdfPreviewModal'
 import { Button } from '@/components/ui/button'
+import { hasPermission } from '../lib/permissions'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -59,6 +60,7 @@ import {
 } from '@/components/ui/table'
 import { LessonPlanWizard } from './wizard/LessonPlanWizard'
 import UserManagement from './UserManagement'
+import RoleManagement from './RoleManagement'
 import { SubjectDetailModal } from './SubjectDetailModal'
 
 interface LessonPlan {
@@ -382,23 +384,34 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
             { id: 'plans', icon: FileText, label: 'Planificaciones', count: userRole === 'DOCENTE' ? `${teacherRequiredPlans.filter((p: any) => p.plan).length}/${teacherRequiredPlans.filter((p: any) => p.hasSyllabus).length}` : plans.length },
-            ...((userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_GESTION')
+            ...(hasPermission('syllabus:read')
               ? [
                   { id: 'syllabus', icon: BookOpen, label: 'Programas Sinópticos' }
                 ]
               : []),
             { id: 'profile', icon: User, label: 'Mi Perfil' },
             { id: 'security', icon: Shield, label: 'Seguridad de la Cuenta' },
-            ...(userRole === 'SUPER_ADMIN'
+            ...(hasPermission('users:read')
               ? [
-                  { id: 'users', icon: Users, label: 'Gestion de Usuarios' },
-                  { id: 'academic_periods', icon: CalendarIcon, label: 'Periodos Académicos' },
-                { id: 'academic_distribution', icon: Building, label: 'Distribución Académica' }
+                  { id: 'users', icon: Users, label: 'Gestion de Usuarios' }
                 ]
-              : (userRole === 'ADMIN_GESTION'
-                  ? [{ id: 'users', icon: Users, label: 'Gestion de Usuarios' }]
-                  : [])),
-            ...(isAuditViewer
+              : []),
+            ...(hasPermission('roles:read')
+              ? [
+                  { id: 'roles', icon: Shield, label: 'Roles y Permisos' }
+                ]
+              : []),
+            ...(hasPermission('periods:read')
+              ? [
+                  { id: 'academic_periods', icon: CalendarIcon, label: 'Periodos Académicos' }
+                ]
+              : []),
+            ...(hasPermission('distribution:read')
+              ? [
+                  { id: 'academic_distribution', icon: Building, label: 'Distribución Académica' }
+                ]
+              : []),
+            ...(hasPermission('audit:read')
               ? [
                   { id: 'audit', icon: Clock, label: 'Auditoría y Control' }
                 ]
@@ -420,7 +433,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             </Button>
           ))}
 
-          {userRole === 'SUPER_ADMIN' && (
+          {hasPermission('settings:manage') && (
             <>
               <Separator className="my-4" />
               <Button
@@ -495,13 +508,15 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         <div className="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8">
           {activeTab === 'users' ? (
             <UserManagement />
+          ) : activeTab === 'roles' && hasPermission('roles:read') ? (
+            <RoleManagement />
           ) : activeTab === 'syllabus' ? (
             <SyllabusManagement />
-          ) : activeTab === 'academic_periods' && userRole === 'SUPER_ADMIN' ? (
+          ) : activeTab === 'academic_periods' && hasPermission('periods:read') ? (
             <AcademicPeriods />
-          ) : activeTab === 'academic_distribution' && userRole === 'SUPER_ADMIN' ? (
+          ) : activeTab === 'academic_distribution' && hasPermission('distribution:read') ? (
             <AcademicDistribution />
-          ) : activeTab === 'settings' && userRole === 'SUPER_ADMIN' ? (
+          ) : activeTab === 'settings' && hasPermission('settings:manage') ? (
             <AdminSettings />
           ) : activeTab === 'security' ? (
             <SecuritySettings />

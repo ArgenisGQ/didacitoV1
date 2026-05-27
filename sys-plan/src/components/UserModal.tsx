@@ -31,7 +31,7 @@ interface UserModalProps {
     id: number
     email: string
     full_name: string
-    role: string
+    roles?: string[]
     is_active?: boolean
     academic_period_id?: number | null
   } | null
@@ -48,7 +48,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
       z.object({
         email: z.string().email('Correo invalido'),
         full_name: z.string().min(3, 'Nombre muy corto'),
-        role: z.enum(['SUPER_ADMIN', 'ADMIN_GESTION', 'COORDINADOR', 'DOCENTE']),
+        roles: z.array(z.string()).min(1, 'Seleccione al menos un rol'),
         password: isEditing
           ? z.string().optional().or(z.literal('')).refine((val) => !val || val.length >= 6, {
               message: 'Minimo 6 caracteres',
@@ -67,7 +67,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
     defaultValues: {
       email: initialData?.email || '',
       full_name: initialData?.full_name || '',
-      role: (initialData?.role as FormData['role']) || 'DOCENTE',
+      roles: initialData?.roles || [],
       password: '',
       is_active: initialData?.is_active ?? true,
       academic_period_id: initialData?.academic_period_id ? String(initialData.academic_period_id) : 'none',
@@ -79,7 +79,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
       form.reset({
         email: initialData?.email || '',
         full_name: initialData?.full_name || '',
-        role: (initialData?.role as FormData['role']) || 'DOCENTE',
+        roles: initialData?.roles || [],
         password: '',
         is_active: initialData?.is_active ?? true,
         academic_period_id: initialData?.academic_period_id ? String(initialData.academic_period_id) : 'none',
@@ -94,7 +94,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
       const payload: Record<string, unknown> = {
         email: data.email,
         full_name: data.full_name,
-        role: data.role,
+        roles: data.roles,
       }
       if (data.password && data.password.trim() !== '') {
         payload.password = data.password
@@ -201,21 +201,36 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="role">Rol Asignado</Label>
-            <Select
-              value={form.watch('role')}
-              onValueChange={(v) => form.setValue('role', v as FormData['role'])}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar rol" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="SUPER_ADMIN">Super Administrador (IT)</SelectItem>
-                <SelectItem value="ADMIN_GESTION">Admin de Gestion</SelectItem>
-                <SelectItem value="COORDINADOR">Coordinador</SelectItem>
-                <SelectItem value="DOCENTE">Docente</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="roles">Roles Asignados</Label>
+            <div className="flex flex-col gap-2 p-4 border rounded-md max-h-48 overflow-y-auto bg-card">
+              {['SUPER_ADMIN', 'ADMIN_GESTION', 'COORDINADOR', 'DOCENTE'].map((roleKey) => {
+                const currentRoles = form.watch('roles') || [];
+                const isSelected = currentRoles.includes(roleKey);
+                
+                return (
+                  <label key={roleKey} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-muted/50 rounded-md transition-colors">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          form.setValue('roles', [...currentRoles, roleKey]);
+                        } else {
+                          form.setValue('roles', currentRoles.filter(r => r !== roleKey));
+                        }
+                      }}
+                    />
+                    <span className="text-sm font-medium">{roleKey.replace('_', ' ')}</span>
+                  </label>
+                )
+              })}
+            </div>
+            {form.formState.errors.roles && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.roles.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

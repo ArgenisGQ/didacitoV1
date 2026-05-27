@@ -24,6 +24,36 @@ class CatalogType(models.TextChoices):
     MODALITY = "MODALITY", "Modalidad"
 
 
+class Permission(models.Model):
+    code = models.CharField(max_length=100, unique=True, db_index=True)
+    name = models.CharField(max_length=255)
+    module_name = models.CharField(max_length=100)
+
+    class Meta:
+        db_table = "plan_app_permission"
+        verbose_name = "Permiso"
+        verbose_name_plural = "Permisos"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class Role(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, null=True)
+    is_system = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    permissions = models.ManyToManyField(Permission, related_name="roles", db_table="plan_app_role_permissions")
+
+    class Meta:
+        db_table = "plan_app_role"
+        verbose_name = "Rol"
+        verbose_name_plural = "Roles"
+
+    def __str__(self):
+        return self.name
+
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -72,6 +102,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     # Bandera para forzar cambio de clave en primer inicio de sesión
     needs_password_change = models.BooleanField(default=False)
+    
+    roles = models.ManyToManyField(Role, related_name="users", db_table="plan_app_user_roles", blank=True)
 
     objects = UserManager()
 

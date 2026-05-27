@@ -10,7 +10,8 @@ from api.models import UserRole, PlanStatus
 class UserBase(BaseModel):
     email: EmailStr
     full_name: str
-    role: UserRole = UserRole.DOCENTE
+    role: Optional[str] = None
+    roles: List[str] = []
 
 
 class UserCreate(UserBase):
@@ -21,7 +22,8 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
-    role: Optional[UserRole] = None
+    role: Optional[str] = None
+    roles: Optional[List[str]] = None
     password: Optional[str] = Field(None, min_length=6)
     is_active: Optional[bool] = None
     academic_period_id: Optional[int] = None
@@ -31,7 +33,8 @@ class UserResponse(BaseModel):
     id: int
     email: str
     full_name: str
-    role: str
+    role: Optional[str] = None
+    roles: List[str] = []
     is_active: bool
     is_staff: bool
     is_superuser: bool
@@ -229,6 +232,7 @@ class BulkImportRowPreview(BaseModel):
     email: Optional[str] = None
     full_name: Optional[str] = None
     role: Optional[str] = None
+    roles: List[str] = []
     status: str  # "VALID" or "INVALID"
     errors: List[str] = []
     warnings: List[str] = []
@@ -251,7 +255,8 @@ class BulkImportPreviewResponse(BaseModel):
 class BulkImportRowInput(BaseModel):
     email: EmailStr
     full_name: str
-    role: UserRole
+    role: Optional[str] = None
+    roles: List[str] = []
     username: Optional[str] = None
     id_user: Optional[str] = None
     first_name: Optional[str] = None

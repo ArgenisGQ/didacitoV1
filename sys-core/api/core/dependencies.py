@@ -6,7 +6,7 @@ from typing import List
 
 from api.database import get_db
 from api.core.security import decode_access_token
-from api.models import User, UserRole
+from api.models import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 
@@ -33,25 +33,45 @@ async def get_current_user(
             detail="User not found or inactive",
         )
 
+    user.token_permissions = payload.get("permissions", [])
     return user
 
 
-def check_role(user: User, allowed_roles: List[UserRole]):
-    if user.role not in allowed_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to perform this action",
-        )
+class RequirePermission:
+    def __init__(self, required_permission: str):
+        self.required_permission = required_permission
+
+    def __call__(self, token: str = Depends(oauth2_scheme)):
+        payload = decode_access_token(token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        perms = payload.get("permissions", [])
+        if self.required_permission not in perms:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permiso insuficiente: requiere '{self.required_permission}'"
+            )
+        return payload
 
 
 async def get_current_audit_viewer(
-    current_user: User = Depends(get_current_user)
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
-    from api.core.settings_manager import SettingsManager
-    viewer_roles = SettingsManager.get_setting_as_list("AUDIT_LOG_VIEWER_ROLES", ["SUPER_ADMIN"])
-    if current_user.role not in viewer_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Privilegios de auditoría insuficientes"
-        )
-    return current_user
+    RequirePermission("audit:read")(token)
+    return await get_current_user(token, db)
+
+def check_role(user: User, allowed_roles: List[str]):
+    """Legacy compatibility function for checking user roles"""
+    user_roles = [r.name for r in getattr(user, "roles", [])]
+    if not any(r in allowed_roles for r in user_roles):
+        if getattr(user, "role", None) not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes los privilegios necesarios para esta acción."
+            )
