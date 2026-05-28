@@ -100,6 +100,9 @@ class User(Base):
     is_superuser = Column(Boolean, default=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
 
+    # Asociación con departamento (Para Coordinadores u otros roles departamentales)
+    department_id = Column(Integer, ForeignKey("plan_app_department.id", ondelete="SET NULL"), nullable=True)
+
     # Category A Security Fields
     mfa_secret = Column(String(32), nullable=True)
     mfa_enabled = Column(Boolean, default=False, nullable=False)
@@ -125,6 +128,7 @@ class User(Base):
     needs_password_change = Column(Boolean, default=False, nullable=False)
 
     roles = relationship("Role", secondary=user_roles, backref="users")
+    department = relationship("Department", backref="users")
 
     authored_plans = relationship(
         "LessonPlan", back_populates="author",

@@ -84,6 +84,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [editingPlan, setEditingPlan] = useState<LessonPlan | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userName, setUserName] = useState<string>('Admin')
+  const [userPermissions, setUserPermissions] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null)
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false)
@@ -109,6 +110,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         const decoded: any = jwtDecode(token)
         setUserRole(decoded.role)
         setUserName(decoded.sub.split('@')[0])
+        setUserPermissions(decoded.permissions || [])
       } catch {
         // ignore
       }
@@ -179,6 +181,16 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     }
     setIsModalOpen(false)
     setEditingPlan(null)
+  }
+
+  const handleApprovePlan = async (planId: number) => {
+    if (window.confirm('¿Estás seguro de aprobar este plan? Esta acción no se puede deshacer.')) {
+      try {
+        await updateMutation.mutateAsync({ id: planId, status: 'APPROVED' } as any)
+      } catch (e: any) {
+        alert(e.response?.data?.detail || 'Error al aprobar el plan')
+      }
+    }
   }
 
   const filteredPlans = useMemo(() => {
@@ -308,8 +320,23 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     baseCols.push({
       id: 'actions',
       header: () => <div className="text-right">Accion</div>,
-      cell: ({ row }) => (
+      cell: ({ row }) => {
+        const canApprove = 
+          row.original.status === 'IN_REVIEW' && 
+          (userPermissions.includes('lesson_plan:approve_global') || userPermissions.includes('lesson_plan:approve_department'));
+        
+        return (
           <div className="flex justify-end gap-2">
+            {canApprove && (
+              <Button
+                variant="default"
+                size="sm"
+                className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => handleApprovePlan(row.original.id!)}
+              >
+                Aprobar
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -336,11 +363,12 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               </Button>
             )}
           </div>
-      ),
+        );
+      },
     });
 
     return baseCols;
-  }, [profileConfig, userRole]);
+  }, [profileConfig, userRole, userPermissions, updateMutation]);
 
   const table = useReactTable({
     data: filteredPlans,

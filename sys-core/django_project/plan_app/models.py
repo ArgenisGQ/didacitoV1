@@ -130,6 +130,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=150, blank=True, null=True)
     last_name = models.CharField(max_length=150, blank=True, null=True)
     
+    # Asociación con departamento para Coordinadores
+    department = models.ForeignKey("Department", on_delete=models.SET_NULL, null=True, blank=True, related_name="users", verbose_name="Departamento Asignado")
+    
     # El usuario conserva sus datos generales; su carga académica y periodos se administran en la tabla pivot UserAcademicPeriod.
     
     # Bandera para forzar cambio de clave en primer inicio de sesión

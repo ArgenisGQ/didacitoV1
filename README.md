@@ -263,3 +263,61 @@ PROYECTO-MAESTRIA-PY/
     ├── tailwind.config.js   # Configuración del tema de Tailwind
     └── vite.config.ts       # Configuración del empaquetador Vite
 ```
+
+---
+
+## 🛠️ Solución de Problemas Frecuentes en Producción
+
+### Recuperación del Rol SUPER_ADMIN en Producción
+**¿Por qué sucede?** 
+Al actualizar la plataforma en entornos de producción que mantienen volúmenes persistentes (como Dokploy), es posible que los scripts de semillas (`seed.py`) omitan reasignar roles de seguridad al usuario `superadmin@didactico.edu` porque detectan que la cuenta ya existe. Esto ocasiona que el usuario ingrese correctamente, pero el menú lateral (sidebar) aparezca vacío o incompleto debido a la falta de permisos en su token.
+
+**¿Cómo usar este script y para qué?**
+Este comando inyecta directamente el rol de `SUPER_ADMIN` al usuario existente dentro de la base de datos sin necesidad de borrar a los demás usuarios registrados. Cópialo y pégalo **exactamente con sus saltos de línea** en la terminal de tu servidor de producción:
+
+```bash
+sudo docker exec -it planning_fastapi python -c "
+import asyncio
+from api.database import AsyncSessionLocal
+from api.models import User, Role
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+async def fix():
+    db = AsyncSessionLocal()
+    async with db:
+        user_query = await db.execute(
+            select(User).options(selectinload(User.roles)).where(User.email == 'superadmin@didactico.edu')
+        )
+        user = user_query.scalars().first()
+        
+        role_query = await db.execute(
+            select(Role).where(Role.name == 'SUPER_ADMIN')
+        )
+        role = role_query.scalars().first()
+        
+        if user and role and role not in user.roles:
+            user.roles.append(role)
+            await db.commit()
+            print('¡Éxito! Permisos asignados al superadmin correctamente.')
+        else:
+            print('El rol ya estaba asignado o no se encontró el usuario.')
+
+asyncio.run(fix())
+"
+```
+*(Luego de ejecutarlo, simplemente refresca tu navegador web para generar una nueva sesión con todos los permisos).*
+
+---
+
+## 🌟 Resumen de Novedades y Características Actuales de la App
+
+La aplicación ha evolucionado significativamente hasta convertirse en un sistema integral de clase empresarial. Las novedades más destacadas incluyen:
+
+1. **Dashboard en Tiempo Real (WebSocket):** Gráficos interactivos y conteo exacto de usuarios conectados (en base a conexiones WebSocket activas) y analíticas globales de la institución.
+2. **Gobernanza Dinámica e Identidad:** Panel robusto de configuración del sistema (variables globales, SMTP), auditoría detallada de acciones, e integración de autenticación de Dos Factores (2FA/TOTP) con códigos QR.
+3. **Carga Inteligente Masiva y Analítica:** Importación optimizada de usuarios y asignación de profesores a períodos académicos mediante archivos CSV o Excel (tolerante a fallos y con vistas previas interactivas).
+4. **Módulo Inteligente de Syllabus (Microservicio Independiente):** Extracción automática y estructuración semántica de información desde archivos PDF usando PyMuPDF, control de versiones criptográfico (SHA-256) e inserción directa a la malla curricular.
+5. **Arquitectura Relacional Avanzada (Many-to-Many):** Asignación granular de cargas horarias donde un mismo docente puede dictar materias distintas en periodos distintos sin requerir cuentas duplicadas, manteniendo siempre la trazabilidad histórica de auditoría.
+6. **Diseño de Interfaz Premium (Glassmorphism):** Navegación fluida y responsiva, cuadros de diálogo modales con retroalimentación en vivo, y componentes modernos de React que otorgan una experiencia visual de élite.
+7. **Jerarquía Institucional y Aprobación de Planes Didácticos:** Flujos de aprobación multinivel. Los `COORDINADORES` pueden aprobar planes didácticos únicamente de las asignaturas pertenecientes a su departamento asignado, mientras que los administradores generales (`SUPER_ADMIN`, `ADMIN_GESTION`) poseen aprobación global.

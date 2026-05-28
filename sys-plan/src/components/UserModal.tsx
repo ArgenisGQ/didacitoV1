@@ -34,6 +34,7 @@ interface UserModalProps {
     roles?: string[]
     is_active?: boolean
     academic_period_id?: number | null
+    department_id?: number | null
   } | null
 }
 
@@ -56,6 +57,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
           : z.string().min(6, 'Minimo 6 caracteres'),
         is_active: z.boolean().optional(),
         academic_period_id: z.string().optional().or(z.literal('')),
+        department_id: z.string().optional().or(z.literal('')),
       }),
     [isEditing]
   )
@@ -71,6 +73,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
       password: '',
       is_active: initialData?.is_active ?? true,
       academic_period_id: initialData?.academic_period_id ? String(initialData.academic_period_id) : 'none',
+      department_id: initialData?.department_id ? String(initialData.department_id) : 'none',
     },
   })
 
@@ -83,6 +86,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
         password: '',
         is_active: initialData?.is_active ?? true,
         academic_period_id: initialData?.academic_period_id ? String(initialData.academic_period_id) : 'none',
+        department_id: initialData?.department_id ? String(initialData.department_id) : 'none',
       })
       setServerError(null)
     }
@@ -106,6 +110,12 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
         payload.academic_period_id = parseInt(data.academic_period_id, 10)
       } else {
         payload.academic_period_id = null
+      }
+      
+      if (data.department_id && data.department_id !== 'none') {
+        payload.department_id = parseInt(data.department_id, 10)
+      } else {
+        payload.department_id = null
       }
 
       if (isEditing) {
@@ -148,6 +158,15 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
     queryKey: ['academic-periods-dropdown'],
     queryFn: async () => {
       const { data } = await api.get('/academic-periods')
+      return data
+    },
+    enabled: isOpen
+  })
+
+  const { data: departments = [] } = useQuery<any[]>({
+    queryKey: ['departments-dropdown'],
+    queryFn: async () => {
+      const { data } = await api.get('/distribution/departments')
       return data
     },
     enabled: isOpen
@@ -252,6 +271,28 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
               </SelectContent>
             </Select>
           </div>
+
+          {form.watch('roles')?.includes('COORDINADOR') && (
+            <div className="space-y-2 animate-fadeIn">
+              <Label htmlFor="department_id">Departamento a Cargo</Label>
+              <Select
+                value={form.watch('department_id') || 'none'}
+                onValueChange={(v) => form.setValue('department_id', v)}
+              >
+                <SelectTrigger id="department_id">
+                  <SelectValue placeholder="Seleccionar departamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ninguno / Sin asignar</SelectItem>
+                  {departments.map((dept: any) => (
+                    <SelectItem key={dept.id} value={String(dept.id)}>
+                      {dept.name} ({dept.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {isEditing && (
             <div className="space-y-2 animate-fadeIn">

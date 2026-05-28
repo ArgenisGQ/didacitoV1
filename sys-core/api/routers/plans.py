@@ -149,6 +149,27 @@ async def update_plan(
     if plan_in.program_id is not None:
         plan.program_id = plan_in.program_id
     if plan_in.status is not None:
+        if plan_in.status == PlanStatus.APPROVED and plan.status != PlanStatus.APPROVED:
+            # Lógica de aprobación jerárquica
+            user_perms = getattr(current_user, "token_permissions", [])
+            
+            if "lesson_plan:approve_global" in user_perms:
+                pass # Puede aprobar libremente
+            elif "lesson_plan:approve_department" in user_perms:
+                if not current_user.department_id:
+                    raise HTTPException(status_code=403, detail="No tienes un departamento asignado para aprobar planes")
+                
+                from api.models import Department
+                dept = await db.get(Department, current_user.department_id)
+                if not dept or not dept.subject_codes:
+                    raise HTTPException(status_code=403, detail="Tu departamento asignado no tiene asignaturas válidas configuradas")
+                
+                allowed_codes = [c.strip() for c in dept.subject_codes.split(",")]
+                if not plan.subject_code or plan.subject_code not in allowed_codes:
+                    raise HTTPException(status_code=403, detail="Este plan pertenece a una asignatura fuera de la jurisdicción de su departamento")
+            else:
+                raise HTTPException(status_code=403, detail="No tienes permisos para aprobar planes didácticos")
+                
         plan.status = plan_in.status
     if plan_in.subject_code is not None:
         plan.subject_code = plan_in.subject_code

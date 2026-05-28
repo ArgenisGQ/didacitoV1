@@ -48,13 +48,7 @@ async def fetch_global_analytics(db: AsyncSession) -> dict:
     )
     recent_logs = recent_logs_query.all()
     
-    # Determinar la última acción de cada usuario para descontar a los que cerraron sesión
-    latest_user_actions = {}
-    for user_id, action in recent_logs:
-        if user_id not in latest_user_actions:
-            latest_user_actions[user_id] = action
-            
-    current_online_users = sum(1 for action in latest_user_actions.values() if action != "LOGOUT")
+    current_online_users = len(dashboard_ws_manager.active_connections)
     
     # Calculate REAL weekly stats
     seven_days_ago_dt = datetime.utcnow() - timedelta(days=7)

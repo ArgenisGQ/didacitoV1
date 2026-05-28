@@ -32,7 +32,8 @@ def seed_permissions_and_roles():
         ("lesson_plan:update", "Actualizar Planes de Clase Propios", "Planes de Clase"),
         ("lesson_plan:update_all", "Actualizar Cualquier Plan de Clase", "Planes de Clase"),
         ("lesson_plan:review", "Revisar Planes de Clase", "Planes de Clase"),
-        ("lesson_plan:approve", "Aprobar Planes de Clase", "Planes de Clase"),
+        ("lesson_plan:approve_global", "Aprobar Cualquier Plan de Clase", "Planes de Clase"),
+        ("lesson_plan:approve_department", "Aprobar Planes de Su Departamento", "Planes de Clase"),
         ("settings:manage", "Gestionar Configuración", "Sistema"),
         ("audit:read", "Ver Auditoría", "Sistema"),
         ("roles:manage", "Gestionar Roles", "Sistema"),
@@ -49,7 +50,7 @@ def seed_permissions_and_roles():
     roles_def = {
         "SUPER_ADMIN": list(perm_objs.values()),
         "ADMIN_GESTION": [p for c, p in perm_objs.items() if c in ["users:read", "users:create", "users:update", "academic:read", "periods:read", "distribution:read", "academic:manage_periods", "academic:manage_distribution", "syllabus:read", "syllabus:manage", "lesson_plan:read"]],
-        "COORDINADOR": [p for c, p in perm_objs.items() if c in ["academic:read", "syllabus:read", "lesson_plan:read", "lesson_plan:review"]],
+        "COORDINADOR": [p for c, p in perm_objs.items() if c in ["academic:read", "syllabus:read", "lesson_plan:read", "lesson_plan:review", "lesson_plan:approve_department"]],
         "DOCENTE": [p for c, p in perm_objs.items() if c in ["academic:read", "syllabus:read", "lesson_plan:read", "lesson_plan:create", "lesson_plan:update"]],
     }
 

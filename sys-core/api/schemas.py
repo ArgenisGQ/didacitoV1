@@ -17,6 +17,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
     academic_period_id: Optional[int] = None
+    department_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -27,6 +28,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=6)
     is_active: Optional[bool] = None
     academic_period_id: Optional[int] = None
+    department_id: Optional[int] = None
 
 
 class UserResponse(BaseModel):
@@ -49,6 +51,7 @@ class UserResponse(BaseModel):
     section: Optional[str] = None
     academic_period: Optional[str] = None
     academic_period_id: Optional[int] = None
+    department_id: Optional[int] = None
     needs_password_change: bool = False
     
     # Period-specific relation attributes (from pivot table UserAcademicPeriod)

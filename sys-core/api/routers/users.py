@@ -244,7 +244,7 @@ async def list_users(
         query = (
             select(UserAcademicPeriod)
             .options(
-                joinedload(UserAcademicPeriod.user),
+                joinedload(UserAcademicPeriod.user).selectinload(User.roles),
                 joinedload(UserAcademicPeriod.academic_period),
                 joinedload(UserAcademicPeriod.creator)
             )
@@ -299,6 +299,7 @@ async def list_users(
         # Find users who have NO associations in UserAcademicPeriod
         query = (
             select(User)
+            .options(selectinload(User.roles))
             .outerjoin(UserAcademicPeriod, User.id == UserAcademicPeriod.user_id)
             .where(UserAcademicPeriod.id == None)
         )
@@ -339,6 +340,7 @@ async def list_users(
         query = (
             select(User)
             .options(
+                selectinload(User.roles),
                 selectinload(User.academic_period_assignments).joinedload(UserAcademicPeriod.academic_period),
                 selectinload(User.academic_period_assignments).joinedload(UserAcademicPeriod.creator)
             )
@@ -411,6 +413,7 @@ async def create_user(
         is_active=True,
         is_staff=False,
         is_superuser=False,
+        department_id=user_in.department_id,
     )
     
     if user_in.roles:
@@ -506,6 +509,12 @@ async def update_user(
         if user_id == current_user.id and user_in.is_active is False:
             raise HTTPException(status_code=400, detail="No puedes desactivar tu propia cuenta")
         user.is_active = user_in.is_active
+        
+    if user_in.department_id is not None:
+        if user_in.department_id > 0:
+            user.department_id = user_in.department_id
+        else:
+            user.department_id = None
 
     ap_name = None
     period_rel = None
