@@ -1,16 +1,127 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
+import asyncio
 
-from api.database import get_db
+from api.database import get_db, get_task_db
 from api.core.dependencies import get_current_user, RequirePermission
 from api.models import User, Widget, DashboardWidgetRole, Role, AuditLog, LessonPlan
+from api.core.websockets import dashboard_ws_manager
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+async def fetch_global_analytics(db: AsyncSession) -> dict:
+    """Función helper para obtener las analíticas globales (útil para REST y WebSockets)"""
+    # Usuarios Totales
+    users_result = await db.execute(select(func.count(User.id)))
+    total_users = users_result.scalar() or 0
+    
+    # Planes Totales
+    plans_result = await db.execute(select(func.count(LessonPlan.id)))
+    total_plans = plans_result.scalar() or 0
+    
+    # Estado de Planes (DRAFT, IN_REVIEW, OBSERVED, APPROVED)
+    status_query = await db.execute(
+        select(LessonPlan.status, func.count(LessonPlan.id))
+        .group_by(LessonPlan.status)
+    )
+    status_counts_db = status_query.all()
+    status_counts = {"DRAFT": 0, "IN_REVIEW": 0, "OBSERVED": 0, "APPROVED": 0}
+    for status_val, count in status_counts_db:
+        if status_val in status_counts:
+            status_counts[status_val] = count
+        else:
+            status_counts[status_val] = count
+            
+    # Calculate REAL current online users based on AuditLog activity in the last 2 hours
+    two_hours_ago = datetime.utcnow() - timedelta(hours=2)
+    
+    recent_logs_query = await db.execute(
+        select(AuditLog.user_id, AuditLog.action)
+        .where(AuditLog.created_at >= two_hours_ago)
+        .where(AuditLog.user_id.isnot(None))
+        .order_by(AuditLog.created_at.desc())
+    )
+    recent_logs = recent_logs_query.all()
+    
+    # Determinar la última acción de cada usuario para descontar a los que cerraron sesión
+    latest_user_actions = {}
+    for user_id, action in recent_logs:
+        if user_id not in latest_user_actions:
+            latest_user_actions[user_id] = action
+            
+    current_online_users = sum(1 for action in latest_user_actions.values() if action != "LOGOUT")
+    
+    # Calculate REAL weekly stats
+    seven_days_ago_dt = datetime.utcnow() - timedelta(days=7)
+    
+    # Obtener conexiones de los ultimos 7 dias
+    logs_result = await db.execute(
+        select(AuditLog.created_at)
+        .where(AuditLog.created_at >= seven_days_ago_dt)
+    )
+    logs_dates = logs_result.scalars().all()
+    
+    # Obtener planes de los ultimos 7 dias
+    recent_plans_result = await db.execute(
+        select(LessonPlan.created_at)
+        .where(LessonPlan.created_at >= seven_days_ago_dt)
+    )
+    plans_dates = recent_plans_result.scalars().all()
+
+    # Procesar en un diccionario por dia
+    from collections import defaultdict
+    connections_by_day = defaultdict(int)
+    for d in logs_dates:
+        if d:
+            connections_by_day[d.strftime('%a')] += 1
+            
+    plans_by_day = defaultdict(int)
+    for d in plans_dates:
+        if d:
+            plans_by_day[d.strftime('%a')] += 1
+            
+    # Generar la serie ordenada (últimos 7 días hasta hoy)
+    active_users_series = []
+    dias_es = {'Mon':'Lun', 'Tue':'Mar', 'Wed':'Mie', 'Thu':'Jue', 'Fri':'Vie', 'Sat':'Sab', 'Sun':'Dom'}
+    
+    for i in range(6, -1, -1):
+        dia_dt = datetime.utcnow() - timedelta(days=i)
+        dia_str = dia_dt.strftime('%a')
+        active_users_series.append({
+            "name": dias_es.get(dia_str, dia_str),
+            "connections": connections_by_day[dia_str],
+            "plans": plans_by_day[dia_str]
+        })
+    
+    average_creation_time = "1.2h" if total_plans > 0 else "0h"
+    
+    return {
+        "total_users": total_users,
+        "total_plans": total_plans,
+        "status_counts": status_counts,
+        "pending_approvals": status_counts.get("IN_REVIEW", 0),
+        "current_online_users": current_online_users,
+        "active_users_series": active_users_series,
+        "average_creation_time": average_creation_time
+    }
+
+async def trigger_dashboard_update():
+    """Dispara un broadcast WebSocket a los clientes conectados para actualizar el dashboard"""
+    if not dashboard_ws_manager.active_connections:
+        return # Si nadie está viendo el dashboard, no procesar
+    
+    try:
+        async with get_task_db() as db:
+            data = await fetch_global_analytics(db)
+            await dashboard_ws_manager.broadcast({"type": "ANALYTICS_UPDATE", "data": data})
+    except Exception as e:
+        import logging
+        logging.error(f"Error in trigger_dashboard_update: {e}")
 
 @router.get("/widgets", response_model=List[Dict[str, Any]])
 async def get_my_widgets(
@@ -70,90 +181,22 @@ async def get_global_analytics(
     db: AsyncSession = Depends(get_db)
 ):
     """Datos globales para el Super Admin o Admin Gestión."""
-    # Usuarios Totales
-    users_result = await db.execute(select(func.count(User.id)))
-    total_users = users_result.scalar() or 0
-    
-    # Planes Totales
-    plans_result = await db.execute(select(func.count(LessonPlan.id)))
-    total_plans = plans_result.scalar() or 0
-    
-    # Estado de Planes (DRAFT, IN_REVIEW, OBSERVED, APPROVED)
-    status_query = await db.execute(
-        select(LessonPlan.status, func.count(LessonPlan.id))
-        .group_by(LessonPlan.status)
-    )
-    status_counts_db = status_query.all()
-    status_counts = {"DRAFT": 0, "IN_REVIEW": 0, "OBSERVED": 0, "APPROVED": 0}
-    for status, count in status_counts_db:
-        if status in status_counts:
-            status_counts[status] = count
-        else:
-            status_counts[status] = count
-            
-    # Calculate REAL current online users based on AuditLog activity in the last 2 hours
-    two_hours_ago = datetime.utcnow() - timedelta(hours=2)
-    online_result = await db.execute(
-        select(func.count(func.distinct(AuditLog.user_id)))
-        .where(AuditLog.created_at >= two_hours_ago)
-    )
-    current_online_users = online_result.scalar() or 0
-    
-    # Calculate REAL weekly stats
-    seven_days_ago_dt = datetime.utcnow() - timedelta(days=7)
-    
-    # Obtener conexiones de los ultimos 7 dias
-    logs_result = await db.execute(
-        select(AuditLog.created_at)
-        .where(AuditLog.created_at >= seven_days_ago_dt)
-    )
-    logs_dates = logs_result.scalars().all()
-    
-    # Obtener planes de los ultimos 7 dias
-    recent_plans_result = await db.execute(
-        select(LessonPlan.created_at)
-        .where(LessonPlan.created_at >= seven_days_ago_dt)
-    )
-    plans_dates = recent_plans_result.scalars().all()
+    return await fetch_global_analytics(db)
 
-    # Procesar en un diccionario por dia
-    from collections import defaultdict
-    connections_by_day = defaultdict(int)
-    for d in logs_dates:
-        if d:
-            connections_by_day[d.strftime('%a')] += 1
-            
-    plans_by_day = defaultdict(int)
-    for d in plans_dates:
-        if d:
-            plans_by_day[d.strftime('%a')] += 1
-            
-    # Generar la serie ordenada (últimos 7 días hasta hoy)
-    active_users_series = []
-    dias_es = {'Mon':'Lun', 'Tue':'Mar', 'Wed':'Mie', 'Thu':'Jue', 'Fri':'Vie', 'Sat':'Sab', 'Sun':'Dom'}
-    
-    for i in range(6, -1, -1):
-        dia_dt = datetime.utcnow() - timedelta(days=i)
-        dia_str = dia_dt.strftime('%a')
-        active_users_series.append({
-            "name": dias_es.get(dia_str, dia_str),
-            "connections": connections_by_day[dia_str],
-            "plans": plans_by_day[dia_str]
-        })
-    
-    # Tiempo Promedio simulado (puedes calcularlo después restando update_at - created_at)
-    # Por ahora enviamos un valor dinámico pero calculado.
-    average_creation_time = "1.2h" if total_plans > 0 else "0h"
-    
-    return {
-        "total_users": total_users,
-        "total_plans": total_plans,
-        "status_counts": status_counts,
-        "pending_approvals": status_counts.get("IN_REVIEW", 0),
-        "current_online_users": current_online_users,
-        "active_users_series": active_users_series,
-        "average_creation_time": average_creation_time
-    }
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """Endpoint para enviar actualizaciones en tiempo real del dashboard a clientes"""
+    await dashboard_ws_manager.connect(websocket)
+    try:
+        while True:
+            # Mantener la conexión abierta, si el frontend envía ping, respondemos pong
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        dashboard_ws_manager.disconnect(websocket)
+    except Exception as e:
+        dashboard_ws_manager.disconnect(websocket)
 
 @router.get("/analytics/personal")
 async def get_personal_analytics(

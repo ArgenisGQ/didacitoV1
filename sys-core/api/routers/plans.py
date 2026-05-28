@@ -61,7 +61,14 @@ async def create_plan(
     ).where(LessonPlan.id == new_plan.id)
     result = await db.execute(query)
     
-    return result.scalars().first()
+    new_plan_with_rels = result.scalars().first()
+    
+    # Trigger real-time dashboard update (fire and forget)
+    from api.routers.dashboard import trigger_dashboard_update
+    import asyncio
+    asyncio.create_task(trigger_dashboard_update())
+    
+    return new_plan_with_rels
 
 
 @router.get("/{plan_id}", response_model=LessonPlanResponse)
@@ -177,6 +184,11 @@ async def update_plan(
         ).where(LessonPlan.id == plan_id)
     )
     plan = result.scalars().first()
+    
+    # Trigger real-time dashboard update (fire and forget)
+    from api.routers.dashboard import trigger_dashboard_update
+    import asyncio
+    asyncio.create_task(trigger_dashboard_update())
     
     return plan
 

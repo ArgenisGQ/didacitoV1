@@ -42,6 +42,11 @@ async def log_audit(db: AsyncSession, user_id: Optional[int], action: str, ip_ad
         )
         db.add(audit)
         await db.commit()
+        
+        # Trigger real-time dashboard update (fire and forget)
+        from api.routers.dashboard import trigger_dashboard_update
+        import asyncio
+        asyncio.create_task(trigger_dashboard_update())
     except Exception as e:
         logger.error(f"Failed to write audit log: {e}")
 
@@ -58,6 +63,11 @@ async def log_audit_background(user_id: Optional[int], action: str, ip_address: 
             )
             db.add(audit)
             await db.commit()
+            
+        # Trigger real-time dashboard update (fire and forget)
+        from api.routers.dashboard import trigger_dashboard_update
+        import asyncio
+        asyncio.create_task(trigger_dashboard_update())
     except Exception as e:
         logger.error(f"Failed to write background audit log: {e}")
 

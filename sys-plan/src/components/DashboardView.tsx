@@ -20,7 +20,10 @@ export function DashboardView({ userRole }: { userRole: string }) {
 
   useEffect(() => {
     let isMounted = true;
-    
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
+    let initialConnectTimeout: ReturnType<typeof setTimeout>;
+
     const fetchDashboardData = async () => {
       try {
         const [widgetsRes, analyticsRes] = await Promise.all([
@@ -38,14 +41,74 @@ export function DashboardView({ userRole }: { userRole: string }) {
       }
     };
 
+    const connectWebSocket = () => {
+      if (userRole === 'DOCENTE') return; // DOCENTE no usa tiempo real global por ahora
+
+      const apiUrl = apiClient.defaults.baseURL || '/api';
+      let wsUrl = '';
+      
+      if (apiUrl.startsWith('http')) {
+        wsUrl = apiUrl.replace(/^http/, 'ws') + '/dashboard/ws';
+      } else {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        let basePath = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+        
+        // Si por alguna razón de entorno basePath queda vacío o como '/', forzar a '/api'
+        if (!basePath || basePath === '' || basePath === '/') {
+            basePath = '/api';
+        } else if (!basePath.startsWith('/')) {
+            basePath = '/' + basePath;
+        }
+        
+        wsUrl = `${protocol}//${host}${basePath}/dashboard/ws`;
+      }
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'ANALYTICS_UPDATE' && isMounted) {
+            setAnalytics(data.data);
+          }
+        } catch (err) {
+          console.error("Error parsing WS message", err);
+        }
+      };
+
+      ws.onclose = () => {
+        // Solo reconectamos si el componente sigue montado
+        if (isMounted) {
+          reconnectTimeout = setTimeout(connectWebSocket, 5000);
+        }
+      };
+      
+      ws.onerror = (err) => {
+        // No cerramos explícitamente aquí para evitar el warning de "closed before established"
+        // El navegador cerrará la conexión por sí solo si falla, disparando onclose.
+        console.error("WebSocket error:", err);
+      };
+    };
+
     fetchDashboardData();
     
-    // Polling cada 30 segundos
-    const intervalId = setInterval(fetchDashboardData, 30000);
-    
+    // Retrasar la conexión un momento para evitar que el StrictMode de React
+    // lo monte y desmonte instantáneamente, lo cual causa el warning en consola
+    initialConnectTimeout = setTimeout(() => {
+        if (isMounted) connectWebSocket();
+    }, 500);
+
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
+      clearTimeout(initialConnectTimeout);
+      clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.onclose = null; // prevent reconnect loop
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            ws.close();
+        }
+      }
     };
   }, [userRole]);
 
