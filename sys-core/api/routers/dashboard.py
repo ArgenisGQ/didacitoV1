@@ -41,13 +41,13 @@ async def fetch_global_analytics(db: AsyncSession) -> dict:
     two_hours_ago = datetime.utcnow() - timedelta(hours=2)
     
     recent_logs_query = await db.execute(
-        select(AuditLog.user_id, AuditLog.action)
+        select(AuditLog.user_id)
         .where(AuditLog.created_at >= two_hours_ago)
         .where(AuditLog.user_id.isnot(None))
-        .order_by(AuditLog.created_at.desc())
     )
-    recent_logs = recent_logs_query.all()
+    recent_logs = recent_logs_query.scalars().all()
     
+    # Calculate real-time online users using WebSocket active connections
     current_online_users = len(dashboard_ws_manager.active_connections)
     
     # Calculate REAL weekly stats
@@ -181,6 +181,7 @@ async def get_global_analytics(
 async def websocket_endpoint(websocket: WebSocket):
     """Endpoint para enviar actualizaciones en tiempo real del dashboard a clientes"""
     await dashboard_ws_manager.connect(websocket)
+    await trigger_dashboard_update()
     try:
         while True:
             # Mantener la conexión abierta, si el frontend envía ping, respondemos pong
@@ -189,8 +190,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
         dashboard_ws_manager.disconnect(websocket)
+        await trigger_dashboard_update()
     except Exception as e:
         dashboard_ws_manager.disconnect(websocket)
+        await trigger_dashboard_update()
 
 @router.get("/analytics/personal")
 async def get_personal_analytics(
