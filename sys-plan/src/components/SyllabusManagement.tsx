@@ -166,8 +166,10 @@ const formatParagraphs = (text: string | null | undefined): string => {
     .join('\n\n')
 }
 
-export default function SyllabusManagement() {
+export default function SyllabusManagement({ userRole }: { userRole?: string | null }) {
   const queryClient = useQueryClient()
+  
+  const canEditSyllabus = userRole === 'ADMIN_GESTION' || userRole === 'SUPER_ADMIN'
   
   // State variables
   const [searchQuery, setSearchQuery] = useState('')
@@ -408,41 +410,43 @@ export default function SyllabusManagement() {
             Programas Sinópticos
           </h1>
           <p className="text-muted-foreground max-w-xl font-medium">
-            Sube, extrae con IA (PyMuPDF) y realiza el control de versiones de los syllabus curriculares institucionales.
+            Sube y gestiona las versiones de los programas sinópticos institucionales.
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            onClick={() => {
-              setUploadType('pdf')
-              fileInputRef.current?.click()
-            }}
-            variant="outline"
-            className="border-primary/20 text-primary hover:bg-primary/5 hover:text-primary gap-2 h-12 px-5 font-bold"
-          >
-            <Upload size={18} />
-            Subir PDF
-          </Button>
-          <Button
-            onClick={() => {
-              setUploadType('zip')
-              fileInputRef.current?.click()
-            }}
-            className="bg-primary hover:bg-primary/95 text-primary-foreground gap-2 h-12 px-6 font-extrabold shadow-lg shadow-primary/10"
-          >
-            <FileArchive size={18} />
-            Importar ZIP
-          </Button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            accept={uploadType === 'pdf' ? '.pdf' : '.zip'}
-            onChange={handleFileUpload}
-          />
-        </div>
+        {canEditSyllabus && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={() => {
+                setUploadType('pdf')
+                fileInputRef.current?.click()
+              }}
+              variant="outline"
+              className="border-primary/20 text-primary hover:bg-primary/5 hover:text-primary gap-2 h-12 px-5 font-bold"
+            >
+              <Upload size={18} />
+              Subir PDF
+            </Button>
+            <Button
+              onClick={() => {
+                setUploadType('zip')
+                fileInputRef.current?.click()
+              }}
+              className="bg-primary hover:bg-primary/95 text-primary-foreground gap-2 h-12 px-6 font-extrabold shadow-lg shadow-primary/10"
+            >
+              <FileArchive size={18} />
+              Importar ZIP
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept={uploadType === 'pdf' ? '.pdf' : '.zip'}
+              onChange={handleFileUpload}
+            />
+          </div>
+        )}
       </div>
 
       {/* Upload Alerts */}
@@ -453,7 +457,7 @@ export default function SyllabusManagement() {
             <div>
               <p className="font-bold text-primary">Procesando archivo...</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                PyMuPDF extrae los metadatos de las materias y calcula la firma SHA-256 de seguridad física.
+                El sistema extrae los metadatos de las materias y calcula la firma SHA-256 de seguridad física.
               </p>
             </div>
           </CardContent>
@@ -807,14 +811,16 @@ export default function SyllabusManagement() {
               </div>
               <div className="flex items-center gap-2">
                 {!editMode ? (
-                  <Button
-                    onClick={() => setEditMode(true)}
-                    variant="outline"
-                    className="border-primary/20 text-primary hover:bg-primary/5 h-10 px-4 font-bold"
-                  >
-                    <Edit3 size={16} className="mr-1.5" />
-                    Editar
-                  </Button>
+                  canEditSyllabus && (
+                    <Button
+                      onClick={() => setEditMode(true)}
+                      variant="outline"
+                      className="border-primary/20 text-primary hover:bg-primary/5 h-10 px-4 font-bold"
+                    >
+                      <Edit3 size={16} className="mr-1.5" />
+                      Editar
+                    </Button>
+                  )
                 ) : (
                   <>
                     <Button

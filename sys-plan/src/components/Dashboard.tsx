@@ -607,7 +607,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           ) : activeTab === 'roles' && hasPermission('roles:read') ? (
             <RoleManagement />
           ) : activeTab === 'syllabus' ? (
-            <SyllabusManagement />
+            <SyllabusManagement userRole={userRole} />
           ) : activeTab === 'academic_periods' && hasPermission('periods:read') ? (
             <AcademicPeriods />
           ) : activeTab === 'academic_distribution' && hasPermission('distribution:read') ? (
