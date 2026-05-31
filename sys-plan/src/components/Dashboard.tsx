@@ -64,6 +64,7 @@ import { LessonPlanWizard } from './wizard/LessonPlanWizard'
 import UserManagement from './UserManagement'
 import RoleManagement from './RoleManagement'
 import { SubjectDetailModal } from './SubjectDetailModal'
+import { LessonPlanWebModal } from './LessonPlan/LessonPlanWebModal'
 
 interface LessonPlan {
   id?: number
@@ -90,6 +91,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false)
   const [previewPlanId, setPreviewPlanId] = useState<number | null>(null)
   const [previewPlanTitle, setPreviewPlanTitle] = useState<string>('')
+  const [webPreviewPlan, setWebPreviewPlan] = useState<any | null>(null)
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -189,6 +191,16 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         await updateMutation.mutateAsync({ id: planId, status: 'APPROVED' } as any)
       } catch (e: any) {
         alert(e.response?.data?.detail || 'Error al aprobar el plan')
+      }
+    }
+  }
+
+  const handleObservePlan = async (planId: number) => {
+    if (window.confirm('¿Estás seguro de devolver este plan para correcciones?')) {
+      try {
+        await updateMutation.mutateAsync({ id: planId, status: 'OBSERVED' } as any)
+      } catch (e: any) {
+        alert(e.response?.data?.detail || 'Error al observar el plan')
       }
     }
   }
@@ -321,46 +333,73 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       id: 'actions',
       header: () => <div className="text-right">Accion</div>,
       cell: ({ row }) => {
+        const isCoordinator = userRole === 'COORDINADOR' || userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_GESTION';
+        const isTeacher = userRole === 'DOCENTE';
+        const status = row.original.status;
         const canApprove = 
-          row.original.status === 'IN_REVIEW' && 
+          status === 'IN_REVIEW' && 
           (userPermissions.includes('lesson_plan:approve_global') || userPermissions.includes('lesson_plan:approve_department'));
         
         return (
           <div className="flex justify-end gap-2">
             {canApprove && (
-              <Button
-                variant="default"
-                size="sm"
-                className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => handleApprovePlan(row.original.id!)}
-              >
-                Aprobar
-              </Button>
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => handleApprovePlan(row.original.id!)}
+                >
+                  Aceptar
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => handleObservePlan(row.original.id!)}
+                >
+                  Corregir
+                </Button>
+              </>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5"
-              onClick={() => {
-                setPreviewPlanTitle(row.original.title)
-                setPreviewPlanId(row.original.id!)
-              }}
-            >
-              Ver Documento
-            </Button>
-            {userRole === 'DOCENTE' && (
+
+            {status === 'IN_REVIEW' ? (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="gap-1"
-                onClick={() => {
-                  setEditingPlan(row.original)
-                  setIsModalOpen(true)
-                }}
+                className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
+                onClick={() => setWebPreviewPlan(row.original)}
               >
-                Editar
-                <ChevronRight size={16} />
+                Versión Borrador
               </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
+                  onClick={() => {
+                    setPreviewPlanTitle(row.original.title)
+                    setPreviewPlanId(row.original.id!)
+                  }}
+                >
+                  Ver Documento
+                </Button>
+                {isTeacher && (status === 'DRAFT' || status === 'OBSERVED') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => {
+                      setEditingPlan(row.original)
+                      setIsModalOpen(true)
+                    }}
+                  >
+                    Editar
+                    <ChevronRight size={16} />
+                  </Button>
+                )}
+              </>
             )}
           </div>
         );
@@ -547,6 +586,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           {activeTab === 'dashboard' ? (
             <DashboardView 
               userRole={userRole || ''} 
+              plans={filteredPlans}
               onEditPlan={(planId) => {
                 const planToEdit = plans.find(p => p.id === planId)
                 if (planToEdit) {
@@ -554,6 +594,13 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                   setIsModalOpen(true)
                 }
               }} 
+              onPreviewPlan={(planId, title) => {
+                setPreviewPlanTitle(title)
+                setPreviewPlanId(planId)
+              }}
+              onWebPreviewPlan={(plan) => setWebPreviewPlan(plan)}
+              onApprovePlan={handleApprovePlan}
+              onObservePlan={handleObservePlan}
             />
           ) : activeTab === 'users' ? (
             <UserManagement />
@@ -791,29 +838,44 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                                       </Button>
                                     ) : isRealizado ? (
                                       <div className="flex items-center gap-2 justify-end">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
-                                          onClick={() => {
-                                            setPreviewPlanTitle(item.plan.title)
-                                            setPreviewPlanId(item.plan.id)
-                                          }}
-                                        >
-                                          Ver Documento
-                                        </Button>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
-                                          onClick={() => {
-                                            setEditingPlan(item.plan)
-                                            setIsModalOpen(true)
-                                          }}
-                                        >
-                                          Editar
-                                          <ChevronRight size={16} />
-                                        </Button>
+                                        {planStatus === 'IN_REVIEW' ? (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
+                                            onClick={() => setWebPreviewPlan(item.plan)}
+                                          >
+                                            Versión Borrador
+                                          </Button>
+                                        ) : (
+                                          <>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
+                                              onClick={() => {
+                                                setPreviewPlanTitle(item.plan.title)
+                                                setPreviewPlanId(item.plan.id)
+                                              }}
+                                            >
+                                              Ver Documento
+                                            </Button>
+                                            {(planStatus === 'DRAFT' || planStatus === 'OBSERVED') && (
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="gap-1 border border-transparent hover:border-primary/20 text-primary hover:bg-primary/5 font-extrabold"
+                                                onClick={() => {
+                                                  setEditingPlan(item.plan)
+                                                  setIsModalOpen(true)
+                                                }}
+                                              >
+                                                Editar
+                                                <ChevronRight size={16} />
+                                              </Button>
+                                            )}
+                                          </>
+                                        )}
                                       </div>
                                     ) : (
                                       <Button
@@ -967,6 +1029,108 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 )}
               </CardContent>
               </Card>
+
+              {userRole === 'DOCENTE' && (
+                <>
+                  {/* Planes Observados */}
+                  {plans.filter(p => p.status === 'OBSERVED').length > 0 && (
+                    <Card className="border-amber-500/20 bg-amber-500/5 mt-8">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-xl text-amber-600 flex items-center gap-2">
+                          <AlertTriangle size={20} />
+                          Planes Observados (Requieren Corrección)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="font-bold">Título</TableHead>
+                                <TableHead className="font-bold">Asignatura</TableHead>
+                                <TableHead className="font-bold text-center">Sección</TableHead>
+                                <TableHead className="font-bold text-right">Acción</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {plans.filter(p => p.status === 'OBSERVED').map((plan, idx) => (
+                                <TableRow key={idx}>
+                                  <TableCell className="font-bold text-sm">{plan.title}</TableCell>
+                                  <TableCell className="text-muted-foreground">{plan.subject_code}</TableCell>
+                                  <TableCell className="text-center font-bold">{plan.section}</TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-extrabold"
+                                      onClick={() => {
+                                        setEditingPlan(plan)
+                                        setIsModalOpen(true)
+                                      }}
+                                    >
+                                      Corregir Plan
+                                      <ChevronRight size={16} />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Planes Aceptados */}
+                  {plans.filter(p => p.status === 'APPROVED').length > 0 && (
+                    <Card className="border-emerald-500/20 bg-emerald-500/5 mt-8">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-xl text-emerald-600 flex items-center gap-2">
+                          <CheckCircle2 size={20} />
+                          Planes Aceptados
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="font-bold">Título</TableHead>
+                                <TableHead className="font-bold">Asignatura</TableHead>
+                                <TableHead className="font-bold text-center">Sección</TableHead>
+                                <TableHead className="font-bold text-right">Acción</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {plans.filter(p => p.status === 'APPROVED').map((plan, idx) => (
+                                <TableRow key={idx}>
+                                  <TableCell className="font-bold text-sm">{plan.title}</TableCell>
+                                  <TableCell className="text-muted-foreground">{plan.subject_code}</TableCell>
+                                  <TableCell className="text-center font-bold">{plan.section}</TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="gap-1 bg-emerald-600 hover:bg-emerald-700 font-extrabold shadow-sm"
+                                      onClick={() => {
+                                        setPreviewPlanTitle(plan.title)
+                                        setPreviewPlanId(plan.id!)
+                                      }}
+                                    >
+                                      <FileText size={16} />
+                                      Ver Documento
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
             </>
           )}
         </div>
@@ -1002,6 +1166,13 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             setPreviewPlanId(null)
             setPreviewPlanTitle('')
           }}
+        />
+      )}
+
+      {webPreviewPlan && (
+        <LessonPlanWebModal
+          plan={webPreviewPlan}
+          onClose={() => setWebPreviewPlan(null)}
         />
       )}
     </div>

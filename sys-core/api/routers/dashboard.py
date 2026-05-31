@@ -208,6 +208,7 @@ async def get_personal_analytics(
     
     status_counts = {"DRAFT": 0, "IN_REVIEW": 0, "OBSERVED": 0, "APPROVED": 0}
     draft_plans = []
+    approved_plans = []
     for p in my_plans:
         if p.status in status_counts:
             status_counts[p.status] += 1
@@ -216,12 +217,18 @@ async def get_personal_analytics(
                 "id": p.id,
                 "title": getattr(p, "title", getattr(p, "topic", f"Plan Borrador #{p.id}"))
             })
+        if p.status == "APPROVED":
+            approved_plans.append({
+                "id": p.id,
+                "title": getattr(p, "title", getattr(p, "topic", f"Plan Aprobado #{p.id}"))
+            })
             
     return {
         "my_total_plans": len(my_plans),
         "status_counts": status_counts,
         "needs_attention": status_counts.get("OBSERVED", 0),
-        "draft_plans": draft_plans
+        "draft_plans": draft_plans,
+        "approved_plans": approved_plans
     }
 
 from pydantic import BaseModel

@@ -26,6 +26,25 @@ async def list_plans(
     ).execution_options(populate_existing=True)
     if current_user.role == UserRole.DOCENTE:
         query = query.where(LessonPlan.author_id == current_user.id)
+    elif current_user.role == UserRole.COORDINADOR:
+        # Fetch the departments of the current user to get their subject_codes
+        from api.models import user_departments, Department
+        dept_result = await db.execute(
+            select(Department.subject_codes)
+            .join(user_departments, user_departments.c.department_id == Department.id)
+            .where(user_departments.c.user_id == current_user.id)
+        )
+        codes_rows = dept_result.scalars().all()
+        allowed_subjects = set()
+        for codes_str in codes_rows:
+            if codes_str:
+                allowed_subjects.update(c.strip() for c in codes_str.split(',') if c.strip())
+        
+        if allowed_subjects:
+            query = query.where(LessonPlan.subject_code.in_(allowed_subjects))
+        else:
+            # If the coordinator has no subjects assigned, they see nothing
+            query = query.where(LessonPlan.id == -1)
 
     result = await db.execute(query)
     return result.scalars().all()

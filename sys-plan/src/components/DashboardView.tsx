@@ -14,7 +14,23 @@ interface DashboardWidget {
   order: number;
 }
 
-export function DashboardView({ userRole, onEditPlan }: { userRole: string, onEditPlan?: (planId: number) => void }) {
+export function DashboardView({ 
+  userRole, 
+  onEditPlan, 
+  onPreviewPlan,
+  onApprovePlan,
+  onObservePlan,
+  onWebPreviewPlan,
+  plans = []
+}: { 
+  userRole: string;
+  onEditPlan?: (planId: number) => void;
+  onPreviewPlan?: (planId: number, title: string) => void;
+  onApprovePlan?: (planId: number) => void;
+  onObservePlan?: (planId: number) => void;
+  onWebPreviewPlan?: (plan: any) => void;
+  plans?: any[];
+}) {
   const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -318,7 +334,113 @@ export function DashboardView({ userRole, onEditPlan }: { userRole: string, onEd
   );
 
   const renderTeacherSemesterWidget = () => null;
-  const renderTeacherHistoryWidget = () => null;
+  const renderTeacherHistoryWidget = () => {
+    const approved = analytics?.approved_plans || [];
+    
+    return (
+      <Card className="shadow-md border-slate-200 border-l-4 border-l-emerald-500">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><CheckCircle2 size={20} className="text-emerald-500"/> Mis Planes Aprobados</CardTitle>
+          <CardDescription>Planes que han sido aceptados</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {approved.length > 0 ? (
+              approved.map((d: any) => (
+                <div key={d.id} className="flex justify-between items-center p-3 bg-emerald-50/50 rounded-lg border border-emerald-100 gap-3">
+                  <span className="font-semibold text-emerald-900 truncate flex-1" title={d.title}>{d.title}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs bg-emerald-500/10 text-emerald-600 px-2 py-1 rounded-full font-bold">Aprobado</span>
+                    {onPreviewPlan && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onPreviewPlan(d.id, d.title)}
+                        className="h-7 px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
+                      >
+                        Ver Documento
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-slate-500 border border-dashed border-slate-200 rounded-xl">
+                <p>No tienes planes aprobados aún.</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderCoordinatorInboxWidget = () => {
+    const pendingPlans = plans.filter(p => p.status === 'IN_REVIEW');
+    
+    return (
+      <Card className="shadow-lg border-slate-200 bg-card col-span-1 lg:col-span-2 mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-card-foreground">
+            <LayoutDashboard size={20} className="text-purple-600"/> Bandeja de Entrada (Por Aprobar)
+          </CardTitle>
+          <CardDescription>Planificaciones esperando revisión</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {pendingPlans.length > 0 ? (
+              pendingPlans.map((d: any) => (
+                <div key={d.id} className="flex flex-col md:flex-row justify-between items-start md:items-center p-4 bg-muted/30 rounded-xl border border-border gap-4">
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="font-semibold text-card-foreground truncate" title={d.title}>{d.title}</span>
+                    <span className="text-sm text-muted-foreground">{d.subject_code} - Sección {d.section}</span>
+                    <span className="text-xs text-muted-foreground">Docente: {d.author_name}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {onWebPreviewPlan && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onWebPreviewPlan(d)}
+                        className="gap-1 border-primary/20 hover:border-primary/40 text-primary"
+                      >
+                        Ver Borrador
+                      </Button>
+                    )}
+                    {onApprovePlan && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => onApprovePlan(d.id)}
+                        className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        Aceptar
+                      </Button>
+                    )}
+                    {onObservePlan && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => onObservePlan(d.id)}
+                        className="gap-1"
+                      >
+                        Corregir
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl">
+                <CheckCircle2 className="mx-auto h-10 w-10 text-slate-300 mb-3" />
+                <p>No hay planes pendientes de aprobación.</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderWidget = (widget: DashboardWidget) => {
     switch (widget.code) {
@@ -330,7 +452,7 @@ export function DashboardView({ userRole, onEditPlan }: { userRole: string, onEd
         const avgTime = analytics?.average_creation_time || 'N/A';
         return renderStatCard('Tiempo Promedio', avgTime, 'Tiempo en diseñar un plan', <CheckCircle2 className="text-emerald-600" />, 'bg-emerald-600/20');
       case 'coordinator_inbox':
-        return renderStatCard('Bandeja Entrada', analytics?.pending_approvals || 0, 'Planes para hoy', <LayoutDashboard className="text-purple-600" />, 'bg-purple-600/20');
+        return renderCoordinatorInboxWidget();
       case 'active_users':
         return renderActiveUsersWidget();
       case 'plan_status':
