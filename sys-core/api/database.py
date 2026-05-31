@@ -28,7 +28,14 @@ if "ssl=" not in DATABASE_URL:
 
 # FastAPI connects directly to the same DB that Django manages.
 # Tables are created by Django migrations -- FastAPI never runs create_all.
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,      # Proactive connection health check
+    pool_recycle=1800,       # Recycle connections every 30 minutes
+    pool_size=10,            # Max connections in pool
+    max_overflow=20          # Max extra connections if pool is exhausted
+)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
