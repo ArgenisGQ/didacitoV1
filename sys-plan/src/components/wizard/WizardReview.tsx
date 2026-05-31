@@ -2,9 +2,17 @@ import { useWizard } from '@/context/WizardContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export function WizardReview() {
-  const { state } = useWizard()
+  const { state, updateField } = useWizard()
 
   const totalWeight = state.evaluation_plans.reduce(
     (s, e) => s + (e.weight || 0),
@@ -103,11 +111,33 @@ export function WizardReview() {
         )}
 
         {issues.length === 0 && (
-          <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm">
+          <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm mb-4">
             <CheckCircle2 size={16} />
             Todo listo para guardar
           </div>
         )}
+
+        {/* Status Selector */}
+        <div className="space-y-2 mt-6 pt-4 border-t">
+          <Label htmlFor="status" className="font-bold">Estado Final de la Planificación</Label>
+          <Select
+            value={state.status}
+            onValueChange={(v) => updateField('status', v)}
+          >
+            <SelectTrigger className="h-12 border-primary/20 bg-primary/5">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="DRAFT">Borrador</SelectItem>
+              <SelectItem value="IN_REVIEW">Enviar a Revision</SelectItem>
+            </SelectContent>
+          </Select>
+          {state.status === 'IN_REVIEW' && issues.length > 0 && (
+            <p className="text-xs text-amber-500 font-medium">
+              Aún no puedes enviar a revisión porque hay tareas pendientes.
+            </p>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

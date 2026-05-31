@@ -2,18 +2,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Trash2, Save, Target, Lightbulb, Package } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { useState } from 'react'
+import LessonPlanView from './LessonPlan/LessonPlanView'
+import { LessonPlan } from '../types/lessonPlan'
 
 const planSchema = z.object({
   title: z.string().min(3, 'El titulo debe tener al menos 3 caracteres'),
@@ -38,6 +34,7 @@ export default function LessonPlanModal({
   initialData,
 }: LessonPlanModalProps) {
   const isEditing = !!initialData
+  const [showPreview, setShowPreview] = useState(false)
 
   const form = useForm<PlanFormData>({
     resolver: zodResolver(planSchema),
@@ -83,6 +80,48 @@ export default function LessonPlanModal({
         evaluation: data.evaluation,
       },
     })
+  }
+
+  const getPreviewData = (): LessonPlan => {
+    const currentData = form.getValues()
+    return {
+      title: currentData.title,
+      status: currentData.status as any,
+      content: {
+        objectives: currentData.objectives,
+        strategies: currentData.strategies,
+        resources: currentData.resources,
+        evaluation: currentData.evaluation,
+      },
+      author_name: initialData?.author_name || 'Usuario Actual',
+      subject_code: initialData?.subject_code || '---',
+      section: initialData?.section || '---',
+      weekly_contents: initialData?.weekly_contents || [],
+      evaluation_plans: initialData?.evaluation_plans || []
+    }
+  }
+
+  if (showPreview) {
+    return (
+      <Dialog open onOpenChange={(open) => { if (!open) setShowPreview(false) }}>
+        <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto p-0 bg-gray-100">
+          <div className="p-4 bg-white border-b flex justify-between items-center sticky top-0 z-50 shadow-sm">
+            <h2 className="text-xl font-bold">Previsualización de Planificación</h2>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => window.print()}>
+                Imprimir
+              </Button>
+              <Button onClick={() => setShowPreview(false)}>
+                Volver a Editar
+              </Button>
+            </div>
+          </div>
+          <div className="p-4">
+            <LessonPlanView plan={getPreviewData()} />
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (
@@ -276,6 +315,14 @@ export default function LessonPlanModal({
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Descartar
+            </Button>
+            <Button 
+              type="button" 
+              variant="secondary" 
+              className="bg-primary/10 text-primary hover:bg-primary/20"
+              onClick={() => setShowPreview(true)}
+            >
+              Versión Borrador
             </Button>
             <Button type="submit" size="lg" className="gap-2 font-extrabold">
               <Save size={20} strokeWidth={2.5} />

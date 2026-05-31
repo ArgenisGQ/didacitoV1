@@ -25,6 +25,8 @@ import { WizardWeeklyContent } from './WizardWeeklyContent'
 import { WizardEvaluation } from './WizardEvaluation'
 import { WizardReview } from './WizardReview'
 import { PdfPreviewModal } from '../PdfPreviewModal'
+import LessonPlanView from '../LessonPlan/LessonPlanView'
+import { LessonPlan } from '../../types/lessonPlan'
 
 const STEP_LABELS = [
   'Datos Generales',
@@ -43,6 +45,7 @@ function WizardInner({
 }) {
   const { step, totalSteps, state, nextStep, prevStep, goToStep } = useWizard()
   const [showPreview, setShowPreview] = useState(false)
+  const [showDraftPreview, setShowDraftPreview] = useState(false)
   const [activePlanId, setActivePlanId] = useState<number | null>(planId)
 
   const payload = useMemo(
@@ -203,6 +206,9 @@ function WizardInner({
 
         {isLastStep ? (
           <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => { saveCurrentStateToDB().then(() => setShowDraftPreview(true)) }} className="gap-2 font-bold bg-primary/10 text-primary hover:bg-primary/20">
+              Versión Borrador
+            </Button>
             <Button variant="secondary" onClick={handlePreview} className="gap-2 font-bold bg-muted hover:bg-muted/80">
               Previsualizar Plan
             </Button>
@@ -225,6 +231,41 @@ function WizardInner({
           planId={undefined}
           onClose={() => setShowPreview(false)}
         />
+      )}
+
+      {showDraftPreview && (
+        <Dialog open onOpenChange={(open) => { if (!open) setShowDraftPreview(false) }}>
+          <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto p-0 bg-gray-100">
+            <div className="p-4 bg-white border-b flex justify-between items-center sticky top-0 z-50 shadow-sm">
+              <h2 className="text-xl font-bold">Versión Borrador</h2>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => window.print()}>
+                  Imprimir
+                </Button>
+                <Button onClick={() => setShowDraftPreview(false)}>
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+            <div className="p-4">
+              <LessonPlanView plan={{
+                title: payload.title,
+                status: payload.status as any,
+                content: {
+                  objectives: payload.objectives,
+                  strategies: payload.strategies,
+                  resources: [],
+                  evaluation: ''
+                },
+                weekly_contents: payload.weekly_contents as any,
+                evaluation_plans: payload.evaluation_plans as any,
+                author_name: 'Autor Actual',
+                subject_code: payload.subject_code ?? undefined,
+                section: payload.section ?? undefined
+              }} />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </DialogContent>
   )

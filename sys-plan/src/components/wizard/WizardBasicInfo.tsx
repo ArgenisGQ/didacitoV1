@@ -43,26 +43,6 @@ export function WizardBasicInfo() {
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="status">Estado</Label>
-          <Select
-            value={state.status}
-            onValueChange={(v) => updateField('status', v)}
-          >
-            <SelectTrigger className="h-12">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="DRAFT">Borrador</SelectItem>
-              <SelectItem value="IN_REVIEW">Enviar a Revision</SelectItem>
-            </SelectContent>
-          </Select>
-          {state.status === 'IN_REVIEW' && (
-            <p className="text-xs text-amber-500 font-medium">
-              Requiere 12 semanas de contenido y pesos de evaluacion que sumen 100%.
-            </p>
-          )}
-        </div>
       </CardContent>
     </Card>
   )
