@@ -34,7 +34,7 @@ interface UserModalProps {
     roles?: string[]
     is_active?: boolean
     academic_period_id?: number | null
-    department_id?: number | null
+    department_ids?: number[] | null
   } | null
 }
 
@@ -57,7 +57,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
           : z.string().min(6, 'Minimo 6 caracteres'),
         is_active: z.boolean().optional(),
         academic_period_id: z.string().optional().or(z.literal('')),
-        department_id: z.string().optional().or(z.literal('')),
+        department_ids: z.array(z.number()).optional(),
       }),
     [isEditing]
   )
@@ -73,7 +73,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
       password: '',
       is_active: initialData?.is_active ?? true,
       academic_period_id: initialData?.academic_period_id ? String(initialData.academic_period_id) : 'none',
-      department_id: initialData?.department_id ? String(initialData.department_id) : 'none',
+      department_ids: initialData?.department_ids || [],
     },
   })
 
@@ -86,7 +86,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
         password: '',
         is_active: initialData?.is_active ?? true,
         academic_period_id: initialData?.academic_period_id ? String(initialData.academic_period_id) : 'none',
-        department_id: initialData?.department_id ? String(initialData.department_id) : 'none',
+        department_ids: initialData?.department_ids || [],
       })
       setServerError(null)
     }
@@ -112,11 +112,7 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
         payload.academic_period_id = null
       }
       
-      if (data.department_id && data.department_id !== 'none') {
-        payload.department_id = parseInt(data.department_id, 10)
-      } else {
-        payload.department_id = null
-      }
+      payload.department_ids = data.department_ids || [];
 
       if (isEditing) {
         await api.put(`/users/${initialData!.id}`, payload)
@@ -274,23 +270,31 @@ export default function UserModal({ isOpen, onClose, initialData }: UserModalPro
 
           {form.watch('roles')?.includes('COORDINADOR') && (
             <div className="space-y-2 animate-fadeIn">
-              <Label htmlFor="department_id">Departamento a Cargo</Label>
-              <Select
-                value={form.watch('department_id') || 'none'}
-                onValueChange={(v) => form.setValue('department_id', v)}
-              >
-                <SelectTrigger id="department_id">
-                  <SelectValue placeholder="Seleccionar departamento" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ninguno / Sin asignar</SelectItem>
-                  {departments.map((dept: any) => (
-                    <SelectItem key={dept.id} value={String(dept.id)}>
-                      {dept.name} ({dept.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Departamentos a Cargo</Label>
+              <div className="flex flex-col gap-2 p-4 border rounded-md max-h-48 overflow-y-auto bg-card">
+                {departments.map((dept: any) => {
+                  const currentDepts = form.watch('department_ids') || [];
+                  const isSelected = currentDepts.includes(dept.id);
+                  
+                  return (
+                    <label key={dept.id} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-muted/50 rounded-md transition-colors">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            form.setValue('department_ids', [...currentDepts, dept.id]);
+                          } else {
+                            form.setValue('department_ids', currentDepts.filter(id => id !== dept.id));
+                          }
+                        }}
+                      />
+                      <span className="text-sm font-medium">{dept.name} ({dept.code})</span>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
           )}
 

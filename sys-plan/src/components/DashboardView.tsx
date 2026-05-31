@@ -3,6 +3,7 @@ import apiClient from '../lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Loader2, Users, FileText, CheckCircle2, Clock, AlertTriangle, LayoutDashboard, PieChart as PieChartIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { Button } from '@/components/ui/button';
 
 interface DashboardWidget {
   id: number;
@@ -13,7 +14,7 @@ interface DashboardWidget {
   order: number;
 }
 
-export function DashboardView({ userRole }: { userRole: string }) {
+export function DashboardView({ userRole, onEditPlan }: { userRole: string, onEditPlan?: (planId: number) => void }) {
   const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -270,9 +271,21 @@ export function DashboardView({ userRole }: { userRole: string }) {
           <div className="space-y-4">
             {drafts.length > 0 ? (
               drafts.map((d: any) => (
-                <div key={d.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg border border-border">
-                  <span className="font-semibold text-card-foreground truncate max-w-[70%]">{d.title}</span>
-                  <span className="text-xs bg-indigo-500/10 text-indigo-500 px-2 py-1 rounded-full font-bold">Borrador</span>
+                <div key={d.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg border border-border gap-3">
+                  <span className="font-semibold text-card-foreground truncate flex-1" title={d.title}>{d.title}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs bg-indigo-500/10 text-indigo-500 px-2 py-1 rounded-full font-bold">Borrador</span>
+                    {onEditPlan && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEditPlan(d.id)}
+                        className="h-7 px-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100"
+                      >
+                        Editar
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (

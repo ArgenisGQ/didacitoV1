@@ -130,8 +130,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=150, blank=True, null=True)
     last_name = models.CharField(max_length=150, blank=True, null=True)
     
-    # Asociación con departamento para Coordinadores
-    department = models.ForeignKey("Department", on_delete=models.SET_NULL, null=True, blank=True, related_name="users", verbose_name="Departamento Asignado")
+    # Asociación con departamentos para Coordinadores
+    departments = models.ManyToManyField("Department", related_name="users", blank=True, verbose_name="Departamentos Asignados", db_table="plan_app_user_departments")
     
     # El usuario conserva sus datos generales; su carga académica y periodos se administran en la tabla pivot UserAcademicPeriod.
     

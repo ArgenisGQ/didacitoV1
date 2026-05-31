@@ -43,6 +43,14 @@ user_roles = Table(
     Column('role_id', Integer, ForeignKey('plan_app_role.id'))
 )
 
+user_departments = Table(
+    'plan_app_user_departments',
+    Base.metadata,
+    Column('id', Integer, primary_key=True),
+    Column('user_id', Integer, ForeignKey('plan_app_user.id')),
+    Column('department_id', Integer, ForeignKey('plan_app_department.id'))
+)
+
 
 class Permission(Base):
     __tablename__ = "plan_app_permission"
@@ -100,8 +108,8 @@ class User(Base):
     is_superuser = Column(Boolean, default=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
 
-    # Asociación con departamento (Para Coordinadores u otros roles departamentales)
-    department_id = Column(Integer, ForeignKey("plan_app_department.id", ondelete="SET NULL"), nullable=True)
+    # Asociación con departamentos (Para Coordinadores u otros roles departamentales)
+    # department_id eliminado para usar relación muchos a muchos
 
     # Category A Security Fields
     mfa_secret = Column(String(32), nullable=True)
@@ -128,7 +136,7 @@ class User(Base):
     needs_password_change = Column(Boolean, default=False, nullable=False)
 
     roles = relationship("Role", secondary=user_roles, backref="users")
-    department = relationship("Department", backref="users")
+    departments = relationship("Department", secondary=user_departments, backref="users")
 
     authored_plans = relationship(
         "LessonPlan", back_populates="author",

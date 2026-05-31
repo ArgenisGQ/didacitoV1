@@ -6,7 +6,7 @@ from typing import List
 from api.database import get_db
 from api.core.dependencies import get_current_user, RequirePermission
 from api.core.security import get_password_hash
-from api.models import User, UserRole, AcademicPeriod, UserAcademicPeriod, CreationMethod, Role
+from api.models import User, UserRole, AcademicPeriod, UserAcademicPeriod, CreationMethod, Role, Department
 from api.schemas import UserResponse, UserCreate, UserUpdate
 from sqlalchemy.orm import selectinload
 
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(User).options(selectinload(User.roles)).where(User.id == current_user.id))
+    res = await db.execute(select(User).options(selectinload(User.roles), selectinload(User.departments)).where(User.id == current_user.id))
     user = res.scalars().first()
     
     user_dict = {c.name: getattr(user, c.name) for c in user.__table__.columns}
@@ -168,7 +168,7 @@ async def update_my_profile(
     await db.commit()
     await db.refresh(current_user)
     
-    res = await db.execute(select(User).options(selectinload(User.roles)).where(User.id == current_user.id))
+    res = await db.execute(select(User).options(selectinload(User.roles), selectinload(User.departments)).where(User.id == current_user.id))
     user_refreshed = res.scalars().first()
     
     user_dict = {c.name: getattr(user_refreshed, c.name) for c in user_refreshed.__table__.columns}
@@ -245,6 +245,7 @@ async def list_users(
             select(UserAcademicPeriod)
             .options(
                 joinedload(UserAcademicPeriod.user).selectinload(User.roles),
+                joinedload(UserAcademicPeriod.user).selectinload(User.departments),
                 joinedload(UserAcademicPeriod.academic_period),
                 joinedload(UserAcademicPeriod.creator)
             )
@@ -283,7 +284,7 @@ async def list_users(
                         first_name=u.first_name,
                         last_name=u.last_name,
                         needs_password_change=u.needs_password_change,
-                        department_id=u.department_id,
+                        department_ids=[d.id for d in u.departments] if hasattr(u, "departments") else [],
                         # Pivot relation details
                         subject_code=ass.subject_code,
                         section=ass.section,
@@ -300,7 +301,7 @@ async def list_users(
         # Find users who have NO associations in UserAcademicPeriod
         query = (
             select(User)
-            .options(selectinload(User.roles))
+            .options(selectinload(User.roles), selectinload(User.departments))
             .outerjoin(UserAcademicPeriod, User.id == UserAcademicPeriod.user_id)
             .where(UserAcademicPeriod.id == None)
         )
@@ -334,7 +335,7 @@ async def list_users(
                     first_name=u.first_name,
                     last_name=u.last_name,
                     needs_password_change=u.needs_password_change,
-                    department_id=u.department_id
+                    department_ids=[d.id for d in u.departments] if hasattr(u, "departments") else []
                 )
             )
     else:
@@ -343,6 +344,7 @@ async def list_users(
             select(User)
             .options(
                 selectinload(User.roles),
+                selectinload(User.departments),
                 selectinload(User.academic_period_assignments).joinedload(UserAcademicPeriod.academic_period),
                 selectinload(User.academic_period_assignments).joinedload(UserAcademicPeriod.creator)
             )
@@ -378,7 +380,7 @@ async def list_users(
                     first_name=u.first_name,
                     last_name=u.last_name,
                     needs_password_change=u.needs_password_change,
-                    department_id=u.department_id,
+                    department_ids=[d.id for d in u.departments] if hasattr(u, "departments") else [],
                     # Pivot relation details (if any)
                     subject_code=ass.subject_code if ass else None,
                     section=ass.section if ass else None,
@@ -416,8 +418,11 @@ async def create_user(
         is_active=True,
         is_staff=False,
         is_superuser=False,
-        department_id=user_in.department_id,
     )
+    
+    if user_in.department_ids:
+        dept_res = await db.execute(select(Department).where(Department.id.in_(user_in.department_ids)))
+        new_user.departments.extend(dept_res.scalars().all())
     
     if user_in.roles:
         roles_res = await db.execute(select(Role).where(Role.name.in_(user_in.roles)))
@@ -465,7 +470,7 @@ async def create_user(
         first_name=new_user.first_name,
         last_name=new_user.last_name,
         needs_password_change=new_user.needs_password_change,
-        department_id=new_user.department_id,
+        department_ids=[d.id for d in new_user.departments] if hasattr(new_user, "departments") else [],
         # Pivot fields
         academic_period=ap_name,
         academic_period_id=user_in.academic_period_id if created_rel else None,
@@ -485,7 +490,7 @@ async def update_user(
     _=Depends(RequirePermission("users:update"))
 ):
 
-    result = await db.execute(select(User).options(selectinload(User.roles)).where(User.id == user_id))
+    result = await db.execute(select(User).options(selectinload(User.roles), selectinload(User.departments)).where(User.id == user_id))
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -515,12 +520,12 @@ async def update_user(
         user.is_active = user_in.is_active
         
     update_data = user_in.model_dump(exclude_unset=True)
-    if "department_id" in update_data:
-        val = update_data["department_id"]
-        if val is not None and val > 0:
-            user.department_id = val
-        else:
-            user.department_id = None
+    if "department_ids" in update_data:
+        val = update_data["department_ids"]
+        user.departments.clear()
+        if val and isinstance(val, list):
+            dept_res = await db.execute(select(Department).where(Department.id.in_(val)))
+            user.departments.extend(dept_res.scalars().all())
 
     ap_name = None
     period_rel = None
@@ -604,7 +609,7 @@ async def update_user(
         first_name=user.first_name,
         last_name=user.last_name,
         needs_password_change=user.needs_password_change,
-        department_id=user.department_id,
+        department_ids=[d.id for d in user.departments] if hasattr(user, "departments") else [],
         # Pivot fields
         academic_period=ap_name,
         academic_period_id=user_in.academic_period_id if user_in.academic_period_id and user_in.academic_period_id > 0 else (period_rel.academic_period_id if period_rel else None),

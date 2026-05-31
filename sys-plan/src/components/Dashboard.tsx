@@ -545,7 +545,16 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8">
           {activeTab === 'dashboard' ? (
-            <DashboardView userRole={userRole || ''} />
+            <DashboardView 
+              userRole={userRole || ''} 
+              onEditPlan={(planId) => {
+                const planToEdit = plans.find(p => p.id === planId)
+                if (planToEdit) {
+                  setEditingPlan(planToEdit)
+                  setIsModalOpen(true)
+                }
+              }} 
+            />
           ) : activeTab === 'users' ? (
             <UserManagement />
           ) : activeTab === 'roles' && hasPermission('roles:read') ? (
