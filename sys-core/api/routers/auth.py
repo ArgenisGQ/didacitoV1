@@ -58,73 +58,83 @@ async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
-    from api.routers.admin import log_audit_background, update_last_login
+    try:
+        from api.routers.admin import log_audit_background, update_last_login
+        
+        result = await db.execute(
+            select(User).options(selectinload(User.roles).selectinload(Role.permissions)).where(User.email == form_data.username)
+        )
+        user = result.scalars().first()
     
-    result = await db.execute(
-        select(User).options(selectinload(User.roles).selectinload(Role.permissions)).where(User.email == form_data.username)
-    )
-    user = result.scalars().first()
-
-    # 1. Anti-brute force / Account lockout check
-    if user and user.lockout_until:
-        now = datetime.now(timezone.utc)
-        lockout_until = user.lockout_until
-        if lockout_until.tzinfo is None:
-            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
-
-        if now < lockout_until:
-            seconds_left = int((lockout_until - now).total_seconds())
-            background_tasks.add_task(
-                log_audit_background,
-                user_id=user.id,
-                action="LOGIN_FAILED",
-                ip_address=request.client.host if request.client else "unknown",
-                user_agent=request.headers.get("user-agent", "unknown"),
-                details={"email": user.email, "reason": "Cuenta bloqueada temporalmente"}
-            )
-            raise HTTPException(
-                status_code=status.HTTP_423_LOCKED,
-                detail=f"Cuenta bloqueada temporalmente. Intente de nuevo en {seconds_left} segundos.",
-            )
-
-    # 2. Check credentials
-    if not user or not verify_password(form_data.password, user.password):
-        if user:
-            user.failed_login_attempts += 1
-            if user.failed_login_attempts >= 5:
-                user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+        # 1. Anti-brute force / Account lockout check
+        if user and user.lockout_until:
+            now = datetime.now(timezone.utc)
+            lockout_until = user.lockout_until
+            if lockout_until.tzinfo is None:
+                lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+    
+            if now < lockout_until:
+                seconds_left = int((lockout_until - now).total_seconds())
                 background_tasks.add_task(
                     log_audit_background,
                     user_id=user.id,
-                    action="ACCOUNT_LOCKOUT",
+                    action="LOGIN_FAILED",
                     ip_address=request.client.host if request.client else "unknown",
                     user_agent=request.headers.get("user-agent", "unknown"),
-                    details={"email": user.email, "reason": "Demasiados intentos fallidos"}
+                    details={"email": user.email, "reason": "Cuenta bloqueada temporalmente"}
                 )
-            await db.commit()
-            
-            background_tasks.add_task(
-                log_audit_background,
-                user_id=user.id,
-                action="LOGIN_FAILED",
-                ip_address=request.client.host if request.client else "unknown",
-                user_agent=request.headers.get("user-agent", "unknown"),
-                details={"email": user.email, "reason": "Contraseña incorrecta"}
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail=f"Cuenta bloqueada temporalmente. Intente de nuevo en {seconds_left} segundos.",
+                )
+    
+        # 2. Check credentials
+        if not user or not verify_password(form_data.password, user.password):
+            if user:
+                user.failed_login_attempts += 1
+                if user.failed_login_attempts >= 5:
+                    user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+                    background_tasks.add_task(
+                        log_audit_background,
+                        user_id=user.id,
+                        action="ACCOUNT_LOCKOUT",
+                        ip_address=request.client.host if request.client else "unknown",
+                        user_agent=request.headers.get("user-agent", "unknown"),
+                        details={"email": user.email, "reason": "Demasiados intentos fallidos"}
+                    )
+                await db.commit()
+                
+                background_tasks.add_task(
+                    log_audit_background,
+                    user_id=user.id,
+                    action="LOGIN_FAILED",
+                    ip_address=request.client.host if request.client else "unknown",
+                    user_agent=request.headers.get("user-agent", "unknown"),
+                    details={"email": user.email, "reason": "Contraseña incorrecta"}
+                )
+            else:
+                background_tasks.add_task(
+                    log_audit_background,
+                    user_id=None,
+                    action="LOGIN_FAILED",
+                    ip_address=request.client.host if request.client else "unknown",
+                    user_agent=request.headers.get("user-agent", "unknown"),
+                    details={"email": form_data.username, "reason": "Usuario no encontrado"}
+                )
+    
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-        else:
-            background_tasks.add_task(
-                log_audit_background,
-                user_id=None,
-                action="LOGIN_FAILED",
-                ip_address=request.client.host if request.client else "unknown",
-                user_agent=request.headers.get("user-agent", "unknown"),
-                details={"email": form_data.username, "reason": "Usuario no encontrado"}
-            )
-
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error en el servidor al autenticar: {error_msg} \n{traceback.format_exc()}"
         )
 
     # 3. Successful primary auth: reset failed attempts

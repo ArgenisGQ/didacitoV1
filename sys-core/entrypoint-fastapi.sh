@@ -8,4 +8,6 @@ echo ">>> [FastAPI] Starting Uvicorn on port 8001..."
 exec uvicorn api.main:app \
     --host 0.0.0.0 \
     --port 8001 \
-    --log-level info
+    --log-level info \
+    --proxy-headers \
+    --forwarded-allow-ips='*'
