@@ -22,7 +22,7 @@ class RoleUpdate(BaseModel):
     permission_ids: List[int] = []
 
 
-@router.get("/", response_model=List[Dict[str, Any]])
+@router.get("", response_model=List[Dict[str, Any]])
 async def get_roles(
     db: AsyncSession = Depends(get_db),
     _=Depends(RequirePermission("roles:manage"))
@@ -43,7 +43,7 @@ async def get_roles(
     ]
 
 
-@router.post("/", response_model=Dict[str, Any])
+@router.post("", response_model=Dict[str, Any])
 async def create_role(
     role_data: RoleCreate,
     db: AsyncSession = Depends(get_db),
