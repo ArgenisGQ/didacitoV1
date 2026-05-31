@@ -283,6 +283,7 @@ async def list_users(
                         first_name=u.first_name,
                         last_name=u.last_name,
                         needs_password_change=u.needs_password_change,
+                        department_id=u.department_id,
                         # Pivot relation details
                         subject_code=ass.subject_code,
                         section=ass.section,
@@ -332,7 +333,8 @@ async def list_users(
                     username=u.username,
                     first_name=u.first_name,
                     last_name=u.last_name,
-                    needs_password_change=u.needs_password_change
+                    needs_password_change=u.needs_password_change,
+                    department_id=u.department_id
                 )
             )
     else:
@@ -376,6 +378,7 @@ async def list_users(
                     first_name=u.first_name,
                     last_name=u.last_name,
                     needs_password_change=u.needs_password_change,
+                    department_id=u.department_id,
                     # Pivot relation details (if any)
                     subject_code=ass.subject_code if ass else None,
                     section=ass.section if ass else None,
@@ -462,6 +465,7 @@ async def create_user(
         first_name=new_user.first_name,
         last_name=new_user.last_name,
         needs_password_change=new_user.needs_password_change,
+        department_id=new_user.department_id,
         # Pivot fields
         academic_period=ap_name,
         academic_period_id=user_in.academic_period_id if created_rel else None,
@@ -510,9 +514,11 @@ async def update_user(
             raise HTTPException(status_code=400, detail="No puedes desactivar tu propia cuenta")
         user.is_active = user_in.is_active
         
-    if user_in.department_id is not None:
-        if user_in.department_id > 0:
-            user.department_id = user_in.department_id
+    update_data = user_in.model_dump(exclude_unset=True)
+    if "department_id" in update_data:
+        val = update_data["department_id"]
+        if val is not None and val > 0:
+            user.department_id = val
         else:
             user.department_id = None
 
@@ -520,9 +526,10 @@ async def update_user(
     period_rel = None
     
     # Check if period was updated
-    if user_in.academic_period_id is not None:
-        if user_in.academic_period_id > 0:
-            ap_res = await db.execute(select(AcademicPeriod).where(AcademicPeriod.id == user_in.academic_period_id))
+    if "academic_period_id" in update_data:
+        val_ap = update_data["academic_period_id"]
+        if val_ap is not None and val_ap > 0:
+            ap_res = await db.execute(select(AcademicPeriod).where(AcademicPeriod.id == val_ap))
             ap = ap_res.scalar_one_or_none()
             if not ap:
                 raise HTTPException(status_code=404, detail="Periodo academico no encontrado")
@@ -533,7 +540,7 @@ async def update_user(
                 select(UserAcademicPeriod)
                 .where(
                     UserAcademicPeriod.user_id == user.id,
-                    UserAcademicPeriod.academic_period_id == user_in.academic_period_id
+                    UserAcademicPeriod.academic_period_id == val_ap
                 )
             )
             period_rel = rel_res.scalars().first()
@@ -541,7 +548,7 @@ async def update_user(
                 # Create relation
                 period_rel = UserAcademicPeriod(
                     user_id=user.id,
-                    academic_period_id=user_in.academic_period_id,
+                    academic_period_id=val_ap,
                     is_active=True,
                     created_by_id=current_user.id,
                     creation_method=CreationMethod.MANUAL
@@ -597,6 +604,7 @@ async def update_user(
         first_name=user.first_name,
         last_name=user.last_name,
         needs_password_change=user.needs_password_change,
+        department_id=user.department_id,
         # Pivot fields
         academic_period=ap_name,
         academic_period_id=user_in.academic_period_id if user_in.academic_period_id and user_in.academic_period_id > 0 else (period_rel.academic_period_id if period_rel else None),
