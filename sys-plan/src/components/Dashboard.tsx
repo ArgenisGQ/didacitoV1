@@ -32,6 +32,7 @@ import {
   AlertTriangle,
   Lock,
   Building,
+  Cpu,
 } from 'lucide-react'
 import api, { getAccessToken } from '../lib/api-client'
 import SecuritySettings from './SecuritySettings'
@@ -41,6 +42,7 @@ import { DashboardView } from './DashboardView'
 import UserProfile from './UserProfile'
 import AuditManagement from './AuditManagement'
 import SyllabusManagement from './SyllabusManagement'
+import AISettings from './AISettings'
 import AcademicPeriods from './AcademicPeriods'
 import { AcademicDistribution } from './AcademicDistribution'
 import { PdfPreviewModal } from './PdfPreviewModal'
@@ -523,6 +525,20 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               </Button>
             </>
           )}
+
+          {userRole === 'SUPER_ADMIN' && (
+            <>
+              <Separator className="my-4" />
+              <Button
+                variant={activeTab === 'ai_settings' ? 'default' : 'ghost'}
+                className="w-full justify-start gap-3 h-12 text-base font-semibold"
+                onClick={() => setActiveTab('ai_settings')}
+              >
+                <Cpu size={20} className="text-blue-500" />
+                Configuración de IA
+              </Button>
+            </>
+          )}
         </nav>
 
         <div className="p-4 space-y-2">
@@ -616,6 +632,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             <AdminSettings />
           ) : activeTab === 'dashboard_settings' && hasPermission('settings:manage') ? (
             <DashboardSettings />
+          ) : activeTab === 'ai_settings' && userRole === 'SUPER_ADMIN' ? (
+            <AISettings />
           ) : activeTab === 'security' ? (
             <SecuritySettings />
           ) : activeTab === 'audit' ? (

@@ -7,7 +7,7 @@ import traceback
 
 logger = logging.getLogger(__name__)
 
-from api.routers import health, auth, plans, users, admin, syllabus_proxy, academic_periods, academic_distribution, roles, dashboard
+from api.routers import health, auth, plans, users, admin, syllabus_proxy, ai_proxy, academic_periods, academic_distribution, roles, dashboard
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from api.core.limiter import limiter
@@ -80,3 +80,5 @@ app.include_router(academic_periods.router)
 app.include_router(academic_distribution.router, prefix="/distribution", tags=["Academic Distribution"])
 app.include_router(roles.router)
 app.include_router(dashboard.router)
+app.include_router(ai_proxy.router, prefix="/ai", tags=["AI Proxy"])
+

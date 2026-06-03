@@ -162,6 +162,22 @@ async def update_plan(
                 status_code=400,
                 detail=f"Must have exactly 12 weeks. Current: {weeks_count}",
             )
+            
+        # Trigger AI evaluation when plan is submitted for review
+        if plan.status != PlanStatus.IN_REVIEW:
+            import httpx
+            import asyncio
+            async def trigger_ai_eval():
+                try:
+                    import os
+                    ai_service_url = os.getenv("AI_SERVICE_URL", "http://sys-ai:8003")
+                    async with httpx.AsyncClient() as client:
+                        await client.post(f"{ai_service_url}/api/ai/evaluate/{plan_id}/", timeout=5.0)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(f"Failed to trigger AI eval for plan {plan_id}: {e}")
+            
+            asyncio.create_task(trigger_ai_eval())
 
     if plan_in.title is not None:
         plan.title = plan_in.title

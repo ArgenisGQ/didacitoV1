@@ -1,6 +1,6 @@
 services:
   planning-db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: planning_db
     environment:
       POSTGRES_DB: planning_db
@@ -107,6 +107,46 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://user:password@planning-db:5432/planning_db}
       SECRET_KEY: ${SECRET_KEY:-super_secret_key_shared_with_frontend}
       ALGORITHM: ${ALGORITHM:-HS256}
+    depends_on:
+      planning-db:
+        condition: service_healthy
+    networks:
+      - dokploy-network
+
+  sys-ai:
+    build:
+      context: ./sys-ai
+      dockerfile: Dockerfile
+    entrypoint: [ "sh", "/app/entrypoint.sh" ]
+    container_name: planning_sys_ai
+    environment:
+      POSTGRES_DB: planning_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST: planning-db
+      POSTGRES_PORT: 5432
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-sys-ai-insecure-key}
+      APP_ENV: local
+    depends_on:
+      planning-db:
+        condition: service_healthy
+    networks:
+      - dokploy-network
+
+  sys-ai-worker:
+    build:
+      context: ./sys-ai
+      dockerfile: Dockerfile
+    container_name: planning_sys_ai_worker
+    command: ["python", "manage.py", "qcluster"]
+    environment:
+      POSTGRES_DB: planning_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST: planning-db
+      POSTGRES_PORT: 5432
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-sys-ai-insecure-key}
+      APP_ENV: local
     depends_on:
       planning-db:
         condition: service_healthy
