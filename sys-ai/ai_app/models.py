@@ -158,6 +158,21 @@ class SyllabusChunk(models.Model):
     def __str__(self):
         return f"Chunk {self.chunk_index} of Syllabus {self.syllabus_id}"
 
+class LessonPlanChunk(models.Model):
+    lesson_plan = models.ForeignKey(CoreLessonPlan, on_delete=models.CASCADE, related_name="chunks")
+    chunk_index = models.IntegerField()
+    content = models.TextField()
+    # No limitamos la dimensión para que pueda soportar modelos de OpenAI (1536) o locales de LM Studio (ej. 1024 o 768).
+    embedding = VectorField(help_text="Vector de embeddings del fragmento del plan")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ai_app_lessonplan_chunk"
+        ordering = ['lesson_plan', 'chunk_index']
+
+    def __str__(self):
+        return f"Chunk {self.chunk_index} of LessonPlan {self.lesson_plan_id}"
+
 class EvaluationResult(models.Model):
     lesson_plan = models.ForeignKey(CoreLessonPlan, on_delete=models.CASCADE, related_name="ai_evaluations")
     agent = models.ForeignKey(AgentTemplate, on_delete=models.SET_NULL, null=True, blank=True)

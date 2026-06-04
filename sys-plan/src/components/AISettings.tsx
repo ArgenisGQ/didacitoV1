@@ -128,7 +128,7 @@ export default function AISettings() {
     refetchInterval: (query) => {
       // Polling every 3s if not fully synced
       const data = query.state.data as any
-      if (data && !data.is_fully_synced && data.total_active_syllabuses > 0) {
+      if (data && (!data.is_fully_synced || !data.is_plans_fully_synced) && (data.total_active_syllabuses > 0 || data.total_approved_plans > 0)) {
         return 3000;
       }
       return false;
@@ -147,7 +147,21 @@ export default function AISettings() {
       setTimeout(() => refetchRag(), 2000)
     },
     onError: () => {
-      toast.error('Error al iniciar la sincronización')
+      toast.error('Error al iniciar la sincronización de sinópticos')
+    }
+  })
+
+  const { mutate: syncAllPlans, isPending: isSyncingPlans } = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post('/ai/admin/sync-all-plans/')
+      return data
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || 'Sincronización de planes iniciada')
+      setTimeout(() => refetchRag(), 2000)
+    },
+    onError: () => {
+      toast.error('Error al iniciar la sincronización de planes')
     }
   })
 
@@ -422,10 +436,30 @@ export default function AISettings() {
                     <p className="text-5xl font-black text-emerald-600">{ragStatus.total_synced}</p>
                   </div>
                   <div className={`border rounded-xl p-6 flex flex-col justify-center items-center ${ragStatus.is_fully_synced ? 'bg-emerald-100 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-                    <p className={`text-sm font-bold uppercase tracking-wider mb-2 ${ragStatus.is_fully_synced ? 'text-emerald-800' : 'text-amber-800'}`}>Estado Global</p>
+                    <p className={`text-sm font-bold uppercase tracking-wider mb-2 ${ragStatus.is_fully_synced ? 'text-emerald-800' : 'text-amber-800'}`}>Estado Sinópticos</p>
                     <Badge variant={ragStatus.is_fully_synced ? 'default' : 'destructive'} className="text-lg px-4 py-1">
                       {ragStatus.is_fully_synced ? 'Sincronizado' : 'Incompleto'}
                     </Badge>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 text-center">
+                    <p className="text-sm font-bold text-indigo-800 uppercase tracking-wider mb-2">Planes Aprobados</p>
+                    <p className="text-5xl font-black text-indigo-600">{ragStatus.total_approved_plans}</p>
+                  </div>
+                  <div className="bg-teal-50 border border-teal-100 rounded-xl p-6 text-center">
+                    <p className="text-sm font-bold text-teal-800 uppercase tracking-wider mb-2">Vectorizados</p>
+                    <p className="text-5xl font-black text-teal-600">{ragStatus.total_synced_plans}</p>
+                  </div>
+                  <div className={`border rounded-xl p-6 flex flex-col justify-center items-center ${ragStatus.is_plans_fully_synced ? 'bg-teal-100 border-teal-200' : 'bg-orange-50 border-orange-200'}`}>
+                    <p className={`text-sm font-bold uppercase tracking-wider mb-2 ${ragStatus.is_plans_fully_synced ? 'text-teal-800' : 'text-orange-800'}`}>Estado Planes</p>
+                    <Badge variant={ragStatus.is_plans_fully_synced ? 'default' : 'destructive'} className="text-lg px-4 py-1">
+                      {ragStatus.is_plans_fully_synced ? 'Sincronizado' : 'Incompleto'}
+                    </Badge>
+                    <Button onClick={() => syncAllPlans()} className="mt-4 gap-2 w-full" disabled={!hasActiveProvider || isSyncingPlans || loadingRag || ragStatus.is_plans_fully_synced}>
+                      <Database size={16} /> Sincronizar Planes
+                    </Button>
                   </div>
                 </div>
 

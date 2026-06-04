@@ -205,6 +205,21 @@ async def update_plan(
             else:
                 raise HTTPException(status_code=403, detail="No tienes permisos para aprobar planes didácticos")
                 
+            # Trigger AI sync for this newly approved plan
+            import httpx
+            import asyncio
+            async def trigger_ai_sync_plan():
+                try:
+                    import os
+                    ai_service_url = os.getenv("AI_SERVICE_URL", "http://sys-ai:8003")
+                    async with httpx.AsyncClient() as client:
+                        await client.post(f"{ai_service_url}/api/ai/admin/sync-plan/{plan_id}/", timeout=5.0)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(f"Failed to trigger AI sync for plan {plan_id}: {e}")
+            
+            asyncio.create_task(trigger_ai_sync_plan())
+                
         plan.status = plan_in.status
     if plan_in.subject_code is not None:
         plan.subject_code = plan_in.subject_code

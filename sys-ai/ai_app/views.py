@@ -68,17 +68,21 @@ def rag_status(request):
     Endpoint para que el Super Admin revise el estado de sincronización del RAG
     con los programas sinópticos.
     """
-    from .models import CoreSyllabusVersion, SyllabusChunk
+    from .models import CoreSyllabusVersion, SyllabusChunk, CoreLessonPlan, LessonPlanChunk
     
     # Todos los sinópticos activos
     total_active_syllabuses = CoreSyllabusVersion.objects.filter(is_active=True).count()
     
     # Cuántos de esos tienen chunks asociados
-    # Buscamos IDs de syllabuses que tienen al menos un chunk
     synced_syllabuses_ids = SyllabusChunk.objects.values_list('syllabus_id', flat=True).distinct()
-    
-    # Filtramos para asegurarnos de que contamos solo los activos
-    total_synced = CoreSyllabusVersion.objects.filter(id__in=synced_syllabuses_ids, is_active=True).count()
+    total_synced_syllabuses = CoreSyllabusVersion.objects.filter(id__in=synced_syllabuses_ids, is_active=True).count()
+
+    # Todos los planes aprobados
+    total_approved_plans = CoreLessonPlan.objects.filter(status='APPROVED').count()
+
+    # Cuántos de esos tienen chunks
+    synced_plans_ids = LessonPlanChunk.objects.values_list('lesson_plan_id', flat=True).distinct()
+    total_synced_plans = CoreLessonPlan.objects.filter(id__in=synced_plans_ids, status='APPROVED').count()
     
     # Buscamos si hay alguna tarea de vectorización en progreso
     from .models import AILog
@@ -87,8 +91,11 @@ def rag_status(request):
     
     return JsonResponse({
         "total_active_syllabuses": total_active_syllabuses,
-        "total_synced": total_synced,
-        "is_fully_synced": total_active_syllabuses > 0 and total_active_syllabuses == total_synced,
+        "total_synced": total_synced_syllabuses,
+        "is_fully_synced": total_active_syllabuses > 0 and total_active_syllabuses == total_synced_syllabuses,
+        "total_approved_plans": total_approved_plans,
+        "total_synced_plans": total_synced_plans,
+        "is_plans_fully_synced": total_approved_plans > 0 and total_approved_plans == total_synced_plans,
         "current_task_detail": current_task_detail
     })
 
@@ -120,6 +127,44 @@ def sync_all_syllabuses(request):
         "status": "success",
         "message": f"Se han encolado {tasks_queued} sinópticos para sincronización en segundo plano."
     })
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def sync_all_plans(request):
+    """
+    Endpoint para que el Super Admin sincronice manualmente todos los planes aprobados.
+    """
+    from .models import CoreLessonPlan, AIProvider
+    from django_q.tasks import async_task
+    
+    if not AIProvider.objects.filter(is_active=True).exists():
+        return JsonResponse({"error": "El sistema no tiene un modelo de IA configurado o activo."}, status=400)
+    
+    approved_plans = CoreLessonPlan.objects.filter(status='APPROVED')
+    tasks_queued = 0
+    for plan in approved_plans:
+        async_task('ai_app.tasks.ingest_lesson_plan_task', plan.id)
+        tasks_queued += 1
+        
+    return JsonResponse({
+        "status": "success",
+        "message": f"Se han encolado {tasks_queued} planes para sincronización en segundo plano."
+    })
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def sync_single_plan(request, plan_id):
+    """
+    Endpoint invocado automáticamente cuando se aprueba un plan.
+    """
+    from .models import AIProvider
+    from django_q.tasks import async_task
+    
+    if not AIProvider.objects.filter(is_active=True).exists():
+        return JsonResponse({"error": "El sistema no tiene un modelo de IA configurado o activo."}, status=400)
+
+    async_task('ai_app.tasks.ingest_lesson_plan_task', plan_id)
+    return JsonResponse({"status": "success", "message": "Plan encolado para vectorización."})
 
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
@@ -396,7 +441,7 @@ def chat_rag(request):
     Endpoint para Chat RAG interactivo.
     """
     import json
-    from .models import AIProvider, SyllabusChunk
+    from .models import AIProvider, SyllabusChunk, LessonPlanChunk
     from .tasks import get_embeddings_model, get_llm_model
     from pgvector.django import L2Distance
     from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -422,25 +467,42 @@ def chat_rag(request):
                 return JsonResponse({"error": "No hay un modelo de Embeddings cargado en LM Studio. Debes cargar un modelo especializado (ej. nomic-embed-text) para poder consultar tus programas sinópticos."}, status=400)
             raise emb_error
 
-        # 2. Buscar fragmentos (Top 5)
-        chunks = SyllabusChunk.objects.select_related('syllabus__subject').annotate(
+        # 2. Buscar fragmentos (Top 5 de cada fuente)
+        syllabus_chunks = list(SyllabusChunk.objects.select_related('syllabus__subject').annotate(
             distance=L2Distance('embedding', query_vector)
-        ).order_by('distance')[:5]
+        ).order_by('distance')[:5])
+        
+        plan_chunks = list(LessonPlanChunk.objects.select_related('lesson_plan').annotate(
+            distance=L2Distance('embedding', query_vector)
+        ).order_by('distance')[:5])
+
+        # Combinar y ordenar por distancia (menor es mejor)
+        combined_chunks = sorted(syllabus_chunks + plan_chunks, key=lambda x: getattr(x, 'distance', 999))[:5]
 
         context_texts = []
-        for c in chunks:
-            subj = c.syllabus.subject
-            context_texts.append(f"[Asignatura: {subj.code} - {subj.name}]\n{c.content}")
+        for c in combined_chunks:
+            if isinstance(c, SyllabusChunk):
+                subj = c.syllabus.subject
+                context_texts.append(f"[FUENTE: Programa Sinóptico | Asignatura: {subj.code} - {subj.name}]\n{c.content}")
+            else:
+                plan = c.lesson_plan
+                context_texts.append(f"[FUENTE: Plan de Clase Aprobado | Título: {plan.title} | Asignatura: {plan.subject_code}]\n{c.content}")
         
         context_str = "\n\n---\n\n".join(context_texts)
 
         # 3. Preparar mensajes para el LLM
-        system_prompt = f"""
-Eres un asistente experto en pedagogía universitaria. Responde a la pregunta del usuario basándote ÚNICAMENTE en el siguiente contexto extraído de los programas sinópticos de la institución.
-Es OBLIGATORIO que menciones de manera explícita el código y nombre de la(s) asignatura(s) en la(s) que basas tu respuesta (si aplica).
-Si el contexto no contiene la información para responder la pregunta, di honestamente que no tienes la información en los programas sinópticos vectorizados.
+        import os
+        env_prompt = os.environ.get("CHAT_RAG_SYSTEM_PROMPT")
 
-CONTEXTO DE LOS PROGRAMAS SINÓPTICOS:
+        if env_prompt and env_prompt.strip():
+            system_prompt = f"{env_prompt}\n\nCONTEXTO DE BÚSQUEDA:\n{context_str}"
+        else:
+            system_prompt = f"""
+Eres un asistente experto en pedagogía universitaria. Responde a la pregunta del usuario basándote ÚNICAMENTE en el siguiente contexto extraído de los documentos de la institución.
+Es OBLIGATORIO que menciones de manera explícita la fuente (si es un "Programa Sinóptico" o un "Plan de Clase Aprobado") y el código/nombre de la asignatura en la que basas tu respuesta.
+Si el contexto no contiene la información para responder la pregunta, di honestamente que no tienes la información en los documentos vectorizados.
+
+CONTEXTO DE BÚSQUEDA:
 {context_str}
 """
         messages = [SystemMessage(content=system_prompt)]

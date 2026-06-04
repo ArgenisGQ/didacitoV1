@@ -322,3 +322,12 @@ La aplicación ha evolucionado significativamente hasta convertirse en un sistem
 6. **Diseño de Interfaz Premium (Glassmorphism):** Navegación fluida y responsiva, cuadros de diálogo modales con retroalimentación en vivo, y componentes modernos de React que otorgan una experiencia visual de élite.
 7. **Jerarquía Institucional y Aprobación de Planes Didácticos:** Flujos de aprobación multinivel. Los `COORDINADORES` pueden aprobar planes didácticos únicamente de las asignaturas pertenecientes a su departamento asignado, mientras que los administradores generales (`SUPER_ADMIN`, `ADMIN_GESTION`) poseen aprobación global.
 8. **Seguridad y Accesos Granulares por Rol:** El módulo de Programas Sinópticos restringe la carga masiva e individual (PDF/ZIP) y la modificación de metadatos exclusivamente a perfiles administrativos (`ADMIN_GESTION`, `SUPER_ADMIN`), estableciendo para los Coordinadores un entorno seguro de solo consulta. Asimismo, los Dashboards de revisión filtran los contenidos en tiempo real según el área de supervisión del usuario.
+9. **Integración Inteligente RAG (Retrieval-Augmented Generation):**
+   * **Vectorización Híbrida Automática:** El sistema indexa de forma combinada tanto los Programas Sinópticos como los Planes de Clase una vez que son aprobados, vectorizándolos (mediante embeddings) en bases de datos PostgreSQL + pgvector.
+   * **Búsqueda Avanzada Multi-fuente:** El Chat de IA interroga a ambas fuentes, evaluando la cercanía semántica y citando explícitamente en cada respuesta si la información provino del currículo oficial o del plan elaborado por el docente.
+   * **Personalidad de IA Configurable:** El sistema de chat posee un *"System Prompt"* predeterminado enfocado en pedagogía universitaria, pero otorga libertad total al integrador para modificar el comportamiento del Chat mediante la variable opcional en el `.env`:
+     ```env
+     # (Opcional) Sobrescribe el comportamiento por defecto de la IA en el Chat RAG:
+     CHAT_RAG_SYSTEM_PROMPT="Eres un asistente experto en pedagogía universitaria..."
+     ```
+     *Si la variable se omite o se deja vacía, el sistema usa por defecto sus rigurosas instrucciones internas que obligan a la IA a citar explícitamente las asignaturas y rechazar alucinaciones.*

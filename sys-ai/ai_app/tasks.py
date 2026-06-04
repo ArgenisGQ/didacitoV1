@@ -124,6 +124,119 @@ def ingest_syllabus_task(syllabus_id: int):
         log_entry.save()
         raise
 
+def ingest_lesson_plan_task(plan_id: int):
+    """
+    Extrae, fragmenta y vectoriza el contenido de un CoreLessonPlan.
+    """
+    from .models import CoreLessonPlan, LessonPlanChunk, AILog
+    
+    log_entry = AILog.objects.create(
+        action=f"Vectorización de Plan de Clase #{plan_id}",
+        status="started",
+        details="Iniciando extracción y vectorización..."
+    )
+    
+    try:
+        plan = CoreLessonPlan.objects.get(id=plan_id)
+        
+        if plan.status != 'APPROVED':
+            log_entry.status = "failed"
+            log_entry.details = "El plan no está aprobado. Se aborta la vectorización."
+            log_entry.save()
+            return
+            
+        # 1. Borrar chunks anteriores si existían
+        LessonPlanChunk.objects.filter(lesson_plan=plan).delete()
+        
+        # 2. Extraer y concatenar texto del plan
+        full_text = f"PLAN DE CLASE\n"
+        full_text += f"Título: {plan.title}\n"
+        full_text += f"Asignatura (Código): {plan.subject_code}\n"
+        full_text += f"Sección: {plan.section}\n\n"
+        
+        full_text += "== CONTENIDOS SEMANALES ==\n"
+        for wc in plan.weekly_contents.all().order_by('week_number'):
+            full_text += f"Semana {wc.week_number}:\n"
+            full_text += f"Contenido: {wc.content_description}\n"
+            full_text += f"Estrategia Didáctica: {wc.teaching_strategy}\n"
+            full_text += f"Recursos: {wc.resources}\n"
+            full_text += f"Bibliografía: {wc.bibliography}\n\n"
+            
+        full_text += "== PLAN DE EVALUACIÓN ==\n"
+        for ev in plan.evaluation_plans.all().order_by('due_week'):
+            full_text += f"Semana de entrega {ev.due_week} (Unidad {ev.unit}):\n"
+            full_text += f"Estrategia de evaluación: {ev.strategy}\n"
+            full_text += f"Instrumento: {ev.instrument}\n"
+            full_text += f"Ponderación: {ev.weight}%\n\n"
+            
+        if not full_text.strip():
+            log_entry.status = "success"
+            log_entry.details = "El plan de clase está vacío, no se crearon chunks."
+            log_entry.save()
+            return
+            
+        # 3. Fragmentación
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200,
+            length_function=len,
+        )
+        
+        texts = text_splitter.split_text(full_text)
+        
+        # 4. Generar embeddings
+        embeddings_model = get_embeddings_model()
+        
+        # Crear en lotes
+        batch_size = 5
+        chunks_created = 0
+        total_chunks = len(texts)
+        
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i:i+batch_size]
+            
+            # Generar embeddings para el batch
+            batch_embeddings = embeddings_model.embed_documents(batch_texts)
+            
+            # Guardar en DB
+            chunks_to_create = []
+            for j, emb in enumerate(batch_embeddings):
+                chunk_index = i + j
+                chunks_to_create.append(
+                    LessonPlanChunk(
+                        lesson_plan=plan,
+                        chunk_index=chunk_index,
+                        content=batch_texts[j],
+                        embedding=emb
+                    )
+                )
+            
+            LessonPlanChunk.objects.bulk_create(chunks_to_create)
+            chunks_created += len(chunks_to_create)
+            
+            # Actualizar progreso
+            log_entry.details = f"Vectorizando... {chunks_created} de {total_chunks} fragmentos procesados."
+            log_entry.save()
+            
+        logger.info(f"Ingesta exitosa. Plan {plan_id}: {chunks_created} chunks creados.")
+        
+        log_entry.status = "success"
+        log_entry.details = f"Ingesta exitosa. {chunks_created} fragmentos creados y vectorizados."
+        log_entry.save()
+        
+    except CoreLessonPlan.DoesNotExist:
+        logger.error(f"LessonPlan {plan_id} no encontrado en la DB.")
+        log_entry.status = "failed"
+        log_entry.details = "El plan no fue encontrado en la base de datos."
+        log_entry.save()
+    except Exception as e:
+        logger.exception(f"Error procesando plan {plan_id}: {str(e)}")
+        log_entry.status = "failed"
+        log_entry.details = f"Error: {str(e)}"
+        log_entry.save()
+        raise
+
 def get_llm_model(provider: AIProvider):
     from langchain_openai import ChatOpenAI
     
