@@ -18,10 +18,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import AIChat from './AIChat'
 
 export default function AISettings() {
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState<'providers' | 'templates' | 'rag'>('providers')
+  const [activeTab, setActiveTab] = useState<'providers' | 'templates' | 'rag' | 'chat'>('providers')
   
   // States for Provider Modal
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
@@ -241,6 +242,15 @@ export default function AISettings() {
           <Database size={18} />
           Estado del RAG
         </Button>
+        <Button 
+          variant={activeTab === 'chat' ? 'default' : 'ghost'} 
+          onClick={() => setActiveTab('chat')}
+          className="gap-2"
+          disabled={!hasActiveProvider}
+        >
+          <MessageSquare size={18} />
+          Chat RAG
+        </Button>
       </div>
 
       {activeTab === 'providers' && (
@@ -435,7 +445,7 @@ export default function AISettings() {
                       ></div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2 text-center animate-pulse">
-                      La IA está vectorizando documentos en segundo plano. Esto puede demorar varios minutos dependiendo de la carga.
+                      {ragStatus.current_task_detail || "La IA está vectorizando documentos en segundo plano. Esto puede demorar varios minutos dependiendo de la carga."}
                     </p>
                   </div>
                 )}
@@ -445,6 +455,10 @@ export default function AISettings() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {activeTab === 'chat' && (
+        <AIChat />
       )}
 
       {/* Provider Modal */}

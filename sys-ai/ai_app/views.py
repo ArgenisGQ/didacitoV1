@@ -80,10 +80,16 @@ def rag_status(request):
     # Filtramos para asegurarnos de que contamos solo los activos
     total_synced = CoreSyllabusVersion.objects.filter(id__in=synced_syllabuses_ids, is_active=True).count()
     
+    # Buscamos si hay alguna tarea de vectorización en progreso
+    from .models import AILog
+    latest_log = AILog.objects.filter(status='started', action__startswith='Vectorización').order_by('-created_at').first()
+    current_task_detail = latest_log.details if latest_log else None
+    
     return JsonResponse({
         "total_active_syllabuses": total_active_syllabuses,
         "total_synced": total_synced,
-        "is_fully_synced": total_active_syllabuses > 0 and total_active_syllabuses == total_synced
+        "is_fully_synced": total_active_syllabuses > 0 and total_active_syllabuses == total_synced,
+        "current_task_detail": current_task_detail
     })
 
 @csrf_exempt
@@ -272,9 +278,15 @@ def test_provider_connection(request):
                 base_url=base_url if base_url else None
             )
             # Intenta hacer un embedding de prueba directo con el cliente OpenAI
-            res = client.embeddings.create(input=["Prueba de conexion"], model=emb_model_name)
-            if len(res.data) > 0 and len(res.data[0].embedding) > 0:
-                response_text = f"Embedding OK (Dim: {len(res.data[0].embedding)})"
+            try:
+                res = client.embeddings.create(input=["Prueba de conexion"], model=emb_model_name)
+                if len(res.data) > 0 and len(res.data[0].embedding) > 0:
+                    response_text = f"Embedding OK (Dim: {len(res.data[0].embedding)})"
+            except Exception as e:
+                error_str = str(e)
+                if "No models loaded" in error_str or "Model unloaded" in error_str:
+                    return JsonResponse({"error": "No hay un modelo de Embeddings cargado en LM Studio. Debes cargar un modelo especializado (ej. nomic-embed-text) para vectorización."}, status=400)
+                raise e
         
         elif test_target == 'all':
             if not models_list:
@@ -376,3 +388,94 @@ def admin_templates_detail(request, template_id):
         return JsonResponse({"error": "Not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def chat_rag(request):
+    """
+    Endpoint para Chat RAG interactivo.
+    """
+    import json
+    from .models import AIProvider, SyllabusChunk
+    from .tasks import get_embeddings_model, get_llm_model
+    from pgvector.django import L2Distance
+    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+
+    if not AIProvider.objects.filter(is_active=True).exists():
+        return JsonResponse({"error": "No hay un proveedor de IA activo configurado."}, status=400)
+
+    try:
+        data = json.loads(request.body)
+        user_message = data.get('message', '')
+        history = data.get('history', []) # list of dicts: {'role': 'user'|'assistant', 'content': '...'}
+
+        if not user_message:
+            return JsonResponse({"error": "El mensaje no puede estar vacío."}, status=400)
+
+        # 1. Obtener embeddings model
+        embeddings_model = get_embeddings_model()
+        try:
+            query_vector = embeddings_model.embed_query(user_message)
+        except Exception as emb_error:
+            error_str = str(emb_error)
+            if "No models loaded" in error_str or "Model unloaded" in error_str:
+                return JsonResponse({"error": "No hay un modelo de Embeddings cargado en LM Studio. Debes cargar un modelo especializado (ej. nomic-embed-text) para poder consultar tus programas sinópticos."}, status=400)
+            raise emb_error
+
+        # 2. Buscar fragmentos (Top 5)
+        chunks = SyllabusChunk.objects.select_related('syllabus__subject').annotate(
+            distance=L2Distance('embedding', query_vector)
+        ).order_by('distance')[:5]
+
+        context_texts = []
+        for c in chunks:
+            subj = c.syllabus.subject
+            context_texts.append(f"[Asignatura: {subj.code} - {subj.name}]\n{c.content}")
+        
+        context_str = "\n\n---\n\n".join(context_texts)
+
+        # 3. Preparar mensajes para el LLM
+        system_prompt = f"""
+Eres un asistente experto en pedagogía universitaria. Responde a la pregunta del usuario basándote ÚNICAMENTE en el siguiente contexto extraído de los programas sinópticos de la institución.
+Es OBLIGATORIO que menciones de manera explícita el código y nombre de la(s) asignatura(s) en la(s) que basas tu respuesta (si aplica).
+Si el contexto no contiene la información para responder la pregunta, di honestamente que no tienes la información en los programas sinópticos vectorizados.
+
+CONTEXTO DE LOS PROGRAMAS SINÓPTICOS:
+{context_str}
+"""
+        messages = [SystemMessage(content=system_prompt)]
+        
+        # Añadir historial temporal
+        for msg in history:
+            role = msg.get('role')
+            content = msg.get('content', '')
+            if role == 'user':
+                messages.append(HumanMessage(content=content))
+            elif role == 'assistant':
+                messages.append(AIMessage(content=content))
+
+        # Añadir mensaje actual
+        messages.append(HumanMessage(content=user_message))
+
+        # 4. Llamar al LLM
+        provider = AIProvider.objects.filter(is_active=True).first()
+        llm = get_llm_model(provider)
+        try:
+            response = llm.invoke(messages)
+        except Exception as llm_error:
+            error_str = str(llm_error)
+            if 'Model unloaded' in error_str:
+                return JsonResponse({"error": "El modelo de texto no está cargado en LM Studio. Por favor, abre LM Studio y carga un modelo de lenguaje."}, status=400)
+            if 'Context size has been exceeded' in error_str or 'context_length_exceeded' in error_str:
+                return JsonResponse({"error": "El texto recuperado de los programas sinópticos es demasiado largo para tu modelo actual. Por favor, incrementa el 'Context Length' en la configuración de LM Studio o haz una pregunta más específica."}, status=400)
+            raise llm_error
+
+        return JsonResponse({
+            "status": "success",
+            "reply": response.content
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"error": f"Error en el chat: {str(e)}"}, status=500)

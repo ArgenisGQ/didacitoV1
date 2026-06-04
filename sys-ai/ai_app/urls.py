@@ -13,4 +13,5 @@ urlpatterns = [
     path('admin/templates/<int:template_id>', views.admin_templates_detail, name='admin_templates_detail'),
     path('admin/rag-logs/', views.rag_logs, name='rag_logs'),
     path('admin/test-provider/', views.test_provider_connection, name='test_provider_connection'),
+    path('admin/chat-rag/', views.chat_rag, name='chat_rag'),
 ]

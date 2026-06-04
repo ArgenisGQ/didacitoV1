@@ -33,6 +33,7 @@ import {
   Lock,
   Building,
   Cpu,
+  MessageSquare,
 } from 'lucide-react'
 import api, { getAccessToken } from '../lib/api-client'
 import SecuritySettings from './SecuritySettings'
@@ -43,6 +44,7 @@ import UserProfile from './UserProfile'
 import AuditManagement from './AuditManagement'
 import SyllabusManagement from './SyllabusManagement'
 import AISettings from './AISettings'
+import AIChat from './AIChat'
 import AcademicPeriods from './AcademicPeriods'
 import { AcademicDistribution } from './AcademicDistribution'
 import { PdfPreviewModal } from './PdfPreviewModal'
@@ -482,6 +484,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                   { id: 'academic_distribution', icon: Building, label: 'Distribución Académica' }
                 ]
               : []),
+            ...(hasPermission('ai_chat:read')
+              ? [
+                  { id: 'ai_chat', icon: MessageSquare, label: 'Asistente IA' }
+                ]
+              : []),
             ...(hasPermission('audit:read')
               ? [
                   { id: 'audit', icon: Clock, label: 'Auditoría y Control' }
@@ -638,6 +645,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             <SecuritySettings />
           ) : activeTab === 'audit' ? (
             <AuditManagement />
+          ) : activeTab === 'ai_chat' ? (
+            <AIChat />
           ) : activeTab === 'profile' ? (
             <UserProfile onForceLogout={onLogout} />
           ) : (

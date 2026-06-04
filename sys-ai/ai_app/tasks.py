@@ -27,7 +27,8 @@ def get_embeddings_model():
         openai_api_key=provider.api_key,
         openai_api_base=provider.base_url if provider.base_url else None,
         model=model_name,
-        check_embedding_ctx_length=False
+        check_embedding_ctx_length=False,
+        max_retries=0
     )
 
 def ingest_syllabus_task(syllabus_id: int):
@@ -73,27 +74,42 @@ def ingest_syllabus_task(syllabus_id: int):
             log_entry.save()
             return
 
-        # 4. Obtener embeddings usando el proveedor configurado
+        # 4. Obtener embeddings usando el proveedor configurado y procesar en lotes
         embeddings_model = get_embeddings_model()
-        vectors = embeddings_model.embed_documents(texts)
         
-        # 5. Guardar en la DB
-        chunks_to_create = []
-        for i, (text, vector) in enumerate(zip(texts, vectors)):
-            chunks_to_create.append(
-                SyllabusChunk(
-                    syllabus_id=syllabus.id,
-                    chunk_index=i,
-                    content=text,
-                    embedding=vector
-                )
-            )
+        total_chunks = len(texts)
+        batch_size = 10
+        chunks_created = 0
+        
+        for i in range(0, total_chunks, batch_size):
+            batch_texts = texts[i:i+batch_size]
             
-        SyllabusChunk.objects.bulk_create(chunks_to_create)
-        logger.info(f"Ingesta exitosa. Syllabus {syllabus_id}: {len(chunks_to_create)} chunks creados.")
+            # Obtener embeddings para el lote actual
+            vectors = embeddings_model.embed_documents(batch_texts)
+            
+            # Guardar el lote en la DB
+            chunks_to_create = []
+            for j, (text, vector) in enumerate(zip(batch_texts, vectors)):
+                chunks_to_create.append(
+                    SyllabusChunk(
+                        syllabus_id=syllabus.id,
+                        chunk_index=i + j,
+                        content=text,
+                        embedding=vector
+                    )
+                )
+            
+            SyllabusChunk.objects.bulk_create(chunks_to_create)
+            chunks_created += len(chunks_to_create)
+            
+            # Actualizar progreso en el log
+            log_entry.details = f"Vectorizando... {chunks_created} de {total_chunks} fragmentos procesados."
+            log_entry.save()
+            
+        logger.info(f"Ingesta exitosa. Syllabus {syllabus_id}: {chunks_created} chunks creados.")
         
         log_entry.status = "success"
-        log_entry.details = f"Ingesta exitosa. {len(chunks_to_create)} fragmentos creados y vectorizados."
+        log_entry.details = f"Ingesta exitosa. {chunks_created} fragmentos creados y vectorizados."
         log_entry.save()
 
     except CoreSyllabusVersion.DoesNotExist:
@@ -118,10 +134,12 @@ def get_llm_model(provider: AIProvider):
         model_name = "deepseek-chat"
         
     return ChatOpenAI(
-        api_key=provider.api_key,
+        api_key=provider.api_key or "not-needed",
         base_url=provider.base_url if provider.base_url else None,
         model=model_name,
-        temperature=0.2
+        temperature=0.2,
+        max_retries=0,
+        timeout=280
     )
 
 def evaluate_plan_task(plan_id: int):

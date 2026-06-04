@@ -20,11 +20,9 @@ async def proxy_to_ai_service(
     Enforces JWT authentication and roles: SUPER_ADMIN for configuration.
     """
     # 1. Authorize role access
-    # AI settings are strict to SUPER_ADMIN. If we need to let other roles view things, we check method.
     if path.startswith("admin/"):
         check_role(current_user, [UserRole.SUPER_ADMIN])
     else:
-        # Endpoints like viewing analysis results can be accessible to coordinators or admins
         check_role(current_user, [UserRole.SUPER_ADMIN, UserRole.ADMIN_GESTION, UserRole.COORDINADOR])
 
     # 2. Build target URL with incoming query string
@@ -42,7 +40,7 @@ async def proxy_to_ai_service(
     headers["X-User-Email"] = current_user.email
     headers["X-User-Role"] = current_user.role
 
-    client = httpx.AsyncClient(timeout=60.0) 
+    client = httpx.AsyncClient(timeout=300.0) 
 
     try:
         body_content = await request.body()
@@ -76,12 +74,14 @@ async def proxy_to_ai_service(
         )
     except httpx.RequestError as exc:
         await client.aclose()
+        logger.error(f"httpx RequestError connecting to sys-ai: {type(exc).__name__}: {str(exc)}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Servicio AI inalcanzable: {str(exc)}"
         )
     except Exception as exc:
         await client.aclose()
+        logger.error(f"Exception connecting to sys-ai: {type(exc).__name__}: {str(exc)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error en Proxy AI: {str(exc)}"

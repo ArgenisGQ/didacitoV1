@@ -147,9 +147,8 @@ class SyllabusChunk(models.Model):
     syllabus = models.ForeignKey(CoreSyllabusVersion, on_delete=models.CASCADE, related_name="chunks")
     chunk_index = models.IntegerField()
     content = models.TextField()
-    # Dimension is typical for OpenAI text-embedding-3-small (1536). Deepseek usually is 1024 or 1536 depending on the model.
-    # We will use 1536 for now.
-    embedding = VectorField(dimensions=1536, help_text="Vector de embeddings del fragmento")
+    # No limitamos la dimensión para que pueda soportar modelos de OpenAI (1536) o locales de LM Studio (ej. 1024 o 768).
+    embedding = VectorField(help_text="Vector de embeddings del fragmento")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
