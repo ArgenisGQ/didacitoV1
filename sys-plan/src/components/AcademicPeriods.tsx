@@ -307,14 +307,14 @@ export default function AcademicPeriods() {
 
         <TabsContent value="active" className="space-y-4">
           {activePeriod ? (
-            <Card className="border-green-500 shadow-md">
-              <CardHeader className="bg-green-50/50 dark:bg-green-900/10">
+            <Card className="border-success/50 bg-success/5 backdrop-blur-md shadow-lg">
+              <CardHeader className="bg-success/10 border-b border-success/20">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-green-700 dark:text-green-400 flex items-center gap-2">
+                  <CardTitle className="text-success flex items-center gap-2">
                     <CheckCircle2 /> {activePeriod.name}
                   </CardTitle>
                   <div className="flex gap-2">
-                    <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">{activePeriod.type}</Badge>
+                    <Badge variant="outline" className="bg-success/20 text-success border-success/30 font-bold">{activePeriod.type}</Badge>
                     <Button variant="outline" size="sm" onClick={() => handleEditClick(activePeriod)}>
                       <Pencil size={14} />
                     </Button>

@@ -1,0 +1,43 @@
+# =========================================================================
+# SECCION OPTIMIZADA (AGREGADA PARA REDUCIR TAMAÑO DE CONTEXTO DOCKER)
+# =========================================================================
+# Excluir dependencias pesadas
+**/node_modules
+**/bower_components
+
+# Excluir entornos virtuales
+**/.venv
+**/venv
+**/env
+**/ENV
+**/pyvenv.cfg
+
+# Excluir cachés y temporales de compilación
+**/.next
+**/dist
+**/build
+**/.nuxt
+**/.cache
+**/.parcel-cache
+**/.turbo
+**/.eslintcache
+**/.tsbuildinfo
+
+# Excluir archivos del sistema y de IDEs
+**/.git
+**/.github
+**/.vscode
+**/.idea
+**/*.suo
+**/*.ntvs*
+**/*.njsproj
+**/*.sln
+**/*.sw?
+**/.DS_Store
+Thumbs.db
+
+# Excluir bases de datos locales y logs
+**/*.log
+**/*.sqlite3
+**/pgdata/
+# =========================================================================

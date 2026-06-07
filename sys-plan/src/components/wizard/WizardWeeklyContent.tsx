@@ -44,19 +44,51 @@ export function WizardWeeklyContent() {
         </div>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Contenido / Temas</Label>
-            <Textarea
-              rows={3}
-              placeholder="Describe los temas y contenidos de esta semana..."
-              value={week.content_description}
-              onChange={(e) => setField('content_description', e.target.value)}
-            />
+          <div className="space-y-4 border p-4 rounded-xl">
+            <div className="space-y-2">
+              <Label>Unidad de Contenido</Label>
+              <Input
+                placeholder="Ej. Unidad I: Conceptos Básicos..."
+                value={week.unit_content || ''}
+                onChange={(e) => setField('unit_content', e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Contenido / Temas</Label>
+              <Textarea
+                rows={3}
+                placeholder="Describe los temas y contenidos de esta semana..."
+                value={week.content_description}
+                onChange={(e) => setField('content_description', e.target.value)}
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Competencia Específica</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Competencia a desarrollar..."
+                  value={week.specific_competence || ''}
+                  onChange={(e) => setField('specific_competence', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Criterios de Desempeño</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Criterios a evaluar..."
+                  value={week.performance_criteria || ''}
+                  onChange={(e) => setField('performance_criteria', e.target.value)}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Estrategia Didactica</Label>
+              <Label>Estrategia Didáctica / Formativa</Label>
               <Input
                 placeholder="Ej. Aprendizaje basado en problemas"
                 value={week.teaching_strategy}
@@ -71,6 +103,15 @@ export function WizardWeeklyContent() {
                 onChange={(e) => setField('resources', e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Evaluación / Retroalimentación</Label>
+            <Input
+              placeholder="Actividad evaluativa o feedback..."
+              value={week.evaluation_feedback || ''}
+              onChange={(e) => setField('evaluation_feedback', e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">

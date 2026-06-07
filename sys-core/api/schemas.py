@@ -18,6 +18,8 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
     academic_period_id: Optional[int] = None
     department_ids: List[int] = []
+    subject_code: Optional[str] = None
+    section: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -29,6 +31,8 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     academic_period_id: Optional[int] = None
     department_ids: Optional[List[int]] = None
+    subject_code: Optional[str] = None
+    section: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -47,6 +51,7 @@ class UserResponse(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    phone: Optional[str] = None
     subject_code: Optional[str] = None
     section: Optional[str] = None
     academic_period: Optional[str] = None
@@ -68,8 +73,12 @@ class UserResponse(BaseModel):
 # ---------------------------------------------------------------------------
 class WeeklyContentBase(BaseModel):
     week_number: int = Field(..., ge=1, le=12)
+    unit_content: Optional[str] = None
     content_description: Optional[str] = None
+    specific_competence: Optional[str] = None
+    performance_criteria: Optional[str] = None
     teaching_strategy: Optional[str] = None
+    evaluation_feedback: Optional[str] = None
     resources: Optional[str] = None
     bibliography: Optional[str] = None
 
@@ -85,8 +94,10 @@ class WeeklyContentResponse(WeeklyContentBase):
 class EvaluationPlanBase(BaseModel):
     unit: Optional[int] = None
     competence: Optional[str] = None
+    performance_criterion: Optional[str] = None
     strategy: Optional[str] = None
     instrument: Optional[str] = None
+    evaluation_type: Optional[str] = None
     evidence: Optional[str] = None
     feedback_method: Optional[str] = None
     weight: Optional[float] = None
@@ -106,7 +117,17 @@ class LessonPlanCreate(BaseModel):
     subject_code: Optional[str] = None
     section: Optional[str] = None
     academic_period_id: Optional[int] = None
+    modality: Optional[str] = None
     status: Optional[PlanStatus] = None
+    
+    # Horas override
+    hd_t: Optional[int] = 0
+    hd_lt: Optional[int] = 0
+    hd_iscp: Optional[int] = 0
+    hiv_s: Optional[int] = 0
+    hiv_a: Optional[int] = 0
+    hde: Optional[int] = 0
+    component_type: Optional[str] = None
 
 
 class LessonPlanUpdate(BaseModel):
@@ -118,6 +139,16 @@ class LessonPlanUpdate(BaseModel):
     subject_code: Optional[str] = None
     section: Optional[str] = None
     academic_period_id: Optional[int] = None
+    modality: Optional[str] = None
+    
+    # Horas override
+    hd_t: Optional[int] = None
+    hd_lt: Optional[int] = None
+    hd_iscp: Optional[int] = None
+    hiv_s: Optional[int] = None
+    hiv_a: Optional[int] = None
+    hde: Optional[int] = None
+    component_type: Optional[str] = None
 
 
 class LessonPlanResponse(BaseModel):
@@ -131,6 +162,17 @@ class LessonPlanResponse(BaseModel):
     subject_code: Optional[str] = None
     section: Optional[str] = None
     academic_period_id: Optional[int] = None
+    modality: Optional[str] = None
+    
+    # Horas
+    hd_t: Optional[int] = 0
+    hd_lt: Optional[int] = 0
+    hd_iscp: Optional[int] = 0
+    hiv_s: Optional[int] = 0
+    hiv_a: Optional[int] = 0
+    hde: Optional[int] = 0
+    component_type: Optional[str] = None
+    
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     evaluation_plans: List[EvaluationPlanResponse] = []
@@ -384,4 +426,35 @@ class DepartmentUpdate(BaseModel):
 class DepartmentResponse(DepartmentBase):
     id: int
     faculty_code: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class SubjectBase(BaseModel):
+    code: str
+    name: str
+    program: Optional[str] = None
+    level: Optional[str] = None
+    academic_credits: Optional[int] = 0
+    had_hours: Optional[int] = 0
+    hd_t: Optional[int] = 0
+    hd_lt: Optional[int] = 0
+    hd_iscp: Optional[int] = 0
+    hde_hours: Optional[int] = 0
+    hts_hours: Optional[int] = 0
+    hiv_s: Optional[int] = 0
+    hiv_a: Optional[int] = 0
+    component_type: Optional[str] = None
+    purpose: Optional[str] = None
+    prerequisite: Optional[str] = None
+    presentation: Optional[str] = None
+    previous_competencies: Optional[str] = None
+    generic_competencies: Optional[str] = None
+    relation_other_subjects: Optional[str] = None
+    teaching_strategies: Optional[str] = None
+    eval_diagnostica: Optional[str] = None
+    eval_formativa: Optional[str] = None
+    eval_sumativa: Optional[str] = None
+    bibliographic_references: Optional[str] = None
+
+class SubjectResponse(SubjectBase):
+    id: int
     model_config = ConfigDict(from_attributes=True)

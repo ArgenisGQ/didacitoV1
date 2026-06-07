@@ -129,6 +129,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=150, unique=True, blank=True, null=True, verbose_name="Usuario")
     first_name = models.CharField(max_length=150, blank=True, null=True)
     last_name = models.CharField(max_length=150, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Teléfono")
     
     # Asociación con departamentos para Coordinadores
     departments = models.ManyToManyField("Department", related_name="users", blank=True, verbose_name="Departamentos Asignados", db_table="plan_app_user_departments")
@@ -220,6 +221,16 @@ class LessonPlan(models.Model):
         null=True,
         related_name="lesson_plans"
     )
+    modality = models.CharField(max_length=50, blank=True, null=True)
+    
+    # Horas Override o copia del Subject para esta planificacion especifica
+    hd_t = models.IntegerField(default=0, blank=True, null=True)
+    hd_lt = models.IntegerField(default=0, blank=True, null=True)
+    hd_iscp = models.IntegerField(default=0, blank=True, null=True)
+    hiv_s = models.IntegerField(default=0, blank=True, null=True)
+    hiv_a = models.IntegerField(default=0, blank=True, null=True)
+    hde = models.IntegerField(default=0, blank=True, null=True)
+    component_type = models.CharField(max_length=100, blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -250,8 +261,10 @@ class EvaluationPlan(models.Model):
     )
     unit = models.IntegerField(null=True, blank=True)
     competence = models.CharField(max_length=255, blank=True)
+    performance_criterion = models.TextField(blank=True, null=True)
     strategy = models.CharField(max_length=255, blank=True)
     instrument = models.CharField(max_length=255, blank=True)
+    evaluation_type = models.CharField(max_length=100, blank=True, null=True)
     evidence = models.CharField(max_length=255, blank=True)
     feedback_method = models.CharField(max_length=255, blank=True)
     weight = models.FloatField(null=True, blank=True)
@@ -273,8 +286,12 @@ class WeeklyContent(models.Model):
         related_name="weekly_contents",
     )
     week_number = models.IntegerField()
+    unit_content = models.CharField(max_length=255, blank=True, null=True)
     content_description = models.TextField(blank=True)
+    specific_competence = models.TextField(blank=True, null=True)
+    performance_criteria = models.TextField(blank=True, null=True)
     teaching_strategy = models.TextField(blank=True)
+    evaluation_feedback = models.TextField(blank=True, null=True)
     resources = models.TextField(blank=True)
     bibliography = models.TextField(blank=True)
 
@@ -388,8 +405,14 @@ class Subject(models.Model):
     syllabus_version_year = models.CharField(max_length=10, blank=True, null=True)
     academic_credits = models.IntegerField(default=0)
     had_hours = models.IntegerField(default=0)
+    hd_t = models.IntegerField(default=0)
+    hd_lt = models.IntegerField(default=0)
+    hd_iscp = models.IntegerField(default=0)
     hde_hours = models.IntegerField(default=0)
     hts_hours = models.IntegerField(default=0)
+    hiv_s = models.IntegerField(default=0)
+    hiv_a = models.IntegerField(default=0)
+    component_type = models.CharField(max_length=100, blank=True, null=True)
     academic_period = models.IntegerField(blank=True, null=True)
     prerequisite = models.TextField(blank=True, null=True)
     presentation = models.TextField(blank=True, null=True)

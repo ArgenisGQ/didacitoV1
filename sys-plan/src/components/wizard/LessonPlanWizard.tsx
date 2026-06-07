@@ -18,6 +18,7 @@ import {
   Check,
   Save,
   Clock,
+  Eye,
 } from 'lucide-react'
 import { WizardBasicInfo } from './WizardBasicInfo'
 import { WizardObjectives } from './WizardObjectives'
@@ -129,29 +130,40 @@ function WizardInner({
       </DialogHeader>
 
       {/* Progress bar */}
-      <div className="flex items-center gap-1 px-2">
-        {STEP_LABELS.map((label, i) => (
-          <button
-            key={i}
-            className="flex-1 group"
-            onClick={() => handleGoToStep(i)}
-          >
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className={`w-full h-1.5 rounded-full transition-all ${
-                  i <= step ? 'bg-primary' : 'bg-muted'
-                }`}
-              />
-              <span
-                className={`text-[10px] font-bold uppercase tracking-wider transition-colors hidden sm:block ${
-                  i <= step ? 'text-primary' : 'text-muted-foreground'
-                }`}
-              >
-                {label}
-              </span>
-            </div>
-          </button>
-        ))}
+      <div className="flex items-center gap-2 px-2">
+        <div className="flex-1 flex items-center gap-1">
+          {STEP_LABELS.map((label, i) => (
+            <button
+              key={i}
+              className="flex-1 group"
+              onClick={() => handleGoToStep(i)}
+            >
+              <div className="flex flex-col items-center gap-1">
+                <div
+                  className={`w-full h-1.5 rounded-full transition-all ${
+                    i <= step ? 'bg-primary' : 'bg-muted'
+                  }`}
+                />
+                <span
+                  className={`text-[10px] font-bold uppercase tracking-wider transition-colors hidden sm:block ${
+                    i <= step ? 'text-primary' : 'text-muted-foreground'
+                  }`}
+                >
+                  {label}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+        <Button 
+          variant="secondary" 
+          size="sm"
+          onClick={() => { saveCurrentStateToDB().then(() => setShowDraftPreview(true)) }} 
+          className="gap-1 font-bold bg-primary/10 text-primary hover:bg-primary/20 text-xs whitespace-nowrap"
+        >
+          <Eye size={14} />
+          Versión Borrador
+        </Button>
       </div>
 
       {/* Step indicator */}
@@ -206,9 +218,6 @@ function WizardInner({
 
         {isLastStep ? (
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => { saveCurrentStateToDB().then(() => setShowDraftPreview(true)) }} className="gap-2 font-bold bg-primary/10 text-primary hover:bg-primary/20">
-              Versión Borrador
-            </Button>
             <Button variant="secondary" onClick={handlePreview} className="gap-2 font-bold bg-muted hover:bg-muted/80">
               Previsualizar Plan
             </Button>

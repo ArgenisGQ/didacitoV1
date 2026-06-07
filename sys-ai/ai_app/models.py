@@ -134,6 +134,8 @@ class AgentTemplate(models.Model):
     json_schema_output = models.JSONField(blank=True, null=True, help_text="Formato esperado de salida (schema JSON)")
     provider = models.ForeignKey(AIProvider, on_delete=models.SET_NULL, null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    agent_type = models.CharField(max_length=50, default='chat', help_text="evaluator o chat")
+    enabled_tools = models.JSONField(default=list, blank=True, help_text="Lista de nombres de herramientas habilitadas")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -201,5 +203,34 @@ class AILog(models.Model):
 
     def __str__(self):
         return f"{self.action} - {self.status}"
+
+
+class ChatSession(models.Model):
+    user = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="chat_sessions")
+    agent = models.ForeignKey(AgentTemplate, on_delete=models.SET_NULL, null=True, blank=True)
+    title = models.CharField(max_length=255, default="Conversación sin título")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ai_app_chat_session"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Session {self.id} for {self.user.email if self.user else 'Unknown'}"
+
+
+class ChatMessage(models.Model):
+    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
+    sender = models.CharField(max_length=20)  # user o assistant
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ai_app_chat_message"
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Msg from {self.sender} in Session {self.session_id}"
+
 
 

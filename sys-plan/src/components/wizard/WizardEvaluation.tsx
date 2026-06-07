@@ -11,7 +11,7 @@ export function WizardEvaluation() {
     useWizard()
 
   const totalWeight = state.evaluation_plans.reduce(
-    (sum, e) => sum + (e.weight || 0),
+    (sum, e) => sum + (parseFloat(String(e.weight)) || 0),
     0
   )
   const remaining = 100 - totalWeight
@@ -113,12 +113,23 @@ export function WizardEvaluation() {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs">Competencia</Label>
+              <Label className="text-xs">Competencia Específica</Label>
               <Input
                 placeholder="Competencia a evaluar..."
                 value={ev.competence}
                 onChange={(e) =>
                   updateEvaluationItem(idx, 'competence', e.target.value)
+                }
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Criterio de Desempeño</Label>
+              <Input
+                placeholder="Criterio de desempeño asociado..."
+                value={ev.performance_criteria || ''}
+                onChange={(e) =>
+                  updateEvaluationItem(idx, 'performance_criteria', e.target.value)
                 }
               />
             </div>
@@ -141,6 +152,16 @@ export function WizardEvaluation() {
                   value={ev.instrument}
                   onChange={(e) =>
                     updateEvaluationItem(idx, 'instrument', e.target.value)
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tipo de Evaluación</Label>
+                <Input
+                  placeholder="Formativa, Sumativa..."
+                  value={ev.evaluation_type || ''}
+                  onChange={(e) =>
+                    updateEvaluationItem(idx, 'evaluation_type', e.target.value)
                   }
                 />
               </div>

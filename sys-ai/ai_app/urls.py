@@ -16,4 +16,8 @@ urlpatterns = [
     path('admin/rag-logs/', views.rag_logs, name='rag_logs'),
     path('admin/test-provider/', views.test_provider_connection, name='test_provider_connection'),
     path('admin/chat-rag/', views.chat_rag, name='chat_rag'),
+    path('chat/sessions/', views.list_chat_sessions, name='list_chat_sessions'),
+    path('chat/sessions/<int:session_id>/messages/', views.get_chat_messages, name='get_chat_messages'),
+    path('chat/sessions/<int:session_id>/', views.delete_chat_session, name='delete_chat_session'),
+    path('chat/sessions/clear-all/', views.clear_all_chats, name='clear_all_chats'),
 ]

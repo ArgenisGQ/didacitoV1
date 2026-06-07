@@ -9,8 +9,12 @@ export interface UserAuthor {
 
 export interface WeeklyContent {
   week_number: number;
+  unit_content?: string;
   content_description: string;
+  specific_competence?: string;
+  performance_criteria?: string;
   teaching_strategy: string;
+  evaluation_feedback?: string;
   resources: string;
   bibliography: string;
 }
@@ -18,8 +22,10 @@ export interface WeeklyContent {
 export interface EvaluationPlan {
   unit?: number;
   competence: string;
+  performance_criterion?: string;
   strategy: string;
   instrument: string;
+  evaluation_type?: string;
   evidence: string;
   feedback_method: string;
   weight?: number;
@@ -32,6 +38,22 @@ export interface LessonPlan {
   status: PlanStatus;
   subject_code?: string;
   section?: string;
+  academic_period_id?: number;
+  academic_period?: string;
+  modality?: string;
+  
+  subject_purpose?: string;
+  pre_requisite?: string;
+  total_hours?: number;
+  
+  // Override hours
+  hd_t?: number;
+  hd_lt?: number;
+  hd_iscp?: number;
+  hiv_s?: number;
+  hiv_a?: number;
+  hde?: number;
+  component_type?: string;
   
   // These might come populated from backend
   author?: UserAuthor;

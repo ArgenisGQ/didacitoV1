@@ -1,68 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto:wght@400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 0 0% 96%; /* #F5F5F5 */
+    --foreground: 0 0% 10%; /* #1A1A1A */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 0 0% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 0 0% 10%;
 
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 210 100% 20%; /* #003366 - Azul Institucional */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 40 46% 58%; /* #C6A664 - Dorado Institucional */
+    --secondary-foreground: 0 0% 10%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 0 0% 90%;
+    --muted-foreground: 0 0% 40%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 40 46% 58%; /* #C6A664 */
+    --accent-foreground: 0 0% 10%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 210 100% 20%;
 
-    --radius: 0.5rem;
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 0 0% 100%;
+
+    --radius: 4px;
+    
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 10%;
+    --sidebar-primary: 210 100% 20%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 46% 58%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: 210 100% 20%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 0 0% 10%; /* #1A1A1A */
+    --foreground: 0 0% 96%; /* #F5F5F5 */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 14%; /* ~ #242424 */
+    --card-foreground: 0 0% 96%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 14%;
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 210 100% 20%; /* #003366 */
+    --primary-foreground: 0 0% 96%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 40 46% 58%; /* #C6A664 */
+    --secondary-foreground: 0 0% 10%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 0 0% 20%;
+    --muted-foreground: 0 0% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 40 46% 58%;
+    --accent-foreground: 0 0% 10%;
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 96%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --border: 0 0% 20%; /* #333333 */
+    --input: 0 0% 20%;
+    --ring: 210 100% 20%;
+
+    --success: 142.1 70.6% 45.3%;
+    --success-foreground: 0 0% 10%;
+    
+    --sidebar-background: 0 0% 10%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 210 100% 20%;
+    --sidebar-primary-foreground: 0 0% 96%;
+    --sidebar-accent: 40 46% 58%;
+    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 210 100% 20%;
   }
 }
 
@@ -73,6 +99,8 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+    background-attachment: fixed;
   }
   html, body, #root {
     pointer-events: auto !important;

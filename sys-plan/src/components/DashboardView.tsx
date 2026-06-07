@@ -17,6 +17,7 @@ interface DashboardWidget {
 export function DashboardView({ 
   userRole, 
   onEditPlan, 
+  onDeletePlan,
   onPreviewPlan,
   onApprovePlan,
   onObservePlan,
@@ -25,6 +26,7 @@ export function DashboardView({
 }: { 
   userRole: string;
   onEditPlan?: (planId: number) => void;
+  onDeletePlan?: (planId: number) => void;
   onPreviewPlan?: (planId: number, title: string) => void;
   onApprovePlan?: (planId: number) => void;
   onObservePlan?: (planId: number) => void;
@@ -129,6 +131,28 @@ export function DashboardView({
     };
   }, [userRole]);
 
+  // Refetch analytics when the external plans list changes (e.g. after a deletion)
+  useEffect(() => {
+    let isMounted = true;
+    const updateAnalytics = async () => {
+      try {
+        const analyticsRes = await apiClient.get(userRole === 'DOCENTE' ? '/dashboard/analytics/personal' : '/dashboard/analytics/global');
+        if (isMounted) {
+          setAnalytics(analyticsRes.data);
+        }
+      } catch (error) {
+        console.error("Error refreshing analytics", error);
+      }
+    };
+    
+    // Only refresh if initial load is done
+    if (!loading) {
+      updateAnalytics();
+    }
+    
+    return () => { isMounted = false; };
+  }, [plans, userRole]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -189,16 +213,16 @@ export function DashboardView({
             {data.length > 0 ? (
               <div style={{ width: '800px', height: '300px' }}>
                 <LineChart width={800} height={300} data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
-                  <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} tickLine={true} axisLine={true} />
-                  <YAxis stroke="#9ca3af" fontSize={12} tickLine={true} axisLine={true} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={true} axisLine={true} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={true} axisLine={true} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f9fafb', borderRadius: '8px' }}
-                    itemStyle={{ color: '#f9fafb' }}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--card-foreground))', borderRadius: '8px' }}
+                    itemStyle={{ color: 'hsl(var(--foreground))' }}
                   />
                   <Legend verticalAlign="top" height={36}/>
-                  <Line name="Conexiones" type="monotone" dataKey="connections" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981' }} activeDot={{ r: 6 }} />
-                  <Line name="Planes Creados" type="monotone" dataKey="plans" stroke="#6366f1" strokeWidth={3} dot={{ r: 4, fill: '#6366f1' }} activeDot={{ r: 6 }} />
+                  <Line name="Conexiones" type="monotone" dataKey="connections" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: 'hsl(var(--primary))' }} activeDot={{ r: 6 }} />
+                  <Line name="Planes Creados" type="monotone" dataKey="plans" stroke="hsl(var(--accent))" strokeWidth={3} dot={{ r: 4, fill: 'hsl(var(--accent))' }} activeDot={{ r: 6 }} />
                 </LineChart>
               </div>
             ) : (
@@ -215,10 +239,10 @@ export function DashboardView({
 
   const renderPlanStatusWidget = () => {
     const statusMap: Record<string, { label: string, color: string }> = {
-      'DRAFT': { label: 'Borradores', color: '#64748b' }, // Slate
-      'IN_REVIEW': { label: 'En Revisión', color: '#f59e0b' }, // Amber
-      'OBSERVED': { label: 'Observados', color: '#ef4444' }, // Red
-      'APPROVED': { label: 'Aprobados', color: '#10b981' } // Emerald
+      'DRAFT': { label: 'Borradores', color: 'hsl(var(--muted-foreground))' }, 
+      'IN_REVIEW': { label: 'En Revisión', color: 'hsl(var(--accent))' }, 
+      'OBSERVED': { label: 'Observados', color: 'hsl(var(--destructive))' }, 
+      'APPROVED': { label: 'Aprobados', color: 'hsl(var(--primary))' } 
     };
 
     let data: any[] = [];
@@ -232,7 +256,7 @@ export function DashboardView({
           return {
             name: statusMap[status]?.label || status,
             value: count,
-            color: statusMap[status]?.color || '#cbd5e1'
+            color: statusMap[status]?.color || 'hsl(var(--muted-foreground))'
           };
         });
     }
@@ -278,9 +302,9 @@ export function DashboardView({
     const drafts = analytics?.draft_plans || [];
     
     return (
-      <Card className="shadow-md border-border bg-card border-l-4 border-l-indigo-500">
+      <Card className="shadow-md border-border bg-card border-l-4 border-l-primary">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-card-foreground"><Clock size={20} className="text-indigo-500"/> Mis Planes en Progreso</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-card-foreground"><Clock size={20} className="text-primary"/> Mis Planes en Progreso</CardTitle>
           <CardDescription>Planes guardados como borrador (Continuar editando)</CardDescription>
         </CardHeader>
         <CardContent>
@@ -288,17 +312,29 @@ export function DashboardView({
             {drafts.length > 0 ? (
               drafts.map((d: any) => (
                 <div key={d.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg border border-border gap-3">
-                  <span className="font-semibold text-card-foreground truncate flex-1" title={d.title}>{d.title}</span>
+                  <span className="font-semibold text-card-foreground truncate flex-1" title={d.title || 'Plan sin título'}>
+                    {d.title || <span className="text-muted-foreground italic font-normal">Plan sin título</span>}
+                  </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs bg-indigo-500/10 text-indigo-500 px-2 py-1 rounded-full font-bold">Borrador</span>
+                    <span className="text-[10px] bg-sky-500/10 border border-sky-500/30 text-sky-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Borrador</span>
                     {onEditPlan && (
                       <Button
-                        variant="ghost"
+                        variant="default"
                         size="sm"
                         onClick={() => onEditPlan(d.id)}
-                        className="h-7 px-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100"
+                        className="h-7 px-3 text-xs font-bold"
                       >
                         Editar
+                      </Button>
+                    )}
+                    {onDeletePlan && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => onDeletePlan(d.id)}
+                        className="h-7 px-3 text-xs font-bold"
+                      >
+                        Borrar
                       </Button>
                     )}
                   </div>
@@ -316,14 +352,14 @@ export function DashboardView({
   };
 
   const renderTeacherAlertWidget = () => (
-    <Card className="shadow-md border-slate-200 border-l-4 border-l-rose-500">
+    <Card className="shadow-md border-border border-l-4 border-l-destructive bg-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><AlertTriangle size={20} className="text-rose-500"/> Mis Planes Observados</CardTitle>
+        <CardTitle className="flex items-center gap-2"><AlertTriangle size={20} className="text-destructive"/> Mis Planes Observados</CardTitle>
         <CardDescription>Planes que requieren tu atención o corrección</CardDescription>
       </CardHeader>
       <CardContent>
         {analytics?.needs_attention > 0 ? (
-           <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
+           <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive font-semibold">
              Tienes <strong>{analytics.needs_attention}</strong> planes con observaciones.
            </div>
         ) : (
@@ -338,25 +374,25 @@ export function DashboardView({
     const approved = analytics?.approved_plans || [];
     
     return (
-      <Card className="shadow-md border-slate-200 border-l-4 border-l-emerald-500">
+      <Card className="shadow-md border-border border-l-4 border-l-success bg-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><CheckCircle2 size={20} className="text-emerald-500"/> Mis Planes Aprobados</CardTitle>
+          <CardTitle className="flex items-center gap-2"><CheckCircle2 size={20} className="text-success"/> Mis Planes Aprobados</CardTitle>
           <CardDescription>Planes que han sido aceptados</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {approved.length > 0 ? (
               approved.map((d: any) => (
-                <div key={d.id} className="flex justify-between items-center p-3 bg-emerald-50/50 rounded-lg border border-emerald-100 gap-3">
-                  <span className="font-semibold text-emerald-900 truncate flex-1" title={d.title}>{d.title}</span>
+                <div key={d.id} className="flex justify-between items-center p-3 bg-success/10 rounded-lg border border-success/20 gap-3">
+                  <span className="font-semibold text-card-foreground truncate flex-1" title={d.title}>{d.title}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs bg-emerald-500/10 text-emerald-600 px-2 py-1 rounded-full font-bold">Aprobado</span>
+                    <span className="text-xs bg-success/20 text-success px-2 py-1 rounded-full font-bold">Aprobado</span>
                     {onPreviewPlan && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => onPreviewPlan(d.id, d.title)}
-                        className="h-7 px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
+                        className="h-7 px-2 text-success hover:text-success hover:bg-success/20"
                       >
                         Ver Documento
                       </Button>
@@ -379,10 +415,10 @@ export function DashboardView({
     const pendingPlans = plans.filter(p => p.status === 'IN_REVIEW');
     
     return (
-      <Card className="shadow-lg border-slate-200 bg-card col-span-1 lg:col-span-2 mt-6">
+      <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-2 mt-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-card-foreground">
-            <LayoutDashboard size={20} className="text-purple-600"/> Bandeja de Entrada (Por Aprobar)
+            <LayoutDashboard size={20} className="text-primary"/> Bandeja de Entrada (Por Aprobar)
           </CardTitle>
           <CardDescription>Planificaciones esperando revisión</CardDescription>
         </CardHeader>
@@ -412,7 +448,7 @@ export function DashboardView({
                         variant="default"
                         size="sm"
                         onClick={() => onApprovePlan(d.id)}
-                        className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        className="gap-1 bg-success hover:bg-success/90 text-success-foreground"
                       >
                         Aceptar
                       </Button>
@@ -445,12 +481,12 @@ export function DashboardView({
   const renderWidget = (widget: DashboardWidget) => {
     switch (widget.code) {
       case 'total_plans':
-        return renderStatCard('Total de Planes', analytics?.total_plans || 0, 'Registrados en el sistema', <FileText className="text-blue-600" />, 'bg-blue-600/20');
+        return renderStatCard('Total de Planes', analytics?.total_plans || 0, 'Registrados en el sistema', <FileText className="text-primary" />, 'bg-primary/20');
       case 'pending_approvals':
-        return renderStatCard('Por Aprobar', analytics?.pending_approvals || 0, 'Esperando revisión', <Clock className="text-orange-600" />, 'bg-orange-600/20');
+        return renderStatCard('Por Aprobar', analytics?.pending_approvals || 0, 'Esperando revisión', <Clock className="text-accent" />, 'bg-accent/20');
       case 'creation_time':
         const avgTime = analytics?.average_creation_time || 'N/A';
-        return renderStatCard('Tiempo Promedio', avgTime, 'Tiempo en diseñar un plan', <CheckCircle2 className="text-emerald-600" />, 'bg-emerald-600/20');
+        return renderStatCard('Tiempo Promedio', avgTime, 'Tiempo en diseñar un plan', <CheckCircle2 className="text-success" />, 'bg-success/20');
       case 'coordinator_inbox':
         return renderCoordinatorInboxWidget();
       case 'active_users':

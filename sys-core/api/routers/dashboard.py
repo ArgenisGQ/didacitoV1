@@ -310,3 +310,74 @@ async def update_roles_widgets(
     
     await db.commit()
     return {"status": "success"}
+
+class TaxonomyUpdate(BaseModel):
+    strategies: List[str]
+    instruments: List[str]
+    evidences: List[str]
+    feedback_methods: List[str]
+    predictive_rules: Dict[str, Dict[str, str]]
+
+@router.get("/settings/taxonomies")
+async def get_taxonomies(db: AsyncSession = Depends(get_db)):
+    """Obtiene las listas estáticas de taxonomía y reglas predictivas."""
+    from api.core.settings_manager import SettingsManager
+    val = SettingsManager.get_cached_setting("evaluation_taxonomies")
+    if not val:
+        # Default fallback dictionary
+        return {
+            "strategies": ['Foro de socialización', 'Estudio de caso', 'Elaboración de organizadores gráficos', 'Relatoría crítico-reflexiva', 'Proyecto prospectivo', 'Cuestionario virtual'],
+            "instruments": ['Rúbrica de evaluación', 'Lista de cotejo', 'Escala de estimación', 'Prueba escrita'],
+            "evidences": ['Participación', 'Informe del Estudio de caso', 'Infografía', 'Revista digital', 'Proyecto + video', 'Prueba escrita'],
+            "feedback_methods": ['Criterios de la rúbrica', 'Análisis de los resultados obtenidos', 'Nivel de participación'],
+            "predictive_rules": {
+              'Foro de socialización': {
+                "evidence": 'Participación',
+                "instrument": 'Rúbrica de evaluación',
+                "feedback_method": 'Nivel de participación'
+              },
+              'Estudio de caso': {
+                "evidence": 'Informe del Estudio de caso',
+                "instrument": 'Rúbrica de evaluación',
+                "feedback_method": 'Análisis de los resultados obtenidos'
+              },
+              'Cuestionario virtual': {
+                "evidence": 'Prueba escrita',
+                "instrument": 'Prueba escrita',
+                "feedback_method": 'Análisis de los resultados obtenidos'
+              }
+            }
+        }
+    import json
+    try:
+        return json.loads(val)
+    except:
+        return {}
+
+from api.models import SystemSetting
+
+@router.post("/settings/taxonomies")
+async def update_taxonomies(
+    data: TaxonomyUpdate,
+    current_user: User = Depends(RequirePermission("taxonomies:manage")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Actualiza las taxonomías (Solo usuarios con taxonomies:manage)"""
+    import json
+    
+    query = await db.execute(select(SystemSetting).where(SystemSetting.key == "evaluation_taxonomies"))
+    setting = query.scalars().first()
+    
+    val_str = json.dumps(data.model_dump())
+    
+    if setting:
+        setting.value = val_str
+    else:
+        setting = SystemSetting(key="evaluation_taxonomies", value=val_str, description="Catálogos y reglas predictivas de Evaluación")
+        db.add(setting)
+        
+    await db.commit()
+    from api.core.settings_manager import SettingsManager
+    await SettingsManager.reload(db)
+    
+    return {"status": "success"}

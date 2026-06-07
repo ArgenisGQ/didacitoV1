@@ -109,7 +109,7 @@ export default function RoleManagement() {
         </div>
       </div>
 
-      <Card className="glass-morphism border-slate-200/80 dark:border-slate-800/80 shadow-xl">
+      <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-2xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-xl font-bold flex items-center gap-2">
             <Shield className="text-primary" size={24} />
@@ -122,21 +122,21 @@ export default function RoleManagement() {
         
         <CardContent className="space-y-6">
           {/* Toolbar */}
-          <div className="flex flex-col md:flex-row items-center gap-4 bg-slate-50/50 dark:bg-slate-950/50 p-4 rounded-xl border border-slate-200/50 dark:border-slate-850/50">
+          <div className="flex flex-col md:flex-row items-center gap-4 bg-background/40 backdrop-blur-md p-4 rounded-xl border border-border/50">
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
               <Input
                 placeholder="Filtrar por nombre o descripcion..."
-                className="pl-10 bg-card border-slate-200/80 h-11"
+                className="pl-10 bg-background/60 border-border/60 h-11"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </div>
 
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="border border-border/50 rounded-xl overflow-hidden bg-background/20">
             <Table>
-              <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
+              <TableHeader className="bg-background/40 backdrop-blur-md">
                 <TableRow>
                   <TableHead className="font-bold">Nombre del Rol</TableHead>
                   <TableHead className="font-bold">Descripción</TableHead>
@@ -147,7 +147,7 @@ export default function RoleManagement() {
               </TableHeader>
               <TableBody>
                 {filteredRoles.map((role) => (
-                  <TableRow key={role.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
+                  <TableRow key={role.id} className="hover:bg-muted/30 font-medium transition-colors">
                     <TableCell className="font-bold">{role.name}</TableCell>
                     <TableCell className="text-muted-foreground">{role.description || '-'}</TableCell>
                     <TableCell className="text-center">

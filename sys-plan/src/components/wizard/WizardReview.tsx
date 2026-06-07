@@ -15,7 +15,7 @@ export function WizardReview() {
   const { state, updateField } = useWizard()
 
   const totalWeight = state.evaluation_plans.reduce(
-    (s, e) => s + (e.weight || 0),
+    (s, e) => s + (parseFloat(String(e.weight)) || 0),
     0
   )
   const weeksFilled = state.weekly_contents.filter(

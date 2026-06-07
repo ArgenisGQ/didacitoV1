@@ -30,8 +30,8 @@ export function LessonPlanWebModal({ plan, onClose }: LessonPlanWebModalProps) {
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[90vw] h-[90vh] flex flex-col p-0 overflow-hidden bg-[#e6f0fa]">
-        <DialogHeader className="px-6 py-4 border-b bg-white shrink-0 shadow-sm z-10 flex flex-row items-center justify-between">
+      <DialogContent className="max-w-[90vw] h-[90vh] flex flex-col p-0 overflow-hidden bg-secondary/30">
+        <DialogHeader className="px-6 py-4 border-b bg-background shrink-0 shadow-sm z-10 flex flex-row items-center justify-between">
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             Versión Borrador: {plan.title || plan.subject_code}
           </DialogTitle>
@@ -45,16 +45,16 @@ export function LessonPlanWebModal({ plan, onClose }: LessonPlanWebModalProps) {
         <div className="flex-1 flex overflow-hidden">
           {/* Main Plan View */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-8">
-            <div className="bg-white shadow-xl max-w-[900px] mx-auto border border-gray-200 print:shadow-none print:border-none">
+            <div className="bg-background shadow-xl max-w-[900px] mx-auto border border-border print:shadow-none print:border-none">
               <LessonPlanView plan={plan} />
             </div>
           </div>
 
           {/* AI Sidebar */}
           {(plan.status === 'IN_REVIEW' || plan.status === 'APPROVED' || plan.status === 'OBSERVED') && (
-            <div className="w-[400px] border-l bg-white flex flex-col shrink-0 shadow-xl z-10">
+            <div className="w-[400px] border-l bg-background flex flex-col shrink-0 shadow-xl z-10">
               <div className="p-4 border-b bg-muted/20 flex items-center gap-3">
-                <div className="bg-blue-100 text-blue-600 p-2 rounded-xl">
+                <div className="bg-primary/10 text-primary p-2 rounded-xl">
                   <Bot size={20} />
                 </div>
                 <div>

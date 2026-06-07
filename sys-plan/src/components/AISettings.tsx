@@ -188,7 +188,8 @@ export default function AISettings() {
   const saveTemplate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    const payload = Object.fromEntries(formData.entries())
+    const payload: any = Object.fromEntries(formData.entries())
+    payload.enabled_tools = formData.getAll('enabled_tools')
     try {
       if (editingTemplate?.id) {
         await api.put(`/ai/admin/templates/${editingTemplate.id}`, payload)
@@ -416,7 +417,7 @@ export default function AISettings() {
               <Button onClick={() => refetchRag()} variant="outline" className="gap-2" disabled={loadingRag || isSyncing}>
                 <Play size={16} /> Actualizar
               </Button>
-              <Button onClick={() => syncAll()} className="gap-2" disabled={!hasActiveProvider || isSyncing || loadingRag || ragStatus?.is_fully_synced}>
+              <Button onClick={() => { syncAll(); syncAllPlans(); }} className="gap-2" disabled={!hasActiveProvider || isSyncing || isSyncingPlans || loadingRag || (ragStatus?.is_fully_synced && ragStatus?.is_plans_fully_synced)}>
                 <Database size={16} /> Sincronizar Todos
               </Button>
             </div>
@@ -457,9 +458,6 @@ export default function AISettings() {
                     <Badge variant={ragStatus.is_plans_fully_synced ? 'default' : 'destructive'} className="text-lg px-4 py-1">
                       {ragStatus.is_plans_fully_synced ? 'Sincronizado' : 'Incompleto'}
                     </Badge>
-                    <Button onClick={() => syncAllPlans()} className="mt-4 gap-2 w-full" disabled={!hasActiveProvider || isSyncingPlans || loadingRag || ragStatus.is_plans_fully_synced}>
-                      <Database size={16} /> Sincronizar Planes
-                    </Button>
                   </div>
                 </div>
 
@@ -467,7 +465,7 @@ export default function AISettings() {
                 {(!ragStatus.is_fully_synced && ragStatus.total_active_syllabuses > 0) && (
                   <div className="mt-6 p-4 border rounded-xl bg-slate-50">
                     <div className="flex justify-between items-center mb-2">
-                      <p className="text-sm font-bold text-slate-700">Progreso de Sincronización</p>
+                      <p className="text-sm font-bold text-slate-700">Progreso de Sincronización (Sinópticos)</p>
                       <p className="text-sm font-medium text-slate-500">
                         Procesados: {ragStatus.total_synced} de {ragStatus.total_active_syllabuses} documentos ({Math.round((ragStatus.total_synced / ragStatus.total_active_syllabuses) * 100)}%)
                       </p>
@@ -480,6 +478,26 @@ export default function AISettings() {
                     </div>
                     <p className="text-xs text-muted-foreground mt-2 text-center animate-pulse">
                       {ragStatus.current_task_detail || "La IA está vectorizando documentos en segundo plano. Esto puede demorar varios minutos dependiendo de la carga."}
+                    </p>
+                  </div>
+                )}
+
+                {(!ragStatus.is_plans_fully_synced && ragStatus.total_approved_plans > 0) && (
+                  <div className="mt-6 p-4 border rounded-xl bg-slate-50">
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-sm font-bold text-slate-700">Progreso de Sincronización (Planes)</p>
+                      <p className="text-sm font-medium text-slate-500">
+                        Procesados: {ragStatus.total_synced_plans} de {ragStatus.total_approved_plans} documentos ({Math.round((ragStatus.total_synced_plans / ragStatus.total_approved_plans) * 100)}%)
+                      </p>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-2.5">
+                      <div 
+                        className="bg-teal-600 h-2.5 rounded-full transition-all duration-500" 
+                        style={{ width: `${Math.round((ragStatus.total_synced_plans / ragStatus.total_approved_plans) * 100)}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 text-center animate-pulse">
+                      {ragStatus.current_task_detail || "La IA está vectorizando planes en segundo plano. Esto puede demorar varios minutos dependiendo de la carga."}
                     </p>
                   </div>
                 )}
@@ -618,12 +636,48 @@ export default function AISettings() {
                 placeholder="Eres un agente especializado en pedagogía universitaria. Tu trabajo es comparar un programa sinóptico con una planificación de clase y determinar si cumple los objetivos..."
               />
             </div>
-            <div>
-              <label className="text-sm font-medium flex items-center gap-2">
-                <input type="checkbox" name="is_active" defaultChecked={editingTemplate?.is_active ?? true} />
-                Activo
-              </label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Tipo de Agente</label>
+                <Select name="agent_type" defaultValue={editingTemplate?.agent_type || 'chat'}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="chat">Chat / RAG Agent</SelectItem>
+                    <SelectItem value="evaluator">Evaluador Automático</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium flex items-center gap-2 mt-8">
+                  <input type="checkbox" name="is_active" defaultChecked={editingTemplate?.is_active ?? true} />
+                  Activo
+                </label>
+              </div>
             </div>
+            
+            <div>
+              <label className="text-sm font-medium">Herramientas Permitidas (Agentic RAG)</label>
+              <div className="space-y-2 mt-2 p-4 border rounded-md bg-secondary/30 text-foreground">
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="obtener_estadisticas_planes" defaultChecked={editingTemplate?.enabled_tools?.includes('obtener_estadisticas_planes')} />
+                  Estadísticas de Planes (Cantidades)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="obtener_estadisticas_sinopticos" defaultChecked={editingTemplate?.enabled_tools?.includes('obtener_estadisticas_sinopticos')} />
+                  Estadísticas de Sinópticos (Cantidades)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="busqueda_semantica_sinopticos" defaultChecked={editingTemplate?.enabled_tools?.includes('busqueda_semantica_sinopticos')} />
+                  Búsqueda Semántica en Sinópticos
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="busqueda_semantica_planes" defaultChecked={editingTemplate?.enabled_tools?.includes('busqueda_semantica_planes')} />
+                  Búsqueda Semántica en Planes
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Selecciona qué acciones puede ejecutar la IA.</p>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsTemplateModalOpen(false)}>Cancelar</Button>
               <Button type="submit">Guardar</Button>

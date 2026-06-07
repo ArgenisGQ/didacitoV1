@@ -217,7 +217,10 @@ def admin_templates(request):
                 name=data.get('name', 'Nuevo Agente'),
                 description=data.get('description', ''),
                 system_prompt=data.get('system_prompt', ''),
-                is_active=data.get('is_active', True) == 'on' or data.get('is_active') is True
+                is_active=data.get('is_active', True) == 'on' or data.get('is_active') is True,
+                agent_type=data.get('agent_type', 'chat'),
+                enabled_tools=data.get('enabled_tools', []),
+                provider_id=data.get('provider_id')
             )
             return JsonResponse({"id": t.id, "status": "success"})
         except Exception as e:
@@ -424,6 +427,10 @@ def admin_templates_detail(request, template_id):
             t.description = data.get('description', t.description)
             t.system_prompt = data.get('system_prompt', t.system_prompt)
             t.is_active = data.get('is_active', True) == 'on' or data.get('is_active') is True
+            t.agent_type = data.get('agent_type', t.agent_type)
+            t.enabled_tools = data.get('enabled_tools', t.enabled_tools)
+            if 'provider_id' in data:
+                t.provider_id = data.get('provider_id')
             t.save()
             return JsonResponse({"id": t.id, "status": "success"})
         elif request.method == "DELETE":
@@ -434,6 +441,21 @@ def admin_templates_detail(request, template_id):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
+
+def get_request_user(request):
+    """
+    Obtiene el usuario basándose en los headers enviados por el core gateway API.
+    """
+    user_id = request.headers.get("X-User-Id")
+    if not user_id:
+        return None
+    from .models import CoreUser
+    try:
+        return CoreUser.objects.get(id=int(user_id))
+    except (CoreUser.DoesNotExist, ValueError):
+        return None
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def chat_rag(request):
@@ -441,103 +463,255 @@ def chat_rag(request):
     Endpoint para Chat RAG interactivo.
     """
     import json
-    from .models import AIProvider, SyllabusChunk, LessonPlanChunk
+    import os
+    from .models import AIProvider, SyllabusChunk, LessonPlanChunk, ChatSession, ChatMessage
     from .tasks import get_embeddings_model, get_llm_model
     from pgvector.django import L2Distance
     from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-
+    
     if not AIProvider.objects.filter(is_active=True).exists():
         return JsonResponse({"error": "No hay un proveedor de IA activo configurado."}, status=400)
 
     try:
+        user = get_request_user(request)
+        if not user:
+            return JsonResponse({"error": "Usuario no identificado."}, status=401)
+
         data = json.loads(request.body)
         user_message = data.get('message', '')
-        history = data.get('history', []) # list of dicts: {'role': 'user'|'assistant', 'content': '...'}
+        session_id = data.get('session_id')
+        agent_id = data.get('agent_id')
 
         if not user_message:
             return JsonResponse({"error": "El mensaje no puede estar vacío."}, status=400)
 
-        # 1. Obtener embeddings model
-        embeddings_model = get_embeddings_model()
-        try:
-            query_vector = embeddings_model.embed_query(user_message)
-        except Exception as emb_error:
-            error_str = str(emb_error)
-            if "No models loaded" in error_str or "Model unloaded" in error_str:
-                return JsonResponse({"error": "No hay un modelo de Embeddings cargado en LM Studio. Debes cargar un modelo especializado (ej. nomic-embed-text) para poder consultar tus programas sinópticos."}, status=400)
-            raise emb_error
-
-        # 2. Buscar fragmentos (Top 5 de cada fuente)
-        syllabus_chunks = list(SyllabusChunk.objects.select_related('syllabus__subject').annotate(
-            distance=L2Distance('embedding', query_vector)
-        ).order_by('distance')[:5])
-        
-        plan_chunks = list(LessonPlanChunk.objects.select_related('lesson_plan').annotate(
-            distance=L2Distance('embedding', query_vector)
-        ).order_by('distance')[:5])
-
-        # Combinar y ordenar por distancia (menor es mejor)
-        combined_chunks = sorted(syllabus_chunks + plan_chunks, key=lambda x: getattr(x, 'distance', 999))[:5]
-
-        context_texts = []
-        for c in combined_chunks:
-            if isinstance(c, SyllabusChunk):
-                subj = c.syllabus.subject
-                context_texts.append(f"[FUENTE: Programa Sinóptico | Asignatura: {subj.code} - {subj.name}]\n{c.content}")
-            else:
-                plan = c.lesson_plan
-                context_texts.append(f"[FUENTE: Plan de Clase Aprobado | Título: {plan.title} | Asignatura: {plan.subject_code}]\n{c.content}")
-        
-        context_str = "\n\n---\n\n".join(context_texts)
-
-        # 3. Preparar mensajes para el LLM
-        import os
-        env_prompt = os.environ.get("CHAT_RAG_SYSTEM_PROMPT")
-
-        if env_prompt and env_prompt.strip():
-            system_prompt = f"{env_prompt}\n\nCONTEXTO DE BÚSQUEDA:\n{context_str}"
+        # 1. Determinar o crear la sesión
+        if session_id and session_id != 'new' and session_id != 'none':
+            session = ChatSession.objects.filter(id=session_id, user=user).first()
+            if not session:
+                return JsonResponse({"error": "Sesión de chat no encontrada o inaccesible."}, status=404)
         else:
-            system_prompt = f"""
-Eres un asistente experto en pedagogía universitaria. Responde a la pregunta del usuario basándote ÚNICAMENTE en el siguiente contexto extraído de los documentos de la institución.
-Es OBLIGATORIO que menciones de manera explícita la fuente (si es un "Programa Sinóptico" o un "Plan de Clase Aprobado") y el código/nombre de la asignatura en la que basas tu respuesta.
-Si el contexto no contiene la información para responder la pregunta, di honestamente que no tienes la información en los documentos vectorizados.
+            # Nueva sesión
+            title = user_message[:50] + ("..." if len(user_message) > 50 else "")
+            session = ChatSession.objects.create(
+                user=user,
+                title=title,
+                agent_id=agent_id if agent_id and agent_id != 'none' else None
+            )
 
-CONTEXTO DE BÚSQUEDA:
-{context_str}
-"""
-        messages = [SystemMessage(content=system_prompt)]
-        
-        # Añadir historial temporal
-        for msg in history:
-            role = msg.get('role')
-            content = msg.get('content', '')
-            if role == 'user':
-                messages.append(HumanMessage(content=content))
-            elif role == 'assistant':
-                messages.append(AIMessage(content=content))
+        # 2. Cargar historial desde la DB
+        db_messages = ChatMessage.objects.filter(session=session).order_by('created_at')
+        chat_history = []
+        for msg in db_messages:
+            if msg.sender == 'user':
+                chat_history.append(HumanMessage(content=msg.content))
+            elif msg.sender == 'assistant':
+                chat_history.append(AIMessage(content=msg.content))
 
-        # Añadir mensaje actual
-        messages.append(HumanMessage(content=user_message))
+        # Guardar mensaje actual del usuario en la DB
+        ChatMessage.objects.create(session=session, sender='user', content=user_message)
 
-        # 4. Llamar al LLM
+        # 3. Inicializar LLM
         provider = AIProvider.objects.filter(is_active=True).first()
         llm = get_llm_model(provider)
-        try:
-            response = llm.invoke(messages)
-        except Exception as llm_error:
-            error_str = str(llm_error)
-            if 'Model unloaded' in error_str:
-                return JsonResponse({"error": "El modelo de texto no está cargado en LM Studio. Por favor, abre LM Studio y carga un modelo de lenguaje."}, status=400)
-            if 'Context size has been exceeded' in error_str or 'context_length_exceeded' in error_str:
-                return JsonResponse({"error": "El texto recuperado de los programas sinópticos es demasiado largo para tu modelo actual. Por favor, incrementa el 'Context Length' en la configuración de LM Studio o haz una pregunta más específica."}, status=400)
-            raise llm_error
+
+        agent_template = None
+        current_agent_id = agent_id or session.agent_id
+        if current_agent_id and current_agent_id != 'none':
+            from .models import AgentTemplate
+            agent_template = AgentTemplate.objects.filter(id=current_agent_id).first()
+
+        # Configurar prompt del sistema
+        system_prompt = "Eres un asistente experto en pedagogía universitaria."
+        if agent_template and agent_template.system_prompt:
+            system_prompt = agent_template.system_prompt
+        elif os.environ.get("CHAT_RAG_SYSTEM_PROMPT"):
+            system_prompt = os.environ.get("CHAT_RAG_SYSTEM_PROMPT")
+
+        if agent_template and agent_template.enabled_tools:
+            # Flujo AGENTIC RAG
+            from .tools import get_tools_by_names
+            from langchain.agents import create_tool_calling_agent, AgentExecutor
+            from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+            
+            tools = get_tools_by_names(agent_template.enabled_tools)
+            
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", system_prompt),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("human", "{input}"),
+                MessagesPlaceholder(variable_name="agent_scratchpad"),
+            ])
+            
+            agent = create_tool_calling_agent(llm, tools, prompt)
+            agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+            
+            try:
+                response = agent_executor.invoke({
+                    "input": user_message,
+                    "chat_history": chat_history
+                })
+                reply_text = response["output"]
+            except Exception as llm_error:
+                error_str = str(llm_error)
+                if 'Model unloaded' in error_str:
+                    return JsonResponse({"error": "El modelo de texto no está cargado."}, status=400)
+                raise llm_error
+                
+        else:
+            # Flujo RAG TRADICIONAL FALLBACK (si no hay tools)
+            embeddings_model = get_embeddings_model()
+            try:
+                query_vector = embeddings_model.embed_query(user_message)
+            except Exception as emb_error:
+                raise emb_error
+
+            syllabus_chunks = list(SyllabusChunk.objects.select_related('syllabus__subject').annotate(distance=L2Distance('embedding', query_vector)).order_by('distance')[:5])
+            plan_chunks = list(LessonPlanChunk.objects.select_related('lesson_plan').annotate(distance=L2Distance('embedding', query_vector)).order_by('distance')[:5])
+            combined_chunks = sorted(syllabus_chunks + plan_chunks, key=lambda x: getattr(x, 'distance', 999))[:5]
+
+            context_texts = []
+            for c in combined_chunks:
+                if isinstance(c, SyllabusChunk):
+                    context_texts.append(f"[FUENTE: Sinóptico | Asignatura: {c.syllabus.subject.code}]\n{c.content}")
+                else:
+                    context_texts.append(f"[FUENTE: Plan Aprobado | Título: {c.lesson_plan.title}]\n{c.content}")
+            
+            context_str = "\n\n---\n\n".join(context_texts)
+            full_prompt = f"{system_prompt}\n\nCONTEXTO DE BÚSQUEDA:\n{context_str}"
+            
+            messages = [SystemMessage(content=full_prompt)] + chat_history + [HumanMessage(content=user_message)]
+            
+            try:
+                response = llm.invoke(messages)
+                reply_text = response.content
+            except Exception as llm_error:
+                raise llm_error
+
+        # Guardar respuesta de la IA en la DB
+        ChatMessage.objects.create(session=session, sender='assistant', content=reply_text)
 
         return JsonResponse({
             "status": "success",
-            "reply": response.content
+            "reply": reply_text,
+            "session_id": session.id,
+            "session_title": session.title
         })
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         return JsonResponse({"error": f"Error en el chat: {str(e)}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def list_chat_sessions(request):
+    """
+    Lista las sesiones del usuario agrupadas por temporalidad.
+    """
+    user = get_request_user(request)
+    if not user:
+        return JsonResponse({"error": "Usuario no identificado."}, status=401)
+
+    from .models import ChatSession
+    from datetime import date, timedelta
+    
+    sessions = ChatSession.objects.filter(user=user).order_by('-created_at')
+    
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    seven_days_ago = today - timedelta(days=7)
+    thirty_days_ago = today - timedelta(days=30)
+    
+    grouped = {
+        "Hoy": [],
+        "Ayer": [],
+        "Esta semana": [],
+        "Hace un mes": [],
+        "Más antiguos": []
+    }
+    
+    for s in sessions:
+        s_date = s.created_at.date()
+        item = {
+            "id": s.id,
+            "title": s.title,
+            "agent_id": s.agent_id,
+            "created_at": s.created_at.isoformat()
+        }
+        if s_date == today:
+            grouped["Hoy"].append(item)
+        elif s_date == yesterday:
+            grouped["Ayer"].append(item)
+        elif s_date > seven_days_ago:
+            grouped["Esta semana"].append(item)
+        elif s_date > thirty_days_ago:
+            grouped["Hace un mes"].append(item)
+        else:
+            grouped["Más antiguos"].append(item)
+            
+    filtered_grouped = {k: v for k, v in grouped.items() if v}
+    return JsonResponse(filtered_grouped)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_chat_messages(request, session_id):
+    """
+    Obtiene todos los mensajes de una sesión de chat.
+    """
+    user = get_request_user(request)
+    if not user:
+        return JsonResponse({"error": "Usuario no identificado."}, status=401)
+
+    from .models import ChatSession, ChatMessage
+    session = ChatSession.objects.filter(id=session_id, user=user).first()
+    if not session:
+        return JsonResponse({"error": "Sesión de chat no encontrada."}, status=404)
+
+    messages = ChatMessage.objects.filter(session=session).order_by('created_at')
+    output = []
+    for msg in messages:
+        output.append({
+            "id": msg.id,
+            "role": msg.sender,
+            "content": msg.content,
+            "created_at": msg.created_at.isoformat()
+        })
+    return JsonResponse({"session_title": session.title, "messages": output})
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_chat_session(request, session_id):
+    """
+    Elimina una sesión de chat específica.
+    """
+    user = get_request_user(request)
+    if not user:
+        return JsonResponse({"error": "Usuario no identificado."}, status=401)
+
+    from .models import ChatSession
+    session = ChatSession.objects.filter(id=session_id, user=user).first()
+    if not session:
+        return JsonResponse({"error": "Sesión no encontrada."}, status=404)
+
+    session.delete()
+    return JsonResponse({"status": "success", "message": "Sesión de chat eliminada."})
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def clear_all_chats(request):
+    """
+    Limpia todas las sesiones de chat de este usuario (borrado masivo).
+    """
+    user = get_request_user(request)
+    if not user:
+        return JsonResponse({"error": "Usuario no identificado."}, status=401)
+
+    from .models import ChatSession
+    ChatSession.objects.filter(user=user).delete()
+    return JsonResponse({"status": "success", "message": "Historial de chat completamente limpio."})
+

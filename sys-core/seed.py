@@ -35,6 +35,7 @@ def seed_permissions_and_roles():
         ("lesson_plan:approve_global", "Aprobar Cualquier Plan de Clase", "Planes de Clase"),
         ("lesson_plan:approve_department", "Aprobar Planes de Su Departamento", "Planes de Clase"),
         ("settings:manage", "Gestionar Configuración", "Sistema"),
+        ("taxonomies:manage", "Gestionar Taxonomías", "Sistema"),
         ("audit:read", "Ver Auditoría", "Sistema"),
         ("roles:manage", "Gestionar Roles", "Sistema"),
         ("roles:read", "Ver Roles", "Sistema"),

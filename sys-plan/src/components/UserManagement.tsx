@@ -62,6 +62,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import UserModal from './UserModal'
+import AcademicLoadModal from './AcademicLoadModal'
 import BulkImportDialog from './BulkImportDialog'
 import InvitationsManagement from './InvitationsManagement'
 
@@ -69,6 +70,7 @@ interface UserData {
   id: number
   email: string
   full_name: string
+  role?: string
   roles: string[]
   is_active: boolean
   date_joined: string
@@ -100,6 +102,7 @@ export default function UserManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserData | null>(null)
+  const [editingAcademicLoadUser, setEditingAcademicLoadUser] = useState<UserData | null>(null)
   const [selectedAcademicLoadUser, setSelectedAcademicLoadUser] = useState<UserData | null>(null)
   const [expandedSubjectCode, setExpandedSubjectCode] = useState<string | null>(null)
   
@@ -245,7 +248,8 @@ export default function UserManagement() {
         fullName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         email.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         idUser.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        username.toLowerCase().includes(debouncedSearch.toLowerCase())
+        username.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (u.subject_code && u.subject_code.toLowerCase().includes(debouncedSearch.toLowerCase()))
       
       const userRoles = u.roles || [];
       const matchesRole = roleFilter === 'ALL' || userRoles.includes(roleFilter);
@@ -313,21 +317,24 @@ export default function UserManagement() {
       {
         accessorKey: 'roles',
         header: 'Roles',
-        cell: ({ row }) => (
-          <div className="flex flex-wrap gap-1">
-            {(row.original.roles || []).map(r => (
-              <Badge key={r} variant={roleVariants[r] || 'outline'} className="font-extrabold text-[10px] uppercase">
-                {roleLabels[r] || r}
-              </Badge>
-            ))}
-          </div>
-        ),
+        cell: ({ row }) => {
+          const rolesToRender = row.original.roles?.length ? row.original.roles : (row.original.role ? [row.original.role] : []);
+          return (
+            <div className="flex flex-wrap gap-1">
+              {rolesToRender.map(r => (
+                <Badge key={r} variant={roleVariants[r] || 'outline'} className="font-extrabold text-[10px] uppercase">
+                  {roleLabels[r] || r}
+                </Badge>
+              ))}
+            </div>
+          );
+        },
       },
       {
         id: 'academic_load',
         header: 'Carga Académica',
         cell: ({ row }) => {
-          const isDocente = (row.original.roles || []).includes('DOCENTE');
+          const isDocente = (row.original.roles || []).includes('DOCENTE') || row.original.role === 'DOCENTE' || !!row.original.subject_code || !!row.original.section;
           if (!isDocente) return <span className="text-slate-400 font-medium text-xs">—</span>;
           
           const subjectStr = row.original.subject_code || '';
@@ -392,7 +399,7 @@ export default function UserManagement() {
         header: () => <div className="text-right">Acciones</div>,
         cell: ({ row }) => {
           const isCurrentUser = currentUserInfo?.email === row.original.email;
-          const isDocente = (row.original.roles || []).includes('DOCENTE');
+          const isDocente = (row.original.roles || []).includes('DOCENTE') || row.original.role === 'DOCENTE' || !!row.original.subject_code || !!row.original.section;
           const isSuperAdmin = currentUserInfo?.role === 'SUPER_ADMIN';
 
           return (
@@ -406,6 +413,18 @@ export default function UserManagement() {
               >
                 <Edit2 size={15} />
               </Button>
+
+              {isDocente && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                  onClick={() => setEditingAcademicLoadUser(row.original)}
+                  title="Editar Carga Académica"
+                >
+                  <BookOpen size={15} />
+                </Button>
+              )}
 
               <Button
                 variant="ghost"
@@ -464,7 +483,7 @@ export default function UserManagement() {
             Gestión de Identidades
           </h1>
           <p className="text-lg text-muted-foreground font-medium">
-            Control de accesos, gobernanza de roles institucionales y doble factor en DIDACTICO.
+            Control de accesos, roles institucionales y doble factor en DIDACTICO.
           </p>
         </div>
 
@@ -489,7 +508,7 @@ export default function UserManagement() {
       </div>
 
       {/* Premium Segmented Glass Tabs */}
-      <div className="flex p-1.5 bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-200/50 dark:border-slate-800/50 w-fit gap-2">
+      <div className="flex p-1.5 bg-background/60 backdrop-blur-md rounded-2xl border border-border/50 w-fit gap-2">
         <button
           onClick={() => setActiveTab('registered')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${
@@ -525,7 +544,7 @@ export default function UserManagement() {
 
       {/* Tab Contents */}
       {activeTab === 'registered' ? (
-        <Card className="glass-morphism border-slate-200/80 dark:border-slate-800/80 shadow-xl">
+        <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-2xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-xl font-bold">Docentes y Colaboradores Oficiales</CardTitle>
             <CardDescription className="text-sm font-medium text-slate-500">
@@ -535,12 +554,12 @@ export default function UserManagement() {
           
           <CardContent className="space-y-6">
             {/* Real-time Debounced Filter Toolbar */}
-            <div className="flex flex-col md:flex-row items-center gap-4 bg-slate-50/50 dark:bg-slate-950/50 p-4 rounded-xl border border-slate-200/50 dark:border-slate-850/50">
+            <div className="flex flex-col md:flex-row items-center gap-4 bg-background/40 backdrop-blur-md p-4 rounded-xl border border-border/50">
               <div className="relative flex-1 w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                 <Input
-                  placeholder="Filtrar por nombre o dirección de correo..."
-                  className="pl-10 bg-card border-slate-200/80 h-11"
+                  placeholder="Filtrar por nombre, correo o código de materia..."
+                  className="pl-10 bg-card border-slate-200/80 dark:border-slate-800/60 dark:focus-visible:border-slate-700 h-11"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                 />
@@ -550,7 +569,7 @@ export default function UserManagement() {
               <div className="flex items-center gap-3 w-full md:w-auto shrink-0 flex-wrap md:flex-nowrap">
                 <div className="w-full md:w-56">
                   <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                    <SelectTrigger className="bg-card border-slate-200/80 h-11">
+                    <SelectTrigger className="bg-background/60 border-border/60 h-11">
                       <SelectValue placeholder="Periodo Académico" />
                     </SelectTrigger>
                     <SelectContent>
@@ -570,7 +589,7 @@ export default function UserManagement() {
 
                 <div className="w-full md:w-44">
                   <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="bg-card border-slate-200/80 h-11">
+                    <SelectTrigger className="bg-background/60 border-border/60 h-11">
                       <SelectValue placeholder="Rol de Sistema" />
                     </SelectTrigger>
                     <SelectContent>
@@ -585,7 +604,7 @@ export default function UserManagement() {
 
                 <div className="w-full md:w-48">
                   <Select value={mfaFilter} onValueChange={setMfaFilter}>
-                    <SelectTrigger className="bg-card border-slate-200/80 h-11">
+                    <SelectTrigger className="bg-background/60 border-border/60 h-11">
                       <SelectValue placeholder="Verificación MFA" />
                     </SelectTrigger>
                     <SelectContent>
@@ -598,7 +617,7 @@ export default function UserManagement() {
 
                 <div className="w-full md:w-44">
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="bg-card border-slate-200/80 h-11">
+                    <SelectTrigger className="bg-background/60 border-border/60 h-11">
                       <SelectValue placeholder="Estado de Cuenta" />
                     </SelectTrigger>
                     <SelectContent>
@@ -636,9 +655,9 @@ export default function UserManagement() {
               </div>
             ) : (
               <>
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                <div className="border border-border/50 rounded-xl overflow-hidden bg-background/20">
                   <Table>
-                    <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
+                    <TableHeader className="bg-background/40 backdrop-blur-md">
                       {table.getHeaderGroups().map((headerGroup) => (
                         <TableRow key={headerGroup.id}>
                           {headerGroup.headers.map((header) => (
@@ -659,7 +678,7 @@ export default function UserManagement() {
                         table.getRowModel().rows.map((row) => (
                           <TableRow
                             key={row.id}
-                            className={`hover:bg-slate-50/20 dark:hover:bg-slate-950/10 font-medium ${!row.original.is_active ? 'opacity-50' : ''}`}
+                            className={`hover:bg-muted/30 font-medium transition-colors ${!row.original.is_active ? 'opacity-50' : ''}`}
                           >
                             {row.getVisibleCells().map((cell) => (
                               <TableCell key={cell.id} className="p-3.5">
@@ -693,7 +712,7 @@ export default function UserManagement() {
                       value={table.getState().pagination.pageSize.toString()}
                       onValueChange={(val) => table.setPageSize(parseInt(val, 10))}
                     >
-                      <SelectTrigger className="w-[80px] h-9 bg-card border-slate-200/80">
+                      <SelectTrigger className="w-[80px] h-9 bg-card border-slate-200/80 dark:border-slate-800/60 dark:focus-visible:border-slate-700">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -779,6 +798,14 @@ export default function UserManagement() {
         onClose={() => setIsImportOpen(false)}
       />
 
+
+
+      <AcademicLoadModal
+        isOpen={!!editingAcademicLoadUser}
+        onClose={() => setEditingAcademicLoadUser(null)}
+        user={editingAcademicLoadUser}
+      />
+
       {/* Detailed Academic Load Modal / Dialog */}
       {selectedAcademicLoadUser && (
         <Dialog 
@@ -790,7 +817,7 @@ export default function UserManagement() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-[600px] border-slate-200/80 dark:border-slate-800/80 glass-morphism shadow-2xl animate-fadeIn">
+          <DialogContent className="sm:max-w-[600px] border-border/50 bg-background/80 backdrop-blur-xl shadow-2xl animate-fadeIn">
             <DialogHeader>
               <DialogTitle className="text-2xl font-black tracking-tight text-slate-850 dark:text-slate-100 flex items-center gap-2">
                 <BookOpen className="text-primary" size={24} />

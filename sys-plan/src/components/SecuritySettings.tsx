@@ -126,9 +126,9 @@ export default function SecuritySettings() {
 
       {/* MFA Main Status Card */}
       {mfaEnabled ? (
-        <Card className="border-emerald-500/20 bg-emerald-500/5 backdrop-blur-xl">
+        <Card className="border-success/20 bg-success/5 backdrop-blur-xl">
           <CardHeader className="flex flex-row items-center gap-4">
-            <div className="p-3 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-emerald-400">
+            <div className="p-3 bg-success/10 rounded-full border border-success/20 text-success">
               <Shield size={32} />
             </div>
             <div>
@@ -157,7 +157,7 @@ export default function SecuritySettings() {
         /* Setup stepper cards when MFA is not active */
         <div className="space-y-6">
           {step === 1 && (
-            <Card className="border-slate-800 bg-slate-900/40 backdrop-blur-xl">
+            <Card className="border-border bg-card/60 backdrop-blur-xl shadow-lg">
               <CardHeader className="flex flex-row items-center gap-4">
                 <div className="p-3 bg-primary/10 rounded-full border border-primary/20 text-primary">
                   <ShieldAlert size={32} />
@@ -188,7 +188,7 @@ export default function SecuritySettings() {
           )}
 
           {step === 2 && (
-            <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
+            <Card className="border-border bg-card/80 backdrop-blur-xl shadow-lg">
               <CardHeader>
                 <CardTitle className="text-2xl font-bold text-white">Paso 1: Vincular Aplicación</CardTitle>
                 <CardDescription className="text-slate-400 text-base">
@@ -198,7 +198,7 @@ export default function SecuritySettings() {
               <CardContent className="border-t border-slate-800 pt-6 space-y-6">
                 <div className="flex flex-col md:flex-row items-center gap-8 justify-center">
                   {/* Glowing QR wrapper */}
-                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl shadow-xl flex items-center justify-center relative">
+                  <div className="p-4 bg-background border border-border rounded-2xl shadow-xl flex items-center justify-center relative">
                     <div className="absolute inset-0 bg-primary/5 rounded-2xl blur-md -z-10" />
                     {qrCode ? (
                       <img src={qrCode} alt="TOTP QR Code" className="w-48 h-48 rounded-lg select-none" />
@@ -222,17 +222,17 @@ export default function SecuritySettings() {
                         <Key size={14} className="text-primary" /> Clave Secreta (Configuración Manual)
                       </Label>
                       <div className="flex items-center gap-2">
-                        <code className="flex-1 p-3 bg-slate-950 border border-slate-800 rounded-xl text-center font-bold tracking-wider text-primary text-sm select-all">
+                        <code className="flex-1 p-3 bg-background border border-border rounded-xl text-center font-bold tracking-wider text-primary text-sm select-all">
                           {secret}
                         </code>
                         <Button
                           type="button"
                           variant="outline"
                           size="icon"
-                          className="h-11 w-11 border-slate-700 bg-slate-800 text-slate-300 hover:text-white"
+                          className="h-11 w-11 border-border bg-muted text-muted-foreground hover:text-foreground"
                           onClick={handleCopySecret}
                         >
-                          {copied ? <Check className="text-emerald-400" size={18} /> : <Clipboard size={18} />}
+                          {copied ? <Check className="text-success" size={18} /> : <Clipboard size={18} />}
                         </Button>
                       </div>
                     </div>
@@ -260,7 +260,7 @@ export default function SecuritySettings() {
           )}
 
           {step === 3 && (
-            <Card className="border-slate-800 bg-slate-900/60 backdrop-blur-xl">
+            <Card className="border-border bg-card/80 backdrop-blur-xl shadow-lg">
               <CardHeader>
                 <CardTitle className="text-2xl font-bold text-white">Paso 2: Confirmar Activación</CardTitle>
                 <CardDescription className="text-slate-400 text-base">
@@ -281,7 +281,7 @@ export default function SecuritySettings() {
                       maxLength={6}
                       required
                       autoFocus
-                      className="h-14 bg-slate-950 border-slate-800 text-white placeholder-slate-600 text-center text-2xl font-bold tracking-[0.75em]"
+                      className="h-14 bg-background border-border text-foreground placeholder-muted-foreground text-center text-2xl font-bold tracking-[0.75em]"
                       placeholder="000000"
                       value={totpCode}
                       onChange={(e) => setTotpCode(e.target.value.replace(/[^0-9]/g, ''))}

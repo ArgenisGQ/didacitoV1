@@ -275,7 +275,7 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
             })
 
     # --- Learning Units ---
-    units = []
+    units_dict = {}
     # We parse the learning units from both ESTRUCTURA and DESARROLLO
     # Look for "Unidad I", "Unidad II", "Unidad III", etc.
     # We find text for Unidad I, Unidad II, etc.
@@ -306,28 +306,52 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
         
         if lines:
             unit_title = lines[0]
+            
+            has_contenidos = re.search(r'CONTENIDOS', chunk, re.IGNORECASE)
+            has_criterios = re.search(r'CRITERIOS DE DESEMPEÑO', chunk, re.IGNORECASE)
+            
             # Heuristics:
-            if "CONTENIDOS" in chunk:
-                contents = extract_between(r'CONTENIDOS\s*\n', r'CRITERIOS DE DESEMPEÑO|Unidad|$', chunk)
-            if "CRITERIOS DE DESEMPEÑO" in chunk:
-                criteria = extract_between(r'CRITERIOS DE DESEMPEÑO\s*\n', r'Unidad|$', chunk)
+            if has_contenidos:
+                contents = extract_between(r'CONTENIDOS[^\n]*\n?', r'CRITERIOS DE DESEMPEÑO|Unidad|$', chunk)
+            elif has_criterios:
+                escaped_title = re.escape(unit_title)
+                contents = extract_between(rf'{escaped_title}[^\n]*\n?', r'CRITERIOS DE DESEMPEÑO', chunk)
+                
+            if has_criterios:
+                criteria = extract_between(r'CRITERIOS DE DESEMPEÑO[^\n]*\n?', r'Unidad|$', chunk)
             
             if not contents and not criteria:
                 # Fallback: divide chunk into lines
                 contents = "\n".join(lines[1:min(10, len(lines))])
-        
-        # Avoid duplicate units by checking number
-        unit_num_match = re.search(r'\b(Unidad\s+[IVXLCDM\d]+)\b', unit_title, re.IGNORECASE)
-        unit_num = unit_num_match.group(1) if unit_num_match else title
+            
+            # Avoid duplicate units by checking number
+            unit_num_match = re.search(r'\b(Unidad\s+[IVXLCDM\d]+)\b', unit_title, re.IGNORECASE)
+            
+        unit_num = unit_num_match.group(1).upper() if unit_num_match else title.upper()
         
         # Only add if it contains actual content
         if contents or criteria:
-            units.append({
-                "unit_number": clean_short_field(unit_num),
-                "unit_title": clean_short_field(unit_title.replace(unit_num, "").strip(" -:")),
-                "contents": clean_paragraph_text(contents),
-                "performance_criteria": clean_paragraph_text(criteria)
-            })
+            clean_num = clean_short_field(unit_num)
+            clean_title = clean_short_field(unit_title.replace(unit_num_match.group(1) if unit_num_match else title, "").strip(" -:"))
+            clean_cont = clean_paragraph_text(contents)
+            clean_crit = clean_paragraph_text(criteria)
+            
+            if clean_num not in units_dict:
+                units_dict[clean_num] = {
+                    "unit_number": clean_num,
+                    "unit_title": clean_title,
+                    "contents": clean_cont,
+                    "performance_criteria": clean_crit
+                }
+            else:
+                if not units_dict[clean_num]["contents"] and clean_cont:
+                    units_dict[clean_num]["contents"] = clean_cont
+                if not units_dict[clean_num]["performance_criteria"] and clean_crit:
+                    units_dict[clean_num]["performance_criteria"] = clean_crit
+                if not units_dict[clean_num]["unit_title"] and clean_title:
+                    units_dict[clean_num]["unit_title"] = clean_title
+
+    units = list(units_dict.values())
 
     # Apply cleanup to all fields before returning
     subject_code = clean_short_field(subject_code)

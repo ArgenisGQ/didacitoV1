@@ -129,6 +129,7 @@ class User(Base):
     username = Column(String(150), unique=True, nullable=True)
     first_name = Column(String(150), nullable=True)
     last_name = Column(String(150), nullable=True)
+    phone = Column(String(20), nullable=True)
     
     # El usuario conserva sus datos generales; su carga académica y periodos se administran en la tabla pivot UserAcademicPeriod.
     
@@ -185,6 +186,16 @@ class LessonPlan(Base):
     subject_code = Column(String(50), nullable=True, index=True)
     section = Column(String(50), nullable=True, index=True)
     academic_period_id = Column(Integer, ForeignKey("plan_app_academicperiod.id"), nullable=True)
+    modality = Column(String(50), nullable=True)
+    
+    # Horas Override o copia del Subject para esta planificacion especifica
+    hd_t = Column(Integer, default=0, nullable=True)
+    hd_lt = Column(Integer, default=0, nullable=True)
+    hd_iscp = Column(Integer, default=0, nullable=True)
+    hiv_s = Column(Integer, default=0, nullable=True)
+    hiv_a = Column(Integer, default=0, nullable=True)
+    hde = Column(Integer, default=0, nullable=True)
+    component_type = Column(String(100), nullable=True)
 
     created_at = Column(
         DateTime(timezone=True),
@@ -240,8 +251,10 @@ class EvaluationPlan(Base):
     )
     unit = Column(Integer)
     competence = Column(String(255))
+    performance_criterion = Column(Text, nullable=True)
     strategy = Column(String(255))
     instrument = Column(String(255))
+    evaluation_type = Column(String(100), nullable=True)
     evidence = Column(String(255))
     feedback_method = Column(String(255))
     weight = Column(Float)
@@ -260,8 +273,12 @@ class WeeklyContent(Base):
         nullable=False
     )
     week_number = Column(Integer, nullable=False)
+    unit_content = Column(String(255), nullable=True)
     content_description = Column(Text)
+    specific_competence = Column(Text, nullable=True)
+    performance_criteria = Column(Text, nullable=True)
     teaching_strategy = Column(Text)
+    evaluation_feedback = Column(Text, nullable=True)
     resources = Column(Text)
     bibliography = Column(Text)
 
@@ -375,8 +392,14 @@ class Subject(Base):
     syllabus_version_year = Column(String(10), nullable=True)
     academic_credits = Column(Integer, default=0)
     had_hours = Column(Integer, default=0)
+    hd_t = Column(Integer, default=0)
+    hd_lt = Column(Integer, default=0)
+    hd_iscp = Column(Integer, default=0)
     hde_hours = Column(Integer, default=0)
     hts_hours = Column(Integer, default=0)
+    hiv_s = Column(Integer, default=0)
+    hiv_a = Column(Integer, default=0)
+    component_type = Column(String(100), nullable=True)
     academic_period = Column(Integer, nullable=True)
     prerequisite = Column(Text, nullable=True)
     presentation = Column(Text, nullable=True)

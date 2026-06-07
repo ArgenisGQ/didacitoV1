@@ -6,16 +6,16 @@
     <style>
         @page {
             size: letter landscape;
-            margin: 1cm;
+            margin: 10mm 18mm;
             @bottom-right {
-                content: "Pág.: " counter(page) "/" counter(pages);
-                font-size: 10px;
+                content: "Pág. " counter(page) "/" counter(pages);
+                font-size: 8px;
                 font-family: Arial, sans-serif;
             }
         }
         body {
             font-family: Arial, sans-serif;
-            font-size: 10px;
+            font-size: 9px;
             color: #000;
             margin: 0;
             padding: 0;
@@ -23,159 +23,176 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 10px;
+            margin-bottom: 4px;
             page-break-inside: auto;
         }
         tr { page-break-inside: avoid; page-break-after: auto; }
         th, td {
-            border: 1px solid #7cb3d1; /* Light blue border like the image */
-            padding: 4px 6px;
+            border: 1px solid #4a86e8; /* Exact blue border match */
+            padding: 2px 4px; /* Tighter padding */
             text-align: center;
             vertical-align: middle;
         }
         th {
-            background-color: #e6f0fa; /* Light blue background for headers */
+            background-color: #dde6f0; /* Reference blue background */
             font-weight: bold;
         }
         .header-table th, .header-table td {
-            border: 1px solid #7cb3d1;
+            border: 1px solid #4a86e8;
         }
         .logo-container {
-            width: 100px;
+            width: 90px;
             text-align: center;
         }
         .logo-container img {
-            max-width: 80px;
+            max-width: 70px;
             height: auto;
         }
         .university-title {
             font-weight: bold;
-            font-size: 12px;
+            font-size: 10px;
         }
         .doc-title {
             font-weight: bold;
-            font-size: 14px;
+            font-size: 13px;
         }
         .section-title {
             text-align: left;
             font-weight: bold;
-            font-size: 11px;
-            margin-top: 15px;
-            margin-bottom: 5px;
+            font-size: 10px;
+            margin-top: 8px;
+            margin-bottom: 2px;
         }
         .text-left { text-align: left; }
         .text-center { text-align: center; }
         .text-right { text-align: right; }
-        .bg-blue { background-color: #e6f0fa; }
+        .bg-blue { background-color: #dde6f0 !important; }
     </style>
 </head>
 <body>
 
     <!-- Header -->
-    <table class="header-table">
+    <table class="header-table" style="margin-bottom: 4px;">
         <tr>
-            <td rowspan="2" class="logo-container">
+            <td rowspan="2" class="logo-container" style="width: 15%;">
                 <img src="{{ logo_url }}" alt="Logo">
             </td>
-            <td rowspan="2" class="university-title text-center">
-                UNIVERSIDAD<br>YACAMBÚ<br>VICERRECTORADO<br>ACADÉMICO
+            <td rowspan="2" class="university-title text-center" style="width: 30%;">
+                SISTEMA DIDÁCTICO<br>UNIVERSITARIO
             </td>
-            <td rowspan="2" class="doc-title text-center">
+            <td rowspan="2" class="doc-title text-center" style="width: 40%;">
                 PLANIFICACIÓN DIDÁCTICA
             </td>
-            <td class="text-center font-bold bg-blue" style="width: 120px;">CÓDIGO:</td>
+            <td class="text-center font-bold bg-blue" style="width: 15%;">CÓDIGO</td>
         </tr>
         <tr>
-            <td class="text-center">F01-VRA100-110423-265</td>
+            <td class="text-center">F01-SDU-2026</td>
         </tr>
     </table>
 
-    <!-- Subject Info -->
-    <div class="section-title">Nombre de la Asignatura: <span style="font-weight: normal; margin-left:10px; background-color: #e6f0fa; padding: 2px 50px; display:inline-block; border: 1px solid #7cb3d1; width: 75%;">{{ plan.subject_name }}</span></div>
+    <!-- I. Identificación de la Unidad Curricular -->
+    <div class="section-title">I. Identificación de la Unidad Curricular.</div>
+    
+    <!-- Table 1 -->
     <table>
         <tr>
-            <th rowspan="2" style="width: 25%;">Propósito</th>
-            <th rowspan="2">Código de la<br>Asignatura</th>
-            <th rowspan="2">Sección</th>
-            <th rowspan="2">Prelación</th>
-            <th rowspan="2">Total,<br>Horas</th>
-            <th rowspan="2">Total,<br>Horas</th>
-            <th colspan="2">HD</th>
-            <th colspan="3">HIV</th>
-            <th rowspan="2">HDE</th>
+            <th class="text-left bg-blue" style="width: 25%;">Nombre de la Unidad Curricular</th>
+            <td class="text-left" style="width: 40%;">{{ plan.subject_name }}</td>
+            <th class="bg-blue" style="width: 15%;">Código</th>
+            <td style="width: 20%;">{{ plan.subject_code }}</td>
         </tr>
         <tr>
-            <th>T</th>
-            <th>L/T</th>
-            <th>I/SC/P</th>
-            <th>S</th>
-            <th>A</th>
+            <th class="text-left bg-blue">Propósito de la Unidad Curricular</th>
+            <td colspan="3" class="text-left">{{ plan.subject_purpose }}</td>
         </tr>
         <tr>
-            <td style="height: 25px;">{{ plan.subject_purpose }}</td>
-            <td>{{ plan.subject_code }}</td>
+            <th class="text-left bg-blue">Facultad/Decanato</th>
+            <td class="text-left"></td>
+            <th class="bg-blue">Carrera – Programa / Programa</th>
+            <td></td>
+        </tr>
+    </table>
+
+    <!-- Table 2 -->
+    <table>
+        <tr>
+            <th rowspan="2" class="bg-blue">Sección</th>
+            <th rowspan="2" class="bg-blue">Prelación</th>
+            <th rowspan="2" class="bg-blue">Total Horas</th>
+            <th colspan="3" class="bg-blue">HD</th>
+            <th colspan="2" class="bg-blue">HIV</th>
+            <th rowspan="2" class="bg-blue">HDE</th>
+        </tr>
+        <tr>
+            <th class="bg-blue">T</th>
+            <th class="bg-blue">L/T</th>
+            <th class="bg-blue">I/SC/P</th>
+            <th class="bg-blue">S</th>
+            <th class="bg-blue">A</th>
+        </tr>
+        <tr>
             <td>{{ plan.section }}</td>
             <td>{{ plan.pre_requisite }}</td>
             <td>{{ plan.total_hours }}</td>
-            <td>{{ plan.total_hours_2 }}</td>
             <td>{{ plan.hd_t }}</td>
             <td>{{ plan.hd_lt }}</td>
-            <td>{{ plan.hiv_iscp }}</td>
+            <td>{{ plan.hd_iscp }}</td>
             <td>{{ plan.hiv_s }}</td>
             <td>{{ plan.hiv_a }}</td>
             <td>{{ plan.hde }}</td>
         </tr>
     </table>
 
+    <!-- Table 3 -->
     <table>
         <tr>
-            <th colspan="3">Componente Pregrado</th>
-            <th colspan="3">Componente Postgrado</th>
-            <th rowspan="2">Período<br>Académico</th>
-            <th colspan="3">Modalidad</th>
-            <th rowspan="2">Facultad/Carrera</th>
-            <th rowspan="2">Programa<br>/Postgrado</th>
+            <th colspan="4" class="bg-blue">Componente Pregrado</th>
+            <th colspan="3" class="bg-blue">Componente Postgrado</th>
+            <th rowspan="2" class="bg-blue">Período<br>Académico</th>
+            <th colspan="3" class="bg-blue">Modalidad</th>
         </tr>
         <tr>
-            <th>General</th>
-            <th>Básica</th>
-            <th>Profesional</th>
-            <th>Investigación<br>/Pasantía</th>
-            <th>Obligatorio</th>
-            <th>Electiva</th>
-            <th>Investigación</th>
-            <th>Presencial</th>
-            <th>Mixta</th>
-            <th>Virtual</th>
+            <th class="bg-blue">General</th>
+            <th class="bg-blue">Básica</th>
+            <th class="bg-blue">Profesional</th>
+            <th class="bg-blue">Investigación<br>/Pasantía</th>
+            <th class="bg-blue">Obligatorio</th>
+            <th class="bg-blue">Electiva</th>
+            <th class="bg-blue">Investigación</th>
+            <th class="bg-blue">Presencial</th>
+            <th class="bg-blue">Mixta</th>
+            <th class="bg-blue">Virtual</th>
         </tr>
         <tr>
-            <td style="height: 20px;"></td>
-            <td></td>
-            <td></td>
+            <td>{% if plan.component_type == 'General' %}X{% endif %}</td>
+            <td>{% if plan.component_type == 'Básica' %}X{% endif %}</td>
+            <td>{% if plan.component_type == 'Profesional' %}X{% endif %}</td>
             <td></td>
             <td></td>
             <td></td>
             <td></td>
             <td>{{ plan.academic_period }}</td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td>{% if plan.modality == 'Presencial' %}X{% endif %}</td>
+            <td>{% if plan.modality == 'Mixta' %}X{% endif %}</td>
+            <td>{% if plan.modality == 'Distancia' or plan.modality == 'Virtual' %}X{% endif %}</td>
         </tr>
     </table>
+    
+    <div style="font-size: 9px; margin-top: 5px; margin-bottom: 15px;">
+        <strong>Leyenda:</strong> (HD) Horas Docentes, (T) Teóricas, (L/T) Laboratorio/Taller, (I/SC/P) Intervención / Servicio Comunitario / Proyecto, (HIV) Horas de Interacción Virtual, (S) Síncronas, (A) Asíncronas, (HDE) Horas de Dedicación Estudiante.
+    </div>
 
     <!-- Teacher Info -->
     <div class="section-title">II. Identificación del Docente</div>
     <table>
         <tr>
-            <th>Nombre Docente/Tutor:</th>
-            <th>N° Cédula</th>
-            <th>Teléfono</th>
-            <th>Correo:</th>
+            <th class="bg-blue">Nombre Docente/Tutor:</th>
+            <th class="bg-blue">N° Cédula</th>
+            <th class="bg-blue">Teléfono</th>
+            <th class="bg-blue">Correo:</th>
         </tr>
         <tr>
-            <td style="height: 25px;">{{ author.name }}</td>
+            <td>{{ author.name }}</td>
             <td>{{ author.id_document }}</td>
             <td></td> <!-- Teléfono en blanco por ahora -->
             <td>{{ author.email }}</td>
@@ -184,39 +201,14 @@
 
     <table>
         <tr>
-            <th>Horario de clases:</th>
-            <th>Horario de Tutoría Docente:</th>
-            <th>Total, horas docentes:</th>
+            <th class="bg-blue">Horario de clases:</th>
+            <th class="bg-blue">Horario de Tutoría Docente:</th>
+            <th class="bg-blue">Total, horas docentes:</th>
         </tr>
         <tr>
-            <td style="height: 35px;"></td> <!-- Vacío por ahora -->
             <td></td> <!-- Vacío por ahora -->
             <td></td> <!-- Vacío por ahora -->
-        </tr>
-    </table>
-
-    <!-- Legend -->
-    <div class="text-center" style="font-weight: bold; margin-top: 10px; margin-bottom: 5px; font-size: 11px;">Leyenda</div>
-    <table style="font-size: 9px;">
-        <tr>
-            <th>HD</th>
-            <th>T</th>
-            <th>L/T</th>
-            <th>I/SC/P</th>
-            <th>HIV</th>
-            <th>S</th>
-            <th>A</th>
-            <th>HDE</th>
-        </tr>
-        <tr>
-            <td>Horas Docentes</td>
-            <td>Teóricas</td>
-            <td>Laboratorio / Taller</td>
-            <td>Intervención / Servicio Comunitario / Proyecto</td>
-            <td>Horas de Interacción Virtual</td>
-            <td>Síncronas</td>
-            <td>Asíncronas</td>
-            <td>Horas de Dedicación Estudiantes</td>
+            <td></td> <!-- Vacío por ahora -->
         </tr>
     </table>
 
@@ -241,10 +233,10 @@
         <tr>
             <td style="height: 35px;">{{ eval.unit or '' }}</td>
             <td class="text-left">{{ eval.competence }}</td>
-            <td></td> <!-- Criterio de Desempeño vacío por ahora -->
+            <td class="text-left">{{ eval.performance_criterion }}</td>
             <td class="text-left">{{ eval.strategy }}</td>
             <td class="text-left">{{ eval.instrument }}</td>
-            <td></td> <!-- Tipo de Evaluación vacío por ahora -->
+            <td>{{ eval.evaluation_type }}</td>
             <td class="text-left">{{ eval.evidence }}</td>
             <td class="text-left">{{ eval.feedback_method }}</td>
             <td>{{ eval.due_week or '' }}</td>
@@ -274,9 +266,9 @@
         <tr>
             <td class="text-left" style="height: 40px;">{{ week.content_description }}</td>
             <td class="text-left">{{ week.specific_competence }}</td>
-            <td></td> <!-- Criterios de Desempeño vacío -->
+            <td class="text-left">{{ week.performance_criteria }}</td>
             <td class="text-left">{{ week.teaching_strategy }}</td>
-            <td></td> <!-- Evaluación / Realimentación (se une a plan evaluacion usualmente) -->
+            <td class="text-left">{{ week.evaluation_feedback }}</td>
         </tr>
         <tr>
             <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>

@@ -113,7 +113,18 @@ async def get_my_academic_load(
                 "program": s.program,
                 "level": s.level,
                 "academic_credits": s.academic_credits,
-                "has_syllabus": True
+                "has_syllabus": True,
+                "component_type": s.component_type,
+                "hd_t": s.hd_t,
+                "hd_lt": s.hd_lt,
+                "hd_iscp": s.hd_iscp,
+                "hiv_s": s.hiv_s,
+                "hiv_a": s.hiv_a,
+                "hde_hours": s.hde_hours,
+                "purpose": s.purpose,
+                "prerequisite": s.prerequisite,
+                "bibliographic_references": s.bibliographic_references,
+                "teaching_strategies": s.teaching_strategies
             })
         else:
             subjects_list.append({
@@ -257,7 +268,8 @@ async def list_users(
                 User.full_name.ilike(f"%{search}%"),
                 User.email.ilike(f"%{search}%"),
                 User.id_user.ilike(f"%{search}%"),
-                User.username.ilike(f"%{search}%")
+                User.username.ilike(f"%{search}%"),
+                UserAcademicPeriod.subject_code.ilike(f"%{search}%")
             ))
         query = query.limit(500)
         res = await db.execute(query)
@@ -350,11 +362,13 @@ async def list_users(
             )
         )
         if search:
+            query = query.outerjoin(UserAcademicPeriod, User.id == UserAcademicPeriod.user_id)
             query = query.where(or_(
                 User.full_name.ilike(f"%{search}%"),
                 User.email.ilike(f"%{search}%"),
                 User.id_user.ilike(f"%{search}%"),
-                User.username.ilike(f"%{search}%")
+                User.username.ilike(f"%{search}%"),
+                UserAcademicPeriod.subject_code.ilike(f"%{search}%")
             ))
         query = query.limit(500)
         res = await db.execute(query)
@@ -444,6 +458,8 @@ async def create_user(
         created_rel = UserAcademicPeriod(
             user_id=new_user.id,
             academic_period_id=user_in.academic_period_id,
+            subject_code=user_in.subject_code,
+            section=user_in.section,
             is_active=True,
             created_by_id=current_user.id,
             creation_method=CreationMethod.MANUAL
@@ -554,6 +570,8 @@ async def update_user(
                 period_rel = UserAcademicPeriod(
                     user_id=user.id,
                     academic_period_id=val_ap,
+                    subject_code=user_in.subject_code,
+                    section=user_in.section,
                     is_active=True,
                     created_by_id=current_user.id,
                     creation_method=CreationMethod.MANUAL
@@ -562,6 +580,10 @@ async def update_user(
             else:
                 # Mark as active if already exists
                 period_rel.is_active = True
+                if "subject_code" in update_data:
+                    period_rel.subject_code = update_data["subject_code"]
+                if "section" in update_data:
+                    period_rel.section = update_data["section"]
                 
         else:
             # academic_period_id is 0 or null (unassigned) -> delete all relationships for this user
@@ -577,6 +599,10 @@ async def update_user(
         period_rel = rel_res.scalars().first()
         if period_rel:
             ap_name = period_rel.academic_period.name
+            if "subject_code" in update_data:
+                period_rel.subject_code = update_data["subject_code"]
+            if "section" in update_data:
+                period_rel.section = update_data["section"]
 
     db.add(user)
     await db.commit()

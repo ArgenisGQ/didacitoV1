@@ -406,7 +406,7 @@ export default function BulkImportDialog({ isOpen, onClose }: BulkImportDialogPr
                     value={globalAcademicPeriodId}
                     onValueChange={setGlobalAcademicPeriodId}
                   >
-                    <SelectTrigger className="bg-card border-slate-200/80 h-11 w-full">
+                    <SelectTrigger className="bg-card border-slate-200/80 dark:border-slate-800/60 dark:focus-visible:border-slate-700 h-11 w-full">
                       <SelectValue placeholder="Seleccionar periodo académico para asociar..." />
                     </SelectTrigger>
                     <SelectContent>

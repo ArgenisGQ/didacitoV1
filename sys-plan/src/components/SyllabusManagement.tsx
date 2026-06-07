@@ -568,7 +568,7 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} />
               <Input
                 placeholder="Buscar por código o materia..."
-                className="pl-10 h-11 bg-muted/30"
+                className="pl-10 h-11 bg-background/60 border-border/50"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
@@ -576,7 +576,7 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
             
             <div>
               <select
-                className="w-full h-11 px-3.5 bg-muted/30 border border-input rounded-md text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full h-11 px-3.5 bg-background/60 border border-border/50 rounded-md text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary"
                 value={selectedProgram}
                 onChange={e => setSelectedProgram(e.target.value)}
               >
@@ -589,7 +589,7 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
 
             <div>
               <select
-                className="w-full h-11 px-3.5 bg-muted/30 border border-input rounded-md text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full h-11 px-3.5 bg-background/60 border border-border/50 rounded-md text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary"
                 value={selectedLevel}
                 onChange={e => setSelectedLevel(e.target.value)}
               >
@@ -623,7 +623,7 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
             <>
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-muted/35">
+                <TableHeader className="bg-background/40 backdrop-blur-md">
                   <TableRow>
                     <TableHead className="font-bold pl-6">Código</TableHead>
                     <TableHead className="font-bold">Materia / Unidad Curricular</TableHead>
@@ -706,7 +706,7 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
             </div>
 
             {/* Pagination Controls Footer */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 border-t bg-muted/10">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 border-t border-border/50 bg-background/40 backdrop-blur-md">
               <div className="text-xs font-bold text-muted-foreground">
                 Mostrando <span className="text-foreground">{filteredSubjects.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> al{' '}
                 <span className="text-foreground">
@@ -720,7 +720,7 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-muted-foreground">Filas por página:</span>
                   <select
-                    className="h-8 px-2 bg-muted/40 border border-input rounded-md text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                    className="h-8 px-2 bg-background/60 border border-border/50 rounded-md text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
                     value={pageSize}
                     onChange={e => {
                       setPageSize(parseInt(e.target.value))
@@ -795,7 +795,7 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-5xl h-[85vh] bg-card border rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-6 md:p-8 bg-muted/40 border-b flex items-center justify-between shrink-0">
+            <div className="p-6 md:p-8 bg-background/60 backdrop-blur-md border-b border-border/50 flex items-center justify-between shrink-0">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2.5">
                   <Badge variant="outline" className="border-primary/20 text-primary bg-primary/5 font-extrabold text-xs">

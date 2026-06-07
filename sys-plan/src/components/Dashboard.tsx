@@ -34,12 +34,19 @@ import {
   Building,
   Cpu,
   MessageSquare,
+  Megaphone,
+  Database,
+  GraduationCap,
+  ListTree,
+  UserCog,
+  Settings2
 } from 'lucide-react'
 import api, { getAccessToken } from '../lib/api-client'
 import SecuritySettings from './SecuritySettings'
 import AdminSettings from './AdminSettings'
 import { DashboardSettings } from './DashboardSettings'
 import { DashboardView } from './DashboardView'
+import { TaxonomySettings } from './TaxonomySettings'
 import UserProfile from './UserProfile'
 import AuditManagement from './AuditManagement'
 import SyllabusManagement from './SyllabusManagement'
@@ -48,6 +55,9 @@ import AIChat from './AIChat'
 import AcademicPeriods from './AcademicPeriods'
 import { AcademicDistribution } from './AcademicDistribution'
 import { PdfPreviewModal } from './PdfPreviewModal'
+import { PlanStyleSelectorModal } from './PlanStyleSelectorModal'
+import { DidactoTimeline } from './DidactoTimeline'
+import { CompactSidebar, NavItem } from './layout/CompactSidebar'
 import { Button } from '@/components/ui/button'
 import { hasPermission } from '../lib/permissions'
 import { Input } from '@/components/ui/input'
@@ -81,11 +91,24 @@ interface LessonPlan {
   section?: string | null
   academic_period_id?: number | null
   author_name?: string
+  component_type?: string
+  hd_t?: number
+  hd_lt?: number
+  hd_iscp?: number
+  hde?: number
+  hiv_s?: number
+  hiv_a?: number
+  subject_purpose?: string
+  pre_requisite?: string
+  subject_bibliography?: string
+  subject_strategies?: string
 }
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isStyleSelectorOpen, setIsStyleSelectorOpen] = useState(false)
+  const [planningStyle, setPlanningStyle] = useState<'wizard' | 'timeline' | null>(null)
   const [editingPlan, setEditingPlan] = useState<LessonPlan | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userName, setUserName] = useState<string>('Admin')
@@ -164,7 +187,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     return viewerRoles.includes(userRole)
   }, [profileConfig, userRole])
 
-  const { createMutation, updateMutation } = useLessonPlanMutations()
+  const { createMutation, updateMutation, deleteMutation } = useLessonPlanMutations()
 
   const handleSavePlan = async (wizardData: any) => {
     const { planId: existingId, ...payload } = wizardData
@@ -209,6 +232,16 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  const handleDeletePlan = async (planId: number) => {
+    if (window.confirm('¿Estás seguro de ELIMINAR este plan? Esta acción no se puede deshacer.')) {
+      try {
+        await deleteMutation.mutateAsync(planId)
+      } catch (e: any) {
+        alert(e.response?.data?.detail || 'Error al eliminar el plan')
+      }
+    }
+  }
+
   const filteredPlans = useMemo(() => {
     return plans.filter((p) => {
       const query = searchQuery.toLowerCase();
@@ -248,6 +281,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           academicPeriodName: academicLoad.active_period.name,
           plan: existingPlan || null,
           hasSyllabus: subject.has_syllabus,
+          subject: subject, // <- Agregado para disponer de los datos del sinóptico
         })
       })
     })
@@ -425,6 +459,108 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     },
   })
 
+  const navItems: NavItem[] = [
+    {
+      id: 'dashboard',
+      title: 'Dashboard / Calificaciones',
+      icon: LayoutDashboard,
+      isActive: activeTab === 'dashboard',
+      onClick: () => setActiveTab('dashboard')
+    },
+    {
+      id: 'plans',
+      title: 'Evaluaciones / Planes',
+      icon: Megaphone,
+      isActive: activeTab === 'plans',
+      onClick: () => setActiveTab('plans')
+    },
+
+    ...(hasPermission('syllabus:read') ? [{
+      id: 'syllabus',
+      title: 'Programas Sinópticos',
+      icon: Database,
+      isActive: activeTab === 'syllabus',
+      onClick: () => setActiveTab('syllabus')
+    }] : []),
+    {
+      id: 'profile',
+      title: 'Mi Perfil',
+      icon: User,
+      isActive: activeTab === 'profile',
+      onClick: () => setActiveTab('profile')
+    },
+    {
+      id: 'security',
+      title: 'Seguridad de la Cuenta',
+      icon: Shield,
+      isActive: activeTab === 'security',
+      onClick: () => setActiveTab('security')
+    },
+    ...(hasPermission('users:read') ? [{
+      id: 'users',
+      title: 'Gestión de Usuarios',
+      icon: Users,
+      isActive: activeTab === 'users',
+      onClick: () => setActiveTab('users')
+    }] : []),
+    ...(hasPermission('roles:read') ? [{
+      id: 'roles',
+      title: 'Roles y Permisos',
+      icon: UserCog,
+      isActive: activeTab === 'roles',
+      onClick: () => setActiveTab('roles')
+    }] : []),
+    ...(hasPermission('periods:read') ? [{
+      id: 'academic_periods',
+      title: 'Periodos Académicos',
+      icon: GraduationCap,
+      isActive: activeTab === 'academic_periods',
+      onClick: () => setActiveTab('academic_periods')
+    }] : []),
+    ...(hasPermission('distribution:read') ? [{
+      id: 'academic_distribution',
+      title: 'Distribución Académica',
+      icon: Building,
+      isActive: activeTab === 'academic_distribution',
+      onClick: () => setActiveTab('academic_distribution')
+    }] : []),
+    ...(hasPermission('ai_chat:read') ? [{
+      id: 'ai_chat',
+      title: 'Asistente IA',
+      icon: MessageSquare,
+      isActive: activeTab === 'ai_chat',
+      onClick: () => setActiveTab('ai_chat')
+    }] : []),
+    ...(hasPermission('audit:read') ? [{
+      id: 'audit',
+      title: 'Auditoría y Control',
+      icon: FileText,
+      isActive: activeTab === 'audit',
+      onClick: () => setActiveTab('audit')
+    }] : []),
+    ...(hasPermission('settings:manage') ? [{
+      id: 'dashboard_settings',
+      title: 'Módulos del Dashboard',
+      icon: Settings2,
+      isActive: activeTab === 'dashboard_settings',
+      onClick: () => setActiveTab('dashboard_settings')
+    }] : []),
+    ...(hasPermission('taxonomies:manage') ? [{
+      id: 'taxonomy_settings',
+      title: 'Catálogos de Evaluación',
+      icon: ListTree,
+      isActive: activeTab === 'taxonomy_settings',
+      onClick: () => setActiveTab('taxonomy_settings')
+    }] : []),
+    ...(userRole === 'SUPER_ADMIN' ? [{
+      id: 'ai_settings',
+      title: 'Configuración de IA',
+      icon: Cpu,
+      isActive: activeTab === 'ai_settings',
+      onClick: () => setActiveTab('ai_settings')
+    }] : []),
+  ];
+
   return (
     <div className="min-h-screen bg-background text-foreground flex transition-colors duration-300">
       {/* Mobile toggle */}
@@ -437,136 +573,30 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       </Button>
 
       {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 bg-card border-r flex flex-col transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="p-6 flex items-center gap-3">
-          <div className="bg-primary p-2.5 rounded-2xl shadow-lg shadow-primary/20">
-            <FileText size={24} className="text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-black tracking-tighter">
-            DIDACTICO
-          </span>
+      <div className="hidden lg:block z-40 shrink-0 h-screen">
+        <CompactSidebar
+          onLogout={onLogout}
+          onSettings={() => setActiveTab('settings')}
+          items={navItems}
+        />
+      </div>
+
+      {isSidebarOpen && (
+        <div className="fixed inset-y-0 left-0 z-40 lg:hidden">
+          <CompactSidebar
+            onLogout={onLogout}
+            onSettings={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
+            items={navItems.map(item => ({
+              ...item,
+              onClick: () => {
+                if (item.onClick) item.onClick();
+                setIsSidebarOpen(false);
+              }
+            }))}
+          />
         </div>
+      )}
 
-        <Separator />
-
-        <nav className="flex-1 p-4 space-y-1">
-          {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { id: 'plans', icon: FileText, label: 'Planificaciones', count: userRole === 'DOCENTE' ? `${teacherRequiredPlans.filter((p: any) => p.plan).length}/${teacherRequiredPlans.filter((p: any) => p.hasSyllabus).length}` : plans.length },
-            ...(hasPermission('syllabus:read')
-              ? [
-                  { id: 'syllabus', icon: BookOpen, label: 'Programas Sinópticos' }
-                ]
-              : []),
-            { id: 'profile', icon: User, label: 'Mi Perfil' },
-            { id: 'security', icon: Shield, label: 'Seguridad de la Cuenta' },
-            ...(hasPermission('users:read')
-              ? [
-                  { id: 'users', icon: Users, label: 'Gestion de Usuarios' }
-                ]
-              : []),
-            ...(hasPermission('roles:read')
-              ? [
-                  { id: 'roles', icon: Shield, label: 'Roles y Permisos' }
-                ]
-              : []),
-            ...(hasPermission('periods:read')
-              ? [
-                  { id: 'academic_periods', icon: CalendarIcon, label: 'Periodos Académicos' }
-                ]
-              : []),
-            ...(hasPermission('distribution:read')
-              ? [
-                  { id: 'academic_distribution', icon: Building, label: 'Distribución Académica' }
-                ]
-              : []),
-            ...(hasPermission('ai_chat:read')
-              ? [
-                  { id: 'ai_chat', icon: MessageSquare, label: 'Asistente IA' }
-                ]
-              : []),
-            ...(hasPermission('audit:read')
-              ? [
-                  { id: 'audit', icon: Clock, label: 'Auditoría y Control' }
-                ]
-              : []),
-          ].map((item) => (
-            <Button
-              key={item.id}
-              variant={activeTab === item.id ? 'default' : 'ghost'}
-              className="w-full justify-start gap-3 h-12 text-base font-semibold"
-              onClick={() => setActiveTab(item.id)}
-            >
-              <item.icon size={20} />
-              {item.label}
-              {'count' in item && item.count !== undefined && (
-                <Badge variant="secondary" className="ml-auto">
-                  {item.count}
-                </Badge>
-              )}
-            </Button>
-          ))}
-
-          {hasPermission('settings:manage') && (
-            <>
-              <Separator className="my-4" />
-              <Button
-                variant={activeTab === 'settings' ? 'default' : 'ghost'}
-                className="w-full justify-start gap-3 h-12 text-base font-semibold"
-                onClick={() => setActiveTab('settings')}
-              >
-                <Settings size={20} />
-                Configuración del Sistema
-              </Button>
-              <Button
-                variant={activeTab === 'dashboard_settings' ? 'default' : 'ghost'}
-                className="w-full justify-start gap-3 h-12 text-base font-semibold mt-1"
-                onClick={() => setActiveTab('dashboard_settings')}
-              >
-                <LayoutDashboard size={20} />
-                Módulos del Dashboard
-              </Button>
-            </>
-          )}
-
-          {userRole === 'SUPER_ADMIN' && (
-            <>
-              <Separator className="my-4" />
-              <Button
-                variant={activeTab === 'ai_settings' ? 'default' : 'ghost'}
-                className="w-full justify-start gap-3 h-12 text-base font-semibold"
-                onClick={() => setActiveTab('ai_settings')}
-              >
-                <Cpu size={20} className="text-blue-500" />
-                Configuración de IA
-              </Button>
-            </>
-          )}
-        </nav>
-
-        <div className="p-4 space-y-2">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 h-12 text-base"
-            onClick={() => setIsDarkMode(!isDarkMode)}
-          >
-            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-            Modo {isDarkMode ? 'Claro' : 'Oscuro'}
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 h-12 text-base text-destructive hover:text-destructive"
-            onClick={onLogout}
-          >
-            <LogOut size={20} />
-            Cerrar Sesion
-          </Button>
-        </div>
-      </aside>
 
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
@@ -614,9 +644,10 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 const planToEdit = plans.find(p => p.id === planId)
                 if (planToEdit) {
                   setEditingPlan(planToEdit)
-                  setIsModalOpen(true)
+                  setIsStyleSelectorOpen(true)
                 }
               }} 
+              onDeletePlan={handleDeletePlan}
               onPreviewPlan={(planId, title) => {
                 setPreviewPlanTitle(title)
                 setPreviewPlanId(planId)
@@ -639,6 +670,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             <AdminSettings />
           ) : activeTab === 'dashboard_settings' && hasPermission('settings:manage') ? (
             <DashboardSettings />
+          ) : activeTab === 'taxonomy_settings' && hasPermission('taxonomies:manage') ? (
+            <TaxonomySettings />
           ) : activeTab === 'ai_settings' && userRole === 'SUPER_ADMIN' ? (
             <AISettings />
           ) : activeTab === 'security' ? (
@@ -657,19 +690,9 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                     {userRole === 'DOCENTE' ? 'Mis Planificaciones' : 'Listado de Planificaciones'}
                   </h1>
                   <p className="text-lg text-muted-foreground font-medium">
-                    {userRole === 'DOCENTE' ? 'Gestiona y disena estrategias academicas de alto impacto.' : 'Visualiza las planificaciones creadas por los docentes.'}
+                    {userRole === 'DOCENTE' ? 'Diseña, organiza y transforma tu planificación didáctica en un entorno inteligente' : 'Visualiza las planificaciones creadas por los docentes.'}
                   </p>
                 </div>
-                {userRole === 'DOCENTE' && (
-                  <Button
-                    size="lg"
-                    className="gap-2 font-extrabold text-base h-14 px-8"
-                    onClick={() => setIsModalOpen(true)}
-                  >
-                    <Plus size={22} strokeWidth={2.5} />
-                    Nueva Planificacion
-                  </Button>
-                )}
               </div>
 
               {/* BLOQUE DE CARGA ACADÉMICA ACTIVA (Solo para docentes) */}
@@ -894,7 +917,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                                                 className="gap-1 border border-transparent hover:border-primary/20 text-primary hover:bg-primary/5 font-extrabold"
                                                 onClick={() => {
                                                   setEditingPlan(item.plan)
-                                                  setIsModalOpen(true)
+                                                  setIsStyleSelectorOpen(true)
                                                 }}
                                               >
                                                 Editar
@@ -910,12 +933,23 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                                         className="gap-1 font-extrabold shadow-md hover:shadow-lg transition-all"
                                         onClick={() => {
                                           setEditingPlan({
-                                            title: `Plan de Clase: ${item.subjectName} (${item.subjectCode}) - Sección ${item.section}`,
+                                            title: item.subjectName,
                                             subject_code: item.subjectCode,
                                             section: item.section,
                                             academic_period_id: item.academicPeriodId,
+                                            component_type: item.subject?.component_type || '',
+                                            hd_t: item.subject?.hd_t || 0,
+                                            hd_lt: item.subject?.hd_lt || 0,
+                                            hd_iscp: item.subject?.hd_iscp || 0,
+                                            hde: item.subject?.hde_hours || 0,
+                                            hiv_s: item.subject?.hiv_s || 0,
+                                            hiv_a: item.subject?.hiv_a || 0,
+                                            subject_purpose: item.subject?.purpose || '',
+                                            pre_requisite: item.subject?.prerequisite || '',
+                                            subject_bibliography: item.subject?.bibliographic_references || '',
+                                            subject_strategies: item.subject?.teaching_strategies || '',
                                           })
-                                          setIsModalOpen(true)
+                                          setIsStyleSelectorOpen(true)
                                         }}
                                       >
                                         <Plus size={14} strokeWidth={2.5} />
@@ -937,7 +971,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                           <Input
                             placeholder="Buscar planificaciones por título, docente, materia o código..."
-                            className="pl-10 bg-card border-slate-200/80 h-11"
+                            className="pl-10 bg-card border-slate-200/80 dark:border-slate-800/60 dark:focus-visible:border-slate-700 h-11"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                           />
@@ -1092,7 +1126,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                                       className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-extrabold"
                                       onClick={() => {
                                         setEditingPlan(plan)
-                                        setIsModalOpen(true)
+                                        setIsStyleSelectorOpen(true)
                                       }}
                                     >
                                       Corregir Plan
@@ -1163,10 +1197,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </main>
 
-      {isModalOpen && (
+      {isModalOpen && planningStyle === 'wizard' && (
         <LessonPlanWizard
           onClose={() => {
             setIsModalOpen(false)
+            setPlanningStyle(null)
             setEditingPlan(null)
           }}
           onSave={handleSavePlan}
@@ -1174,6 +1209,32 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           planId={editingPlan?.id ?? null}
         />
       )}
+
+      {isModalOpen && planningStyle === 'timeline' && (
+        <DidactoTimeline
+          onClose={() => {
+            setIsModalOpen(false)
+            setPlanningStyle(null)
+            setEditingPlan(null)
+          }}
+          onSave={handleSavePlan}
+          initialData={editingPlan}
+          planId={editingPlan?.id ?? null}
+        />
+      )}
+
+      <PlanStyleSelectorModal
+        isOpen={isStyleSelectorOpen}
+        onClose={() => {
+          setIsStyleSelectorOpen(false)
+          setEditingPlan(null)
+        }}
+        onSelect={(style) => {
+          setPlanningStyle(style)
+          setIsStyleSelectorOpen(false)
+          setIsModalOpen(true)
+        }}
+      />
 
       {isSubjectModalOpen && selectedSubjectId && (
         <SubjectDetailModal
