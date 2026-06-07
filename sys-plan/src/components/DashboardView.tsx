@@ -47,7 +47,7 @@ export function DashboardView({
       try {
         const [widgetsRes, analyticsRes] = await Promise.all([
           apiClient.get('/dashboard/widgets'),
-          apiClient.get(userRole === 'DOCENTE' ? '/dashboard/analytics/personal' : '/dashboard/analytics/global')
+          apiClient.get(userRole === 'DOCENTE' ? '/dashboard/analytics/personal' : userRole === 'COORDINADOR' ? '/dashboard/analytics/coordinator' : '/dashboard/analytics/global')
         ]);
         if (isMounted) {
           setWidgets(widgetsRes.data);
@@ -61,7 +61,7 @@ export function DashboardView({
     };
 
     const connectWebSocket = () => {
-      if (userRole === 'DOCENTE') return; // DOCENTE no usa tiempo real global por ahora
+      if (userRole === 'DOCENTE' || userRole === 'COORDINADOR') return; // DOCENTE y COORDINADOR no usan tiempo real global por ahora
 
       const apiUrl = apiClient.defaults.baseURL || '/api';
       let wsUrl = '';
@@ -136,7 +136,7 @@ export function DashboardView({
     let isMounted = true;
     const updateAnalytics = async () => {
       try {
-        const analyticsRes = await apiClient.get(userRole === 'DOCENTE' ? '/dashboard/analytics/personal' : '/dashboard/analytics/global');
+        const analyticsRes = await apiClient.get(userRole === 'DOCENTE' ? '/dashboard/analytics/personal' : userRole === 'COORDINADOR' ? '/dashboard/analytics/coordinator' : '/dashboard/analytics/global');
         if (isMounted) {
           setAnalytics(analyticsRes.data);
         }
@@ -294,13 +294,13 @@ export function DashboardView({
     const hasData = data.length > 0 && totalPlans > 0;
     
     return (
-      <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-1 h-full">
+      <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-1 h-full flex flex-col">
         <CardHeader>
           <CardTitle className="text-card-foreground">Estado de Planificaciones</CardTitle>
           <CardDescription>Distribución actual del trimestre activo</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px] w-full flex flex-row items-center justify-between mt-4">
+        <CardContent className="flex-1 flex items-center justify-center">
+          <div className="h-[250px] w-full flex flex-row items-center justify-between mt-4">
             {hasData ? (
               <>
                 {/* Gráfico Izquierda */}
@@ -480,7 +480,7 @@ export function DashboardView({
     const pendingPlans = plans.filter(p => p.status === 'IN_REVIEW');
     
     return (
-      <Card className="shadow-lg border-border bg-card w-full mt-6 overflow-hidden">
+      <Card className="shadow-lg border-border bg-card w-full h-full flex flex-col overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-card-foreground">
             <LayoutDashboard size={20} className="text-primary"/> Bandeja de Entrada (Por Aprobar)
@@ -640,8 +640,24 @@ export function DashboardView({
         ))}
       </div>
 
-      {/* Fila Media: Bandeja de Entrada Ancho Completo */}
-      {widgets.filter(w => w.code === 'coordinator_inbox').map(w => (
+      {/* Fila Media: Bandeja de Entrada y Estado de Planificaciones (Solo Coordinador) */}
+      {userRole === 'COORDINADOR' && widgets.some(w => w.code === 'coordinator_inbox') && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 items-stretch">
+          {widgets.filter(w => w.code === 'coordinator_inbox').map(w => (
+            <div key={w.code} className="col-span-1 lg:col-span-2 flex flex-col h-full">
+               {renderWidget(w)}
+            </div>
+          ))}
+          {widgets.filter(w => w.code === 'plan_status').map(w => (
+            <div key={w.code} className="col-span-1 flex flex-col h-full">
+               {renderWidget(w)}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Bandeja de Entrada Ancho Completo (Otros roles) */}
+      {userRole !== 'COORDINADOR' && widgets.filter(w => w.code === 'coordinator_inbox').map(w => (
         <div key={w.code} className="w-full mb-6">
           {renderWidget(w)}
         </div>

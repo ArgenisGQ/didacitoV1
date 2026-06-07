@@ -25,27 +25,29 @@ async def fetch_global_analytics(db: AsyncSession) -> dict:
     total_plans = plans_result.scalar() or 0
     
     # Estado de Planes (DRAFT, IN_REVIEW, OBSERVED, APPROVED)
-    status_query = await db.execute(
-        select(LessonPlan.status, func.count(LessonPlan.id))
-        .group_by(LessonPlan.status)
-    )
-    status_counts_db = status_query.all()
-    status_counts = {"DRAFT": 0, "IN_REVIEW": 0, "OBSERVED": 0, "APPROVED": 0}
-    for status_val, count in status_counts_db:
-        if status_val in status_counts:
-            status_counts[status_val] = count
-        else:
-            status_counts[status_val] = count
-
-    # Calcular "NOT_STARTED" global
+    # Calcular "NOT_STARTED" y status_counts para el periodo activo
     active_period_result = await db.execute(select(AcademicPeriod).where(AcademicPeriod.is_active == True))
     active_period = active_period_result.scalars().first()
+    
+    status_counts = {"DRAFT": 0, "IN_REVIEW": 0, "OBSERVED": 0, "APPROVED": 0}
+    
     if active_period:
-        expected_result = await db.execute(
-            select(func.count(UserAcademicPeriod.id))
+        status_query = await db.execute(
+            select(LessonPlan.status, func.count(LessonPlan.id))
+            .where(LessonPlan.academic_period_id == active_period.id)
+            .group_by(LessonPlan.status)
+        )
+        status_counts_db = status_query.all()
+        for status_val, count in status_counts_db:
+            status_counts[status_val] = count
+        uap_result = await db.execute(
+            select(UserAcademicPeriod.section)
             .where(UserAcademicPeriod.academic_period_id == active_period.id, UserAcademicPeriod.is_active == True)
         )
-        expected_plans = expected_result.scalar() or 0
+        expected_plans = 0
+        for (sec_str,) in uap_result.all():
+            if sec_str:
+                expected_plans += len([s for s in sec_str.split(',') if s.strip()])
         
         created_result = await db.execute(
             select(func.count(LessonPlan.id))
@@ -213,6 +215,109 @@ async def get_global_analytics(
 ):
     """Datos globales para el Super Admin o Admin Gestión."""
     return await fetch_global_analytics(db)
+
+@router.get("/analytics/coordinator")
+async def get_coordinator_analytics(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Datos filtrados para el Coordinador según sus asignaturas."""
+    from api.models import user_departments, Department
+    dept_result = await db.execute(
+        select(Department.subject_codes)
+        .join(user_departments, user_departments.c.department_id == Department.id)
+        .where(user_departments.c.user_id == current_user.id)
+    )
+    codes_rows = dept_result.scalars().all()
+    allowed_subjects = set()
+    for codes_str in codes_rows:
+        if codes_str:
+            allowed_subjects.update(c.strip() for c in codes_str.split(',') if c.strip())
+            
+    if not allowed_subjects:
+        return {
+            "total_users": 0,
+            "total_plans": 0,
+            "status_counts": {"DRAFT": 0, "IN_REVIEW": 0, "OBSERVED": 0, "APPROVED": 0, "NOT_STARTED": 0},
+            "pending_approvals": 0,
+            "current_online_users": 0,
+            "active_users_series": [],
+            "average_creation_time": "0h",
+            "rezagados": 0
+        }
+
+    plans_query = select(LessonPlan).where(LessonPlan.subject_code.in_(allowed_subjects))
+    result = await db.execute(plans_query)
+    plans = result.scalars().all()
+    
+    total_plans = len(plans)
+    status_counts = {"DRAFT": 0, "IN_REVIEW": 0, "OBSERVED": 0, "APPROVED": 0}
+    for p in plans:
+        if p.status in status_counts:
+            status_counts[p.status] += 1
+            
+    active_period_result = await db.execute(select(AcademicPeriod).where(AcademicPeriod.is_active == True))
+    active_period = active_period_result.scalars().first()
+    
+    if active_period:
+        from api.models import User
+        uap_result = await db.execute(
+            select(UserAcademicPeriod.subject_code, UserAcademicPeriod.section, User.first_name, User.last_name, User.email)
+            .outerjoin(User, User.id == UserAcademicPeriod.user_id)
+            .where(
+                UserAcademicPeriod.academic_period_id == active_period.id, 
+                UserAcademicPeriod.is_active == True
+            )
+        )
+        expected_plans = 0
+        expected_sections_list = []
+        for sub_str, sec_str, f_name, l_name, email in uap_result.all():
+            if not sub_str or not sec_str:
+                continue
+            row_subjects = [s.strip() for s in sub_str.split(',') if s.strip()]
+            matched_subject = next((s for s in row_subjects if s in allowed_subjects), None)
+            if matched_subject:
+                sections = [s.strip() for s in sec_str.split(',') if s.strip()]
+                expected_plans += len(sections)
+                
+                author_name = "Desconocido"
+                if f_name or l_name:
+                    author_name = f"{f_name or ''} {l_name or ''}".strip()
+                elif email:
+                    author_name = email
+                    
+                for sec in sections:
+                    expected_sections_list.append({
+                        "subject_code": matched_subject,
+                        "section": sec,
+                        "author_name": author_name
+                    })
+        
+        created_result = await db.execute(
+            select(func.count(LessonPlan.id))
+            .where(
+                LessonPlan.academic_period_id == active_period.id,
+                LessonPlan.subject_code.in_(allowed_subjects)
+            )
+        )
+        created_plans = created_result.scalar() or 0
+        status_counts["NOT_STARTED"] = max(0, expected_plans - created_plans)
+    else:
+        status_counts["NOT_STARTED"] = 0
+
+    global_data = await fetch_global_analytics(db)
+    
+    return {
+        "total_users": global_data["total_users"],
+        "total_plans": total_plans,
+        "status_counts": status_counts,
+        "pending_approvals": status_counts.get("IN_REVIEW", 0),
+        "current_online_users": global_data["current_online_users"],
+        "active_users_series": global_data["active_users_series"],
+        "average_creation_time": "1.2h" if total_plans > 0 else "0h",
+        "rezagados": status_counts["NOT_STARTED"],
+        "expected_sections": expected_sections_list if active_period else []
+    }
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

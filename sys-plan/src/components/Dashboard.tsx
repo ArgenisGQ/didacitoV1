@@ -77,6 +77,13 @@ import {
 import { LessonPlanWizard } from './wizard/LessonPlanWizard'
 import UserManagement from './UserManagement'
 import RoleManagement from './RoleManagement'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { SubjectDetailModal } from './SubjectDetailModal'
 import { LessonPlanWebModal } from './LessonPlan/LessonPlanWebModal'
 
@@ -114,6 +121,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [userName, setUserName] = useState<string>('Admin')
   const [userPermissions, setUserPermissions] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null)
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false)
   const [previewPlanId, setPreviewPlanId] = useState<number | null>(null)
@@ -170,6 +178,20 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       const { data } = await api.get('/users/me/profile-config')
       return data
     },
+  })
+
+  const { data: analytics } = useQuery({
+    queryKey: ['analytics', userRole],
+    queryFn: async () => {
+      const endpoint = userRole === 'DOCENTE' 
+        ? '/dashboard/analytics/personal' 
+        : userRole === 'COORDINADOR' 
+          ? '/dashboard/analytics/coordinator' 
+          : '/dashboard/analytics/global';
+      const { data } = await api.get(endpoint)
+      return data
+    },
+    enabled: !!userRole
   })
 
   const { data: academicLoad, isLoading: isLoadingLoad } = useQuery({
@@ -243,15 +265,37 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   const filteredPlans = useMemo(() => {
-    return plans.filter((p) => {
+    let combined = [...plans];
+    
+    if (userRole === 'COORDINADOR' && analytics?.expected_sections) {
+      analytics.expected_sections.forEach((sec: any) => {
+        const exists = plans.some(p => p.subject_code === sec.subject_code && p.section === sec.section);
+        if (!exists) {
+          combined.push({
+            id: -1, // Use a dummy ID for NOT_STARTED plans
+            title: `Plan No Creado`,
+            subject_code: sec.subject_code,
+            section: sec.section,
+            author_name: sec.author_name,
+            status: 'NOT_STARTED'
+          });
+        }
+      });
+    }
+
+    return combined.filter((p) => {
       const query = searchQuery.toLowerCase();
-      return (
+      const matchesSearch = (
         p.title.toLowerCase().includes(query) ||
         (p.author_name && p.author_name.toLowerCase().includes(query)) ||
         (p.subject_code && p.subject_code.toLowerCase().includes(query))
       );
+      
+      const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
     })
-  }, [plans, searchQuery])
+  }, [plans, searchQuery, statusFilter, analytics, userRole])
 
   const teacherRequiredPlans = useMemo(() => {
     if (userRole !== 'DOCENTE' || !academicLoad || !academicLoad.active_period) {
@@ -336,8 +380,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         header: 'Estado',
         cell: ({ row }) => {
           const s = row.original.status
-          const label = s === 'DRAFT' ? 'Borrador' : s === 'IN_REVIEW' ? 'En Revision' : s === 'APPROVED' ? 'Aprobado' : s
-          const variant = s === 'DRAFT' ? 'outline' : s === 'APPROVED' ? 'default' : 'secondary'
+          const label = s === 'DRAFT' ? 'Borrador' : s === 'IN_REVIEW' ? 'En Revision' : s === 'APPROVED' ? 'Aprobado' : s === 'NOT_STARTED' ? 'No Iniciado' : s
+          const variant = s === 'DRAFT' ? 'outline' : s === 'APPROVED' ? 'default' : s === 'NOT_STARTED' ? 'destructive' : 'secondary'
           return <Badge variant={variant as any}>{label}</Badge>
         },
       },
@@ -378,6 +422,14 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           status === 'IN_REVIEW' && 
           (userPermissions.includes('lesson_plan:approve_global') || userPermissions.includes('lesson_plan:approve_department'));
         
+        if (status === 'NOT_STARTED') {
+          return (
+            <div className="flex justify-end pr-2 text-muted-foreground text-xs font-semibold">
+              Pendiente
+            </div>
+          )
+        }
+        
         return (
           <div className="flex justify-end gap-2">
             {canApprove && (
@@ -412,17 +464,19 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               </Button>
             ) : (
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
-                  onClick={() => {
-                    setPreviewPlanTitle(row.original.title)
-                    setPreviewPlanId(row.original.id!)
-                  }}
-                >
-                  Ver Documento
-                </Button>
+                {status === 'APPROVED' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
+                    onClick={() => {
+                      setPreviewPlanTitle(row.original.title)
+                      setPreviewPlanId(row.original.id!)
+                    }}
+                  >
+                    Ver Documento
+                  </Button>
+                )}
                 {isTeacher && (status === 'DRAFT' || status === 'OBSERVED') && (
                   <Button
                     variant="ghost"
@@ -899,17 +953,19 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                                           </Button>
                                         ) : (
                                           <>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
-                                              onClick={() => {
-                                                setPreviewPlanTitle(item.plan.title)
-                                                setPreviewPlanId(item.plan.id)
-                                              }}
-                                            >
-                                              Ver Documento
-                                            </Button>
+                                            {planStatus === 'APPROVED' && (
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-bold"
+                                                onClick={() => {
+                                                  setPreviewPlanTitle(item.plan.title)
+                                                  setPreviewPlanId(item.plan.id)
+                                                }}
+                                              >
+                                                Ver Documento
+                                              </Button>
+                                            )}
                                             {(planStatus === 'DRAFT' || planStatus === 'OBSERVED') && (
                                               <Button
                                                 variant="ghost"
@@ -967,7 +1023,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                   ) : (
                     <div className="space-y-6">
                       <div className="flex flex-col md:flex-row items-center gap-4 bg-slate-50/50 dark:bg-slate-950/50 p-4 rounded-xl border border-slate-200/50 dark:border-slate-850/50">
-                        <div className="relative flex-1 w-full">
+                        <div className="relative flex-1 w-full max-w-md">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                           <Input
                             placeholder="Buscar planificaciones por título, docente, materia o código..."
@@ -976,11 +1032,27 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                             onChange={(e) => setSearchQuery(e.target.value)}
                           />
                         </div>
-                        {searchQuery && (
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="w-[180px] bg-card h-11 border-slate-200/80 dark:border-slate-800/60 font-semibold">
+                            <SelectValue placeholder="Filtrar por estado" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ALL">Todos los planes</SelectItem>
+                            <SelectItem value="APPROVED">Aprobados</SelectItem>
+                            <SelectItem value="IN_REVIEW">En Revisión</SelectItem>
+                            <SelectItem value="OBSERVED">Devueltos</SelectItem>
+                            <SelectItem value="DRAFT">Borradores</SelectItem>
+                            <SelectItem value="NOT_STARTED">No Iniciados</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {(searchQuery || statusFilter !== 'ALL') && (
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            onClick={() => setSearchQuery('')}
+                            onClick={() => {
+                              setSearchQuery('')
+                              setStatusFilter('ALL')
+                            }}
                             className="h-11 font-bold text-xs shrink-0"
                           >
                             Restablecer
