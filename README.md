@@ -314,7 +314,7 @@ asyncio.run(fix())
 
 La aplicación ha evolucionado significativamente hasta convertirse en un sistema integral de clase empresarial. Las novedades más destacadas incluyen:
 
-1. **Dashboard en Tiempo Real (WebSocket):** Gráficos interactivos y conteo exacto de usuarios conectados (en base a conexiones WebSocket activas) y analíticas globales de la institución.
+1. **Dashboard en Tiempo Real y Modular:** Gráficos interactivos, serie estadística semanal (13 semanas) de conexiones y creación de planes, y conteo exacto de usuarios activos mediante WebSockets. Incorpora un avanzado sistema de **Widgets Dinámicos**, donde los administradores pueden asignar y ordenar widgets (KPIs, gráficas) de manera personalizada según el Rol de Usuario. Además, incluye vistas analíticas exclusivas para Coordinadores y Docentes, rastreando estados de entrega, aprobaciones pendientes y detectando automáticamente planes 'Rezagados' / 'No Iniciados' cruzando la asignación académica con los planes elaborados.
 2. **Gobernanza Dinámica e Identidad:** Panel robusto de configuración del sistema (variables globales, SMTP), auditoría detallada de acciones, e integración de autenticación de Dos Factores (2FA/TOTP) con códigos QR.
 3. **Carga Inteligente Masiva y Analítica:** Importación optimizada de usuarios y asignación de profesores a períodos académicos mediante archivos CSV o Excel (tolerante a fallos y con vistas previas interactivas).
 4. **Módulo Inteligente de Syllabus (Microservicio Independiente):** Extracción automática y estructuración semántica de información desde archivos PDF usando PyMuPDF, control de versiones criptográfico (SHA-256) e inserción directa a la malla curricular.
@@ -325,9 +325,7 @@ La aplicación ha evolucionado significativamente hasta convertirse en un sistem
 9. **Integración Inteligente RAG (Retrieval-Augmented Generation):**
    * **Vectorización Híbrida Automática:** El sistema indexa de forma combinada tanto los Programas Sinópticos como los Planes de Clase una vez que son aprobados, vectorizándolos (mediante embeddings) en bases de datos PostgreSQL + pgvector.
    * **Búsqueda Avanzada Multi-fuente:** El Chat de IA interroga a ambas fuentes, evaluando la cercanía semántica y citando explícitamente en cada respuesta si la información provino del currículo oficial o del plan elaborado por el docente.
-   * **Personalidad de IA Configurable:** El sistema de chat posee un *"System Prompt"* predeterminado enfocado en pedagogía universitaria, pero otorga libertad total al integrador para modificar el comportamiento del Chat mediante la variable opcional en el `.env`:
-     ```env
-     # (Opcional) Sobrescribe el comportamiento por defecto de la IA en el Chat RAG:
-     CHAT_RAG_SYSTEM_PROMPT="Eres un asistente experto en pedagogía universitaria..."
-     ```
-     *Si la variable se omite o se deja vacía, el sistema usa por defecto sus rigurosas instrucciones internas que obligan a la IA a citar explícitamente las asignaturas y rechazar alucinaciones.*
+   * **Personalidad de IA Configurable:** El sistema de chat posee un *"System Prompt"* predeterminado enfocado en pedagogía universitaria, pero otorga libertad total al integrador para modificar el comportamiento del Chat mediante la variable opcional en el `.env`.
+   * **Soporte Multi-Proveedor Dinámico:** Panel administrativo que permite configurar y probar en tiempo real conexiones a APIs locales o en la nube (OpenAI, DeepSeek, LMStudio, etc.) tanto para Embeddings como para Modelos de Lenguaje (LLM).
+   * **Agentic RAG y Herramientas (LangChain):** El sistema va un paso más allá del RAG tradicional, implementando agentes ejecutores (`AgentExecutor`) capaces de invocar herramientas o *tools* en tiempo real (por ejemplo, obtener recuentos estadísticos de planes, buscar cualitativamente en sinópticos, o en planes de clase), permitiendo respuestas analíticas complejas.
+   * **Evaluación Automatizada de Planes Didácticos:** Tarea asíncrona inteligente que contrasta automáticamente la propuesta del plan de clase del docente contra el programa sinóptico oficial vectorizado, utilizando al Agente LLM para verificar el cumplimiento de competencias, emitiendo observaciones pedagógicas y recomendaciones de forma estructurada.
