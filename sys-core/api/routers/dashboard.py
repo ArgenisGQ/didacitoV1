@@ -9,7 +9,7 @@ import asyncio
 
 from api.database import get_db, get_task_db
 from api.core.dependencies import get_current_user, RequirePermission
-from api.models import User, Widget, DashboardWidgetRole, Role, AuditLog, LessonPlan
+from api.models import User, Widget, DashboardWidgetRole, Role, AuditLog, LessonPlan, AcademicPeriod, UserAcademicPeriod
 from api.core.websockets import dashboard_ws_manager
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -36,6 +36,25 @@ async def fetch_global_analytics(db: AsyncSession) -> dict:
             status_counts[status_val] = count
         else:
             status_counts[status_val] = count
+
+    # Calcular "NOT_STARTED" global
+    active_period_result = await db.execute(select(AcademicPeriod).where(AcademicPeriod.is_active == True))
+    active_period = active_period_result.scalars().first()
+    if active_period:
+        expected_result = await db.execute(
+            select(func.count(UserAcademicPeriod.id))
+            .where(UserAcademicPeriod.academic_period_id == active_period.id, UserAcademicPeriod.is_active == True)
+        )
+        expected_plans = expected_result.scalar() or 0
+        
+        created_result = await db.execute(
+            select(func.count(LessonPlan.id))
+            .where(LessonPlan.academic_period_id == active_period.id)
+        )
+        created_plans = created_result.scalar() or 0
+        status_counts["NOT_STARTED"] = max(0, expected_plans - created_plans)
+    else:
+        status_counts["NOT_STARTED"] = 0
             
     # Calculate REAL current online users based on AuditLog activity in the last 2 hours
     two_hours_ago = datetime.utcnow() - timedelta(hours=2)
@@ -50,47 +69,65 @@ async def fetch_global_analytics(db: AsyncSession) -> dict:
     # Calculate real-time online users using WebSocket active connections
     current_online_users = len(dashboard_ws_manager.active_connections)
     
-    # Calculate REAL weekly stats
-    seven_days_ago_dt = datetime.utcnow() - timedelta(days=7)
+    # Calculate REAL weekly stats for the academic period (13 weeks = 91 days)
+    from collections import defaultdict
+    from datetime import date
     
-    # Obtener conexiones de los ultimos 7 dias
+    connections_by_day = defaultdict(int)
+    plans_by_day = defaultdict(int)
+    
+    today = datetime.utcnow()
+    if active_period and getattr(active_period, 'start_date', None):
+        start_date_dt = datetime.combine(active_period.start_date, datetime.min.time())
+        monday_offset = start_date_dt.weekday()
+        period_start = start_date_dt - timedelta(days=monday_offset)
+    else:
+        monday_offset = today.weekday()
+        period_start = today - timedelta(days=monday_offset + 91 - 7)
+        period_start = period_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+    period_end = period_start + timedelta(days=91)
+    
+    # Obtener conexiones del periodo
     logs_result = await db.execute(
         select(AuditLog.created_at)
-        .where(AuditLog.created_at >= seven_days_ago_dt)
+        .where(AuditLog.created_at >= period_start, AuditLog.created_at < period_end)
     )
     logs_dates = logs_result.scalars().all()
     
-    # Obtener planes de los ultimos 7 dias
+    # Obtener planes creados del periodo
     recent_plans_result = await db.execute(
         select(LessonPlan.created_at)
-        .where(LessonPlan.created_at >= seven_days_ago_dt)
+        .where(LessonPlan.created_at >= period_start, LessonPlan.created_at < period_end)
     )
     plans_dates = recent_plans_result.scalars().all()
 
-    # Procesar en un diccionario por dia
-    from collections import defaultdict
-    connections_by_day = defaultdict(int)
     for d in logs_dates:
         if d:
-            connections_by_day[d.strftime('%a')] += 1
+            connections_by_day[d.date()] += 1
             
-    plans_by_day = defaultdict(int)
     for d in plans_dates:
         if d:
-            plans_by_day[d.strftime('%a')] += 1
+            plans_by_day[d.date()] += 1
             
-    # Generar la serie ordenada (últimos 7 días hasta hoy)
+    # Generar la serie de 13 semanas (91 dias)
     active_users_series = []
-    dias_es = {'Mon':'Lun', 'Tue':'Mar', 'Wed':'Mie', 'Thu':'Jue', 'Fri':'Vie', 'Sat':'Sab', 'Sun':'Dom'}
+    days_es = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
     
-    for i in range(6, -1, -1):
-        dia_dt = datetime.utcnow() - timedelta(days=i)
-        dia_str = dia_dt.strftime('%a')
-        active_users_series.append({
-            "name": dias_es.get(dia_str, dia_str),
-            "connections": connections_by_day[dia_str],
-            "plans": plans_by_day[dia_str]
-        })
+    current_date = today.date()
+    
+    for w in range(13):
+        for d in range(7):
+            day_dt = period_start + timedelta(days=w*7 + d)
+            is_future = day_dt.date() > current_date
+            
+            active_users_series.append({
+                "name": f"S{w}-{days_es[d]}",
+                "connections": 0 if is_future else connections_by_day[day_dt.date()],
+                "plans": 0 if is_future else plans_by_day[day_dt.date()],
+                "weekIndex": w,
+                "is_today": day_dt.date() == current_date
+            })
     
     average_creation_time = "1.2h" if total_plans > 0 else "0h"
     
@@ -222,6 +259,25 @@ async def get_personal_analytics(
                 "id": p.id,
                 "title": getattr(p, "title", getattr(p, "topic", f"Plan Aprobado #{p.id}"))
             })
+            
+    # Calcular "NOT_STARTED" personal
+    active_period_result = await db.execute(select(AcademicPeriod).where(AcademicPeriod.is_active == True))
+    active_period = active_period_result.scalars().first()
+    if active_period:
+        expected_result = await db.execute(
+            select(func.count(UserAcademicPeriod.id))
+            .where(UserAcademicPeriod.user_id == current_user.id, UserAcademicPeriod.academic_period_id == active_period.id, UserAcademicPeriod.is_active == True)
+        )
+        expected_plans = expected_result.scalar() or 0
+        
+        created_result = await db.execute(
+            select(func.count(LessonPlan.id))
+            .where(LessonPlan.author_id == current_user.id, LessonPlan.academic_period_id == active_period.id)
+        )
+        created_plans = created_result.scalar() or 0
+        status_counts["NOT_STARTED"] = max(0, expected_plans - created_plans)
+    else:
+        status_counts["NOT_STARTED"] = 0
             
     return {
         "my_total_plans": len(my_plans),

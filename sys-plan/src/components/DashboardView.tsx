@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import apiClient from '../lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Loader2, Users, FileText, CheckCircle2, Clock, AlertTriangle, LayoutDashboard, PieChart as PieChartIcon } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, Brush, ReferenceArea } from 'recharts';
 import { Button } from '@/components/ui/button';
 
 interface DashboardWidget {
@@ -164,8 +164,8 @@ export function DashboardView({
   // --- WIDGET COMPONENTS ---
 
   const renderStatCard = (title: string, value: string | number, desc: string, icon: any, colorClass: string) => (
-    <Card className="shadow-sm border-border bg-card col-span-1">
-      <CardContent className="p-6 flex items-center gap-4">
+    <Card className="shadow-sm border-border bg-card col-span-1 h-full">
+      <CardContent className="p-6 flex items-center gap-4 h-full">
         <div className={`p-4 rounded-xl ${colorClass}`}>
           {icon}
         </div>
@@ -179,23 +179,27 @@ export function DashboardView({
   );
 
   const renderActiveUsersWidget = () => {
-    let data = analytics?.active_users_series || [];
-    
-    // Safety fallback for old cache keys if needed, but normally we just trust the new backend format
-    data = data.map((d: any) => ({
-      name: d.name,
-      connections: typeof d.connections === 'number' ? d.connections : (d.users || 0),
-      plans: typeof d.plans === 'number' ? d.plans : 0
-    }));
-
+    // Usar datos reales del backend
+    const data = analytics?.active_users_series || [];
     const currentOnline = analytics?.current_online_users || 0;
     
+    // Encontrar el índice del día actual para centrar la vista inicial del Brush
+    const todayIndex = data.findIndex((d: any) => d.is_today);
+    
+    let startIndex = 0;
+    let endIndex = 6;
+    
+    if (todayIndex !== -1) {
+      startIndex = Math.max(0, todayIndex - 3);
+      endIndex = Math.min(data.length - 1, todayIndex + 3);
+    }
+    
     return (
-      <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-3">
+      <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-3 h-full">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-card-foreground">Accesos en la Semana</CardTitle>
-            <CardDescription>Actividad global: Conexiones y Creación de Planes</CardDescription>
+            <CardTitle className="text-card-foreground">Histórico de Accesos del Periodo</CardTitle>
+            <CardDescription>Visualización progresiva de la Semana 0 a la Semana 12</CardDescription>
           </div>
           <div className="flex flex-col items-end">
             <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Conectados Ahora</span>
@@ -209,26 +213,50 @@ export function DashboardView({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] w-full mt-4 overflow-x-auto">
+          <div className="h-[300px] w-full mt-4">
             {data.length > 0 ? (
-              <div style={{ width: '800px', height: '300px' }}>
-                <LineChart width={800} height={300} data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={true} axisLine={true} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={true} axisLine={true} />
+                  
+                  {/* Sombreado alterno por semanas para dar matices */}
+                  {[...Array(13)].map((_, i) => (
+                    <ReferenceArea 
+                      key={`week-shade-${i}`} 
+                      x1={`S${i}-Lun`} 
+                      x2={`S${i}-Dom`} 
+                      fill={i % 2 === 0 ? 'hsl(var(--muted))' : 'transparent'} 
+                      fillOpacity={0.4} 
+                    />
+                  ))}
+
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={true} minTickGap={30} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={true} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--card-foreground))', borderRadius: '8px' }}
                     itemStyle={{ color: 'hsl(var(--foreground))' }}
                   />
                   <Legend verticalAlign="top" height={36}/>
-                  <Line name="Conexiones" type="monotone" dataKey="connections" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: 'hsl(var(--primary))' }} activeDot={{ r: 6 }} />
-                  <Line name="Planes Creados" type="monotone" dataKey="plans" stroke="hsl(var(--accent))" strokeWidth={3} dot={{ r: 4, fill: 'hsl(var(--accent))' }} activeDot={{ r: 6 }} />
+                  
+                  <Line name="Conexiones" type="monotone" dataKey="connections" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} activeDot={{ r: 6 }} />
+                  <Line name="Planes Creados" type="monotone" dataKey="plans" stroke="hsl(var(--accent))" strokeWidth={2} dot={false} activeDot={{ r: 6 }} />
+                  
+                  {/* Brush para hacer zoom, ensanchar/estrechar y navegar */}
+                  <Brush 
+                    dataKey="name" 
+                    height={30} 
+                    stroke="hsl(var(--border))" 
+                    fill="hsl(var(--card))"
+                    travellerWidth={10}
+                    startIndex={startIndex}
+                    endIndex={endIndex}
+                  />
                 </LineChart>
-              </div>
+              </ResponsiveContainer>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                 <LayoutDashboard className="h-10 w-10 mb-2 opacity-50" />
-                <p>No hay datos suficientes para esta semana.</p>
+                <p>No hay datos suficientes para el periodo.</p>
               </div>
             )}
           </div>
@@ -239,10 +267,11 @@ export function DashboardView({
 
   const renderPlanStatusWidget = () => {
     const statusMap: Record<string, { label: string, color: string }> = {
-      'APPROVED': { label: 'Aprobadas', color: '#10b981' }, // Verde
-      'IN_REVIEW': { label: 'En Revisión', color: '#3b82f6' }, // Azul
-      'DRAFT': { label: 'En Edición (Borrador)', color: '#94a3b8' }, // Gris
-      'OBSERVED': { label: 'Rezagados Críticos', color: '#ef4444' } // Rojo
+      'APPROVED': { label: 'Hechos / Aprobados', color: '#10b981' }, // Verde
+      'DRAFT': { label: 'En Borrador', color: '#2563eb' }, // Azul
+      'IN_REVIEW': { label: 'En Revisión', color: '#facc15' }, // Amarillo
+      'OBSERVED': { label: 'Devueltos', color: '#f97316' }, // Naranja
+      'NOT_STARTED': { label: 'No Iniciados', color: '#4b5563' } // Gris Oscuro
     };
 
     let data: any[] = [];
@@ -250,43 +279,79 @@ export function DashboardView({
 
     if (analytics?.status_counts) {
       data = Object.entries(analytics.status_counts)
-        .filter(([_, count]: any) => count > 0)
         .map(([status, count]) => {
-          totalPlans += count as number;
+          const val = (count as number) || 0;
+          totalPlans += val;
           return {
             name: statusMap[status]?.label || status,
-            value: count,
+            value: val,
             color: statusMap[status]?.color || 'hsl(var(--muted-foreground))'
           };
         });
+
     }
     
     const hasData = data.length > 0 && totalPlans > 0;
     
     return (
-      <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-1">
+      <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-1 h-full">
         <CardHeader>
           <CardTitle className="text-card-foreground">Estado de Planificaciones</CardTitle>
-          <CardDescription>Distribución actual</CardDescription>
+          <CardDescription>Distribución actual del trimestre activo</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[250px] w-full flex items-center justify-center mt-2">
+          <div className="h-[300px] w-full flex flex-row items-center justify-between mt-4">
             {hasData ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {data.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--card-foreground))', borderRadius: '8px' }}
-                    itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <>
+                {/* Gráfico Izquierda */}
+                <div className="w-1/2 h-full relative flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie 
+                        data={data} 
+                        cx="50%" 
+                        cy="50%" 
+                        innerRadius={70} 
+                        outerRadius={90} 
+                        paddingAngle={-4} 
+                        cornerRadius={15}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {data.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  
+                  {/* Centro Absoluto */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-4xl font-bold text-foreground leading-none">{totalPlans}</span>
+                    <span className="text-xs text-muted-foreground tracking-widest uppercase mt-1 font-semibold">Planes</span>
+                  </div>
+                </div>
+
+                {/* Leyenda Derecha */}
+                <div className="w-1/2 flex flex-col justify-center pl-6 pr-4 gap-4">
+                  {data.map((entry, index) => {
+                    const percentage = totalPlans > 0 ? Math.round((entry.value / totalPlans) * 100) : 0;
+                    return (
+                      <div key={index} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }}></div>
+                          <span className="text-sm font-medium text-foreground">{entry.name}</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground font-semibold">
+                          {entry.value} <span className="opacity-75 font-normal">({percentage}%)</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             ) : (
-              <div className="flex flex-col items-center justify-center text-muted-foreground w-full h-full border-2 border-dashed border-border rounded-full p-8 max-w-[200px] max-h-[200px] text-center">
+              <div className="flex flex-col items-center justify-center text-muted-foreground w-full h-full border-2 border-dashed border-border rounded-full p-8 max-w-[200px] max-h-[200px] text-center mx-auto">
                 <PieChartIcon className="w-8 h-8 mb-2 opacity-50" />
                 <span className="text-sm font-medium">Sin datos</span>
                 <span className="text-xs opacity-75">No hay planes registrados</span>
@@ -491,10 +556,13 @@ export function DashboardView({
       case 'total_plans':
         return renderStatCard('Total de Planes', analytics?.total_plans || 0, 'Registrados en el sistema', <FileText className="text-primary" />, 'bg-primary/20');
       case 'pending_approvals':
+        if (userRole === 'SUPER_ADMIN') {
+           return renderStatCard('Rezagados Activos', analytics?.rezagados || 0, 'Profesores sin avances (Semana 0)', <AlertTriangle className="text-destructive w-6 h-6" />, 'bg-destructive/20');
+        }
         return (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-            <Card className="shadow-sm border-border bg-card">
-              <CardContent className="p-4 flex items-center gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full h-full">
+            <Card className="shadow-sm border-border bg-card h-full">
+              <CardContent className="p-4 flex items-center gap-3 h-full">
                 <div className="p-3 rounded-lg bg-accent/20 text-accent">
                   <Clock size={18} />
                 </div>
@@ -505,8 +573,8 @@ export function DashboardView({
                 </div>
               </CardContent>
             </Card>
-            <Card className="shadow-sm border-border bg-card">
-              <CardContent className="p-4 flex items-center gap-3">
+            <Card className="shadow-sm border-border bg-card h-full">
+              <CardContent className="p-4 flex items-center gap-3 h-full">
                 <div className="p-3 rounded-lg bg-destructive/20 text-destructive">
                   <AlertTriangle size={18} />
                 </div>
@@ -520,8 +588,8 @@ export function DashboardView({
                 </Button>
               </CardContent>
             </Card>
-            <Card className="shadow-sm border-border bg-card">
-              <CardContent className="p-4 flex items-center gap-3">
+            <Card className="shadow-sm border-border bg-card h-full">
+              <CardContent className="p-4 flex items-center gap-3 h-full">
                 <div className="p-3 rounded-lg bg-primary/20 text-primary">
                   <CheckCircle2 size={18} />
                 </div>
@@ -566,7 +634,7 @@ export function DashboardView({
       {/* Fila Superior: Tarjetas de Estadísticas y Contadores */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
         {widgets.filter(w => ['total_plans', 'pending_approvals', 'creation_time'].includes(w.code)).map(w => (
-           <div key={w.code} className={w.code === 'pending_approvals' ? 'col-span-1 md:col-span-2 lg:col-span-3' : 'w-full'}>
+           <div key={w.code} className={w.code === 'pending_approvals' && userRole !== 'SUPER_ADMIN' ? 'col-span-1 md:col-span-2 lg:col-span-3' : 'w-full h-full'}>
              {renderWidget(w)}
            </div>
         ))}
@@ -581,7 +649,9 @@ export function DashboardView({
 
       {/* Filas Inferiores: Gráficos y Otros */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {widgets.filter(w => !['total_plans', 'pending_approvals', 'creation_time', 'coordinator_inbox', 'plan_status'].includes(w.code)).map(w => (
+        {widgets.filter(w => !['total_plans', 'pending_approvals', 'creation_time', 'coordinator_inbox'].includes(w.code))
+                .filter(w => !(userRole === 'COORDINADOR' && w.code === 'plan_status'))
+                .map(w => (
            <div key={w.code} className={w.code === 'active_users' || w.code === 'my_history' ? 'col-span-1 lg:col-span-2' : 'col-span-1'}>
              {renderWidget(w)}
            </div>
