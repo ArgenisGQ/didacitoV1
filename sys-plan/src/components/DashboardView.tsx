@@ -239,10 +239,10 @@ export function DashboardView({
 
   const renderPlanStatusWidget = () => {
     const statusMap: Record<string, { label: string, color: string }> = {
-      'DRAFT': { label: 'Borradores', color: 'hsl(var(--muted-foreground))' }, 
-      'IN_REVIEW': { label: 'En Revisión', color: 'hsl(var(--accent))' }, 
-      'OBSERVED': { label: 'Observados', color: 'hsl(var(--destructive))' }, 
-      'APPROVED': { label: 'Aprobados', color: 'hsl(var(--primary))' } 
+      'APPROVED': { label: 'Aprobadas', color: '#10b981' }, // Verde
+      'IN_REVIEW': { label: 'En Revisión', color: '#3b82f6' }, // Azul
+      'DRAFT': { label: 'En Edición (Borrador)', color: '#94a3b8' }, // Gris
+      'OBSERVED': { label: 'Rezagados Críticos', color: '#ef4444' } // Rojo
     };
 
     let data: any[] = [];
@@ -302,7 +302,7 @@ export function DashboardView({
     const drafts = analytics?.draft_plans || [];
     
     return (
-      <Card className="shadow-md border-border bg-card border-l-4 border-l-primary">
+      <Card className="h-full shadow-md border-border border-l-4 border-l-primary bg-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-card-foreground"><Clock size={20} className="text-primary"/> Mis Planes en Progreso</CardTitle>
           <CardDescription>Planes guardados como borrador (Continuar editando)</CardDescription>
@@ -352,7 +352,7 @@ export function DashboardView({
   };
 
   const renderTeacherAlertWidget = () => (
-    <Card className="shadow-md border-border border-l-4 border-l-destructive bg-card">
+    <Card className="h-full shadow-md border-border border-l-4 border-l-destructive bg-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><AlertTriangle size={20} className="text-destructive"/> Mis Planes Observados</CardTitle>
         <CardDescription>Planes que requieren tu atención o corrección</CardDescription>
@@ -374,19 +374,19 @@ export function DashboardView({
     const approved = analytics?.approved_plans || [];
     
     return (
-      <Card className="shadow-md border-border border-l-4 border-l-success bg-card">
+      <Card className="h-full shadow-md border-border border-l-4 border-l-emerald-500 bg-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><CheckCircle2 size={20} className="text-success"/> Mis Planes Aprobados</CardTitle>
+          <CardTitle className="flex items-center gap-2"><CheckCircle2 size={20} className="text-emerald-500"/> Mis Planes Aprobados</CardTitle>
           <CardDescription>Planes que han sido aceptados</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {approved.length > 0 ? (
               approved.map((d: any) => (
-                <div key={d.id} className="flex justify-between items-center p-3 bg-success/10 rounded-lg border border-success/20 gap-3">
+                <div key={d.id} className="flex justify-between items-center p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20 gap-3">
                   <span className="font-semibold text-card-foreground truncate flex-1" title={d.title}>{d.title}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs bg-success/20 text-success px-2 py-1 rounded-full font-bold">Aprobado</span>
+                    <span className="text-xs bg-emerald-500/20 text-emerald-500 px-2 py-1 rounded-full font-bold">Aprobado</span>
                     {onPreviewPlan && (
                       <Button
                         variant="ghost"
@@ -415,64 +415,72 @@ export function DashboardView({
     const pendingPlans = plans.filter(p => p.status === 'IN_REVIEW');
     
     return (
-      <Card className="shadow-lg border-border bg-card col-span-1 lg:col-span-2 mt-6">
+      <Card className="shadow-lg border-border bg-card w-full mt-6 overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-card-foreground">
             <LayoutDashboard size={20} className="text-primary"/> Bandeja de Entrada (Por Aprobar)
           </CardTitle>
           <CardDescription>Planificaciones esperando revisión</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {pendingPlans.length > 0 ? (
-              pendingPlans.map((d: any) => (
-                <div key={d.id} className="flex flex-col md:flex-row justify-between items-start md:items-center p-4 bg-muted/30 rounded-xl border border-border gap-4">
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <span className="font-semibold text-card-foreground truncate" title={d.title}>{d.title}</span>
-                    <span className="text-sm text-muted-foreground">{d.subject_code} - Sección {d.section}</span>
-                    <span className="text-xs text-muted-foreground">Docente: {d.author_name}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {onWebPreviewPlan && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onWebPreviewPlan(d)}
-                        className="gap-1 border-primary/20 hover:border-primary/40 text-primary"
-                      >
-                        Ver Borrador
-                      </Button>
-                    )}
-                    {onApprovePlan && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => onApprovePlan(d.id)}
-                        className="gap-1 bg-success hover:bg-success/90 text-success-foreground"
-                      >
-                        Aceptar
-                      </Button>
-                    )}
-                    {onObservePlan && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => onObservePlan(d.id)}
-                        className="gap-1"
-                      >
-                        Corregir
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-8 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl">
-                <CheckCircle2 className="mx-auto h-10 w-10 text-slate-300 mb-3" />
-                <p>No hay planes pendientes de aprobación.</p>
-              </div>
-            )}
-          </div>
+        <CardContent className="p-0">
+          {pendingPlans.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-y border-border">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">Asignatura</th>
+                    <th className="px-6 py-4 font-medium">Docente</th>
+                    <th className="px-6 py-4 font-medium w-48">Progreso de Semanas</th>
+                    <th className="px-6 py-4 font-medium text-center">Estado de Flujo</th>
+                    <th className="px-6 py-4 font-medium text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {pendingPlans.map((d: any) => {
+                    const weeksProgress = Math.min(100, ((d.weeks_count || 0) / 12) * 100);
+                    return (
+                      <tr key={d.id} className="bg-card hover:bg-muted/30 transition-colors">
+                        <td className="px-6 py-4">
+                           <div className="font-semibold text-foreground">{d.subject_code} <span className="font-normal text-muted-foreground">- Sec. {d.section}</span></div>
+                           <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={d.title}>{d.title}</div>
+                        </td>
+                        <td className="px-6 py-4 text-muted-foreground">
+                           {d.author_name || 'No Asignado'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="w-full bg-secondary rounded-full h-2">
+                            <div className="bg-primary h-2 rounded-full" style={{ width: `${weeksProgress}%` }}></div>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-1.5 text-right font-medium">{d.weeks_count || 0} / 12 Semanas</div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-accent/10 text-accent border border-accent/20">
+                            Pendiente Operativo
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                           <div className="flex justify-end gap-2">
+                             {onWebPreviewPlan && (
+                               <Button variant="ghost" size="sm" onClick={() => onWebPreviewPlan(d)} className="h-8 px-2 text-muted-foreground hover:text-foreground">Ver</Button>
+                             )}
+                             {onApprovePlan && (
+                               <Button variant="default" size="sm" onClick={() => onApprovePlan(d.id)} className="h-8">Revisar</Button>
+                             )}
+                           </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-12 text-center text-muted-foreground border-t border-border bg-muted/10">
+              <CheckCircle2 className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
+              <p className="font-medium text-foreground">No hay planes pendientes de aprobación.</p>
+              <p className="text-sm mt-1">Todas las planificaciones operativas están al día.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -483,7 +491,49 @@ export function DashboardView({
       case 'total_plans':
         return renderStatCard('Total de Planes', analytics?.total_plans || 0, 'Registrados en el sistema', <FileText className="text-primary" />, 'bg-primary/20');
       case 'pending_approvals':
-        return renderStatCard('Por Aprobar', analytics?.pending_approvals || 0, 'Esperando revisión', <Clock className="text-accent" />, 'bg-accent/20');
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+            <Card className="shadow-sm border-border bg-card">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-accent/20 text-accent">
+                  <Clock size={18} />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Por Aprobar (Tú)</p>
+                  <h3 className="text-lg font-bold tracking-tight text-card-foreground">{analytics?.pending_approvals || 0}</h3>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Listos para validación logística</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-border bg-card">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-destructive/20 text-destructive">
+                  <AlertTriangle size={18} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-muted-foreground">Rezagados Activos</p>
+                  <h3 className="text-lg font-bold tracking-tight text-card-foreground">{analytics?.rezagados || 0}</h3>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">En Semana 0 sin enviar</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                  <AlertTriangle size={14} />
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-border bg-card">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-primary/20 text-primary">
+                  <CheckCircle2 size={18} />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">En Revisión (Calidad)</p>
+                  <h3 className="text-lg font-bold tracking-tight text-card-foreground">{analytics?.in_quality_review || 0}</h3>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Pendientes revisión pedagógica</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
       case 'creation_time':
         const avgTime = analytics?.average_creation_time || 'N/A';
         return renderStatCard('Tiempo Promedio', avgTime, 'Tiempo en diseñar un plan', <CheckCircle2 className="text-success" />, 'bg-success/20');
@@ -513,19 +563,26 @@ export function DashboardView({
         <p className="text-muted-foreground mt-1">Bienvenido a tu área de trabajo personalizada.</p>
       </div>
 
-      {/* Fila Superior: Tarjetas de Estadísticas */}
+      {/* Fila Superior: Tarjetas de Estadísticas y Contadores */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-        {widgets.filter(w => ['total_plans', 'pending_approvals', 'creation_time', 'coordinator_inbox'].includes(w.code)).map(w => (
-           <div key={w.code} className="w-full">
+        {widgets.filter(w => ['total_plans', 'pending_approvals', 'creation_time'].includes(w.code)).map(w => (
+           <div key={w.code} className={w.code === 'pending_approvals' ? 'col-span-1 md:col-span-2 lg:col-span-3' : 'w-full'}>
              {renderWidget(w)}
            </div>
         ))}
       </div>
 
+      {/* Fila Media: Bandeja de Entrada Ancho Completo */}
+      {widgets.filter(w => w.code === 'coordinator_inbox').map(w => (
+        <div key={w.code} className="w-full mb-6">
+          {renderWidget(w)}
+        </div>
+      ))}
+
       {/* Filas Inferiores: Gráficos y Otros */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {widgets.filter(w => !['total_plans', 'pending_approvals', 'creation_time', 'coordinator_inbox'].includes(w.code)).map(w => (
-           <div key={w.code} className={w.code === 'active_users' ? 'col-span-1 lg:col-span-2' : 'col-span-1'}>
+        {widgets.filter(w => !['total_plans', 'pending_approvals', 'creation_time', 'coordinator_inbox', 'plan_status'].includes(w.code)).map(w => (
+           <div key={w.code} className={w.code === 'active_users' || w.code === 'my_history' ? 'col-span-1 lg:col-span-2' : 'col-span-1'}>
              {renderWidget(w)}
            </div>
         ))}

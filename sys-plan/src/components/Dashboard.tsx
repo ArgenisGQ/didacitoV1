@@ -601,8 +601,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Header */}
-        <header className="h-16 border-b bg-background/80 backdrop-blur-md flex items-center justify-between px-6 shrink-0 sticky top-0 z-30">
-          <div className="flex-1 max-w-xl relative">
+        <header className="h-16 border-b bg-background/80 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 shrink-0 sticky top-0 z-30">
+          <div className="flex-1 max-w-xl relative hidden sm:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
             <Input
               placeholder="Buscar planificaciones..."

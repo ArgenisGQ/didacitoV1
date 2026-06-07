@@ -231,7 +231,7 @@ export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) 
       </div>
 
       {/* Right Side - Forms */}
-      <div className="flex items-center justify-center p-8 relative z-10">
+      <div className="flex items-center justify-center p-4 sm:p-8 relative z-10 w-full">
         <Card className="w-full max-w-[420px] border border-slate-800 bg-slate-900/60 backdrop-blur-xl shadow-2xl text-slate-100">
           <CardHeader className="space-y-1 text-center lg:text-left">
             <div className="lg:hidden flex items-center justify-center gap-3 text-primary mb-4">
@@ -239,7 +239,7 @@ export default function Login({ onLoginSuccess, onForgotPassword }: LoginProps) 
               <span className="text-2xl font-bold tracking-tight text-white">DIDACTICO</span>
             </div>
             
-            <CardTitle className="text-4xl font-extrabold tracking-tight text-white">
+            <CardTitle className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white">
               {mfaRequired 
                 ? 'Código de Seguridad' 
                 : passwordChangeRequired 
