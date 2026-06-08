@@ -47,8 +47,8 @@ function WizardInitializer({ initialData, children }: { initialData?: any, child
 const TABS = [
   { id: 'general', label: 'Datos Generales', icon: FileText },
   { id: 'objectives', label: 'Objetivos y Estrategias', icon: Target },
-  { id: 'units', label: 'Plan de Evaluación (Unidades)', icon: Layers },
-  { id: 'timeline', label: 'Línea de Tiempo Visual', icon: Map },
+  { id: 'units', label: 'Unidades', icon: Layers },
+  { id: 'timeline', label: 'Semanas', icon: Map },
   { id: 'review', label: 'Revisión Final', icon: CheckCircle2 },
 ];
 
@@ -60,12 +60,21 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
   const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV'];
   
   const [units, setUnits] = useState<UnitData[]>(() => {
-    const evPlans = initialData?.evaluation_plans || state.evaluation_plans;
+    const evPlans = [...(initialData?.evaluation_plans || state.evaluation_plans)].sort((a: any, b: any) => (a.unit || 0) - (b.unit || 0));
     return evPlans.slice(0, 4).map((ep: any, idx: number) => ({
-      id: `unit-${idx + 1}`,
-      title: ep.title ? `Unidad ${ROMAN_NUMERALS[idx]}: ${ep.title}` : `Unidad ${ROMAN_NUMERALS[idx]}`
+      id: `unit-${ep.unit || (idx + 1)}`,
+      title: ep.title ? `Unidad ${ROMAN_NUMERALS[(ep.unit ? ep.unit - 1 : idx)]}: ${ep.title}` : `Unidad ${ROMAN_NUMERALS[(ep.unit ? ep.unit - 1 : idx)]}`
     }));
   });
+
+  useEffect(() => {
+    const evPlans = [...state.evaluation_plans].sort((a: any, b: any) => (a.unit || 0) - (b.unit || 0));
+    const mappedUnits = evPlans.slice(0, 4).map((ep: any, idx: number) => ({
+      id: `unit-${ep.unit || (idx + 1)}`,
+      title: ep.title ? `Unidad ${ROMAN_NUMERALS[(ep.unit ? ep.unit - 1 : idx)]}: ${ep.title}` : `Unidad ${ROMAN_NUMERALS[(ep.unit ? ep.unit - 1 : idx)]}`
+    }));
+    setUnits(mappedUnits);
+  }, [state.evaluation_plans]);
 
   const [weeks, setWeeks] = useState<WeekData[]>(() => {
     const initialWeeks = initialData?.weekly_contents;
@@ -73,7 +82,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
       return initialWeeks.map((w: any, idx: number) => ({
         id: `week-${w.week_number}`,
         weekNumber: w.week_number,
-        title: w.unit_content || '',
+        title: w.unit_content && !w.unit_content.startsWith('unit-') ? w.unit_content : '',
         unitId: w.unit_id || (idx < 4 ? 'unit-1' : idx < 8 ? 'unit-2' : idx < 12 ? 'unit-3' : 'unit-4'),
         contenido: w.content_description || '',
         criteriosDesempeno: w.performance_criteria || '',
@@ -129,7 +138,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
     weekly_contents: weeks
       .map(w => ({
         week_number: w.weekNumber,
-        unit_content: w.unitId || '',
+        unit_content: w.title || '',
         content_description: w.contenido || '',
         teaching_strategy: w.estrategiasDidacticas || '',
         resources: w.recursosAprendizaje || '',
@@ -187,12 +196,41 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
     if (activePlanId !== null) markDirty();
   }, [state, weeks, activePlanId, markDirty]);
 
-
+  // Dynamically assign weeks to units based on the due weeks of evaluation plans
+  useEffect(() => {
+    const sortedEv = [...state.evaluation_plans].sort((a: any, b: any) => (a.unit || 0) - (b.unit || 0));
+    const w1 = parseInt(String(sortedEv[0]?.due_week)) || 4;
+    const w2 = Math.max(w1 + 1, parseInt(String(sortedEv[1]?.due_week)) || 8);
+    const w3 = Math.max(w2 + 1, parseInt(String(sortedEv[2]?.due_week)) || 12);
+    
+    let changed = false;
+    const updatedWeeks = weeks.map(w => {
+      let targetUnitId = 'unit-4';
+      if (w.weekNumber <= w1) {
+        targetUnitId = 'unit-1';
+      } else if (w.weekNumber <= w2) {
+        targetUnitId = 'unit-2';
+      } else if (w.weekNumber <= w3) {
+        targetUnitId = 'unit-3';
+      }
+      
+      if (w.unitId !== targetUnitId) {
+        changed = true;
+        return { ...w, unitId: targetUnitId };
+      }
+      return w;
+    });
+    
+    if (changed) {
+      setWeeks(updatedWeeks);
+    }
+  }, [state.evaluation_plans, weeks]);
 
   // Auto-calculate evaluations and competences for each week
   const augmentedWeeks = weeks.map(w => {
     const unitIndex = units.findIndex(u => u.id === w.unitId);
     const evaluationPlan = unitIndex >= 0 ? state.evaluation_plans[unitIndex] : null;
+    const unitTitle = unitIndex >= 0 ? units[unitIndex]?.title : '';
 
     const competences: Competence[] = evaluationPlan && evaluationPlan.competence ? [{
       id: `comp-${w.unitId}`,
@@ -220,7 +258,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
       }
     });
 
-    return { ...w, competences, evaluations };
+    return { ...w, competences, evaluations, unitTitle };
   });
 
   const assignedEvaluations = augmentedWeeks.flatMap(w => w.evaluations);
@@ -233,6 +271,40 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
     const newWeeks = weeks.map((w) => (w.id === updatedWeek.id ? updatedWeek : w));
     setWeeks(newWeeks);
     // Auto-save triggers automatically via useAutosave since weeks changed
+  };
+
+  const handleDropCompetenceOnWeek = (weekId: string, comp: string) => {
+    const updatedWeeks = weeks.map(w => {
+      if (w.id === weekId) {
+        const current = w.contenido || '';
+        const currentItems = current.split('.').map(s => s.trim()).filter(Boolean);
+        if (!currentItems.includes(comp)) {
+          const newItems = [...currentItems, comp];
+          return {
+            ...w,
+            contenido: newItems.join('. ') + '.'
+          };
+        }
+      }
+      return w;
+    });
+    setWeeks(updatedWeeks);
+  };
+
+  const handleRemoveCompetenceFromWeek = (weekId: string, comp: string) => {
+    const updatedWeeks = weeks.map(w => {
+      if (w.id === weekId) {
+        const current = w.contenido || '';
+        const currentItems = current.split('.').map(s => s.trim()).filter(Boolean);
+        const newItems = currentItems.filter(item => item !== comp);
+        return {
+          ...w,
+          contenido: newItems.length > 0 ? newItems.join('. ') + '.' : ''
+        };
+      }
+      return w;
+    });
+    setWeeks(updatedWeeks);
   };
 
   const handleAddWeek = () => {
@@ -262,7 +334,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
   useEffect(() => {
     updateField('weekly_contents', weeks.map(w => ({
       week_number: w.weekNumber,
-      unit_content: w.unitId || '',
+      unit_content: w.title || '',
       content_description: w.contenido || '',
       teaching_strategy: w.estrategiasDidacticas || '',
       resources: w.recursosAprendizaje || '',
@@ -369,7 +441,12 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
                       className="shrink-0 h-full"
                       style={{ width: w.colspan ? (w.colspan * 320) + ((w.colspan - 1) * 24) : 320 }}
                     >
-                      <WeekColumn week={w} onOpen={() => handleOpenWeek(w)} />
+                      <WeekColumn 
+                        week={w} 
+                        onOpen={() => handleOpenWeek(w)} 
+                        onDropCompetence={(comp) => handleDropCompetenceOnWeek(w.id, comp)} 
+                        onRemoveCompetence={(comp) => handleRemoveCompetenceFromWeek(w.id, comp)}
+                      />
                     </div>
                   ))}
                   <div className="shrink-0 w-[320px] flex items-center justify-center">
@@ -382,47 +459,50 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
             </div>
 
             {/* Right Col: Week Details */}
-            {selectedWeek && (
-              <div className="w-[420px] shrink-0 border-l border-border bg-card shadow-2xl z-20">
-                <WeekDetailsPanel 
-                  week={selectedWeek} 
-                  units={units}
-                  onSave={handleUpdateWeek} 
-                  onClose={() => setSelectedWeek(null)} 
-                  onDelete={() => {
-                    if (weeks.length <= 12 || selectedWeek.weekNumber <= 12) {
-                      // Clear content instead of removing the week
-                      const clearedWeek = {
-                        ...selectedWeek,
-                        title: '',
-                        contenido: '',
-                        criteriosDesempeno: '',
-                        estrategiasDidacticas: '',
-                        recursosAprendizaje: '',
-                        bibliografia: '',
-                        weekLabel: ''
-                      };
-                      const newWeeks = weeks.map(w => w.id === selectedWeek.id ? clearedWeek : w);
-                      setWeeks(newWeeks);
-                    } else {
-                      // Remove the week and renumber subsequent weeks to avoid gaps
-                      const filtered = weeks.filter(w => w.id !== selectedWeek.id);
-                      const renumbered = filtered.map((w, index) => {
-                        const correctNumber = index + 1;
-                        return {
-                          ...w,
-                          id: `week-${correctNumber}`,
-                          weekNumber: correctNumber,
-                          title: w.title === `Semana ${w.weekNumber}` ? `Semana ${correctNumber}` : w.title
+            {selectedWeek && (() => {
+              const currentWeek = augmentedWeeks.find(w => w.id === selectedWeek.id) || selectedWeek;
+              return (
+                <div className="w-[420px] shrink-0 border-l border-border bg-card shadow-2xl z-20">
+                  <WeekDetailsPanel 
+                    week={currentWeek} 
+                    units={units}
+                    onSave={handleUpdateWeek} 
+                    onClose={() => setSelectedWeek(null)} 
+                    onDelete={() => {
+                      if (weeks.length <= 12 || currentWeek.weekNumber <= 12) {
+                        // Clear content instead of removing the week
+                        const clearedWeek = {
+                          ...currentWeek,
+                          title: '',
+                          contenido: '',
+                          criteriosDesempeno: '',
+                          estrategiasDidacticas: '',
+                          recursosAprendizaje: '',
+                          bibliografia: '',
+                          weekLabel: ''
                         };
-                      });
-                      setWeeks(renumbered);
-                    }
-                    setSelectedWeek(null);
-                  }}
-                />
-              </div>
-            )}
+                        const newWeeks = weeks.map(w => w.id === currentWeek.id ? clearedWeek : w);
+                        setWeeks(newWeeks);
+                      } else {
+                        // Remove the week and renumber subsequent weeks to avoid gaps
+                        const filtered = weeks.filter(w => w.id !== currentWeek.id);
+                        const renumbered = filtered.map((w, index) => {
+                          const correctNumber = index + 1;
+                          return {
+                            ...w,
+                            id: `week-${correctNumber}`,
+                            weekNumber: correctNumber,
+                            title: w.title === `Semana ${w.weekNumber}` ? `Semana ${correctNumber}` : w.title
+                          };
+                        });
+                        setWeeks(renumbered);
+                      }
+                      setSelectedWeek(null);
+                    }}
+                  />
+                </div>
+              );
+            })()}
 
           </div>
 

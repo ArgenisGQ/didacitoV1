@@ -6,11 +6,17 @@
     <style>
         @page {
             size: letter landscape;
-            margin: 10mm 18mm;
-            @bottom-right {
-                content: "Pág. " counter(page) "/" counter(pages);
-                font-size: 8px;
-                font-family: Arial, sans-serif;
+            margin-top: 32mm;
+            margin-bottom: 25mm;
+            margin-left: 18mm;
+            margin-right: 18mm;
+            @top-center {
+                content: element(header);
+                width: 100%;
+            }
+            @bottom-center {
+                content: element(footer);
+                width: 100%;
             }
         }
         body {
@@ -32,13 +38,18 @@
             padding: 2px 4px; /* Tighter padding */
             text-align: center;
             vertical-align: middle;
+            height: 15px;
         }
         th {
             background-color: #dde6f0; /* Reference blue background */
             font-weight: bold;
         }
+        td:empty::before {
+            content: "\00a0";
+        }
         .header-table th, .header-table td {
             border: 1px solid #4a86e8;
+            height: auto;
         }
         .logo-container {
             width: 90px;
@@ -67,28 +78,125 @@
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .bg-blue { background-color: #dde6f0 !important; }
+        
+        /* Running Header and Footer styles */
+        #header-container {
+            position: running(header);
+            width: 100%;
+        }
+        #footer-container {
+            position: running(footer);
+            width: 100%;
+        }
+        .page-number-cell::after {
+            content: counter(page) "/" counter(pages);
+        }
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-top: 1.5px solid #4a86e8 !important;
+            border-left: none !important;
+            border-bottom: none !important;
+            border-right: none !important;
+            margin-top: 5px;
+        }
+        .footer-table td {
+            border: none !important;
+            border-right: 1.5px solid #4a86e8 !important;
+            height: auto !important;
+            padding: 4px 6px !important;
+            font-size: 7.5px !important;
+            color: #333 !important;
+            font-family: Arial, sans-serif !important;
+        }
+        .footer-table td:last-child {
+            border-right: none !important;
+        }
+
+        /* Evaluation Table Styles */
+        .evaluation-table {
+            width: 100%;
+            border-collapse: collapse;
+            height: 132mm;
+        }
+        .evaluation-table tr {
+            height: 29mm;
+        }
+        .evaluation-table td {
+            height: 29mm !important;
+        }
+        .evaluation-table th, .evaluation-table td {
+            border: 1px solid #4a86e8;
+            padding: 2px 4px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        /* Weekly contents styles */
+        .weekly-section {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            margin-bottom: 15px;
+        }
+        .weekly-table {
+            width: 100%;
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+        }
+        .weekly-table thead {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            display: table-header-group !important;
+        }
+        .weekly-table tbody {
+            page-break-before: avoid !important;
+            break-before: avoid !important;
+        }
+        .weekly-table tr {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+        }
+        .weekly-table tr.keep-with-next {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+        }
     </style>
 </head>
 <body>
 
     <!-- Header -->
-    <table class="header-table" style="margin-bottom: 4px;">
-        <tr>
-            <td rowspan="2" class="logo-container" style="width: 15%;">
-                <img src="{{ logo_url }}" alt="Logo">
-            </td>
-            <td rowspan="2" class="university-title text-center" style="width: 30%;">
-                SISTEMA DIDÁCTICO<br>UNIVERSITARIO
-            </td>
-            <td rowspan="2" class="doc-title text-center" style="width: 40%;">
-                PLANIFICACIÓN DIDÁCTICA
-            </td>
-            <td class="text-center font-bold bg-blue" style="width: 15%;">CÓDIGO</td>
-        </tr>
-        <tr>
-            <td class="text-center">F01-SDU-2026</td>
-        </tr>
-    </table>
+    <div id="header-container">
+        <table class="header-table" style="margin-bottom: 0; width: 100%;">
+            <tr>
+                <td rowspan="2" class="logo-container" style="width: 15%;">
+                    <img src="{{ logo_url }}" alt="Logo">
+                </td>
+                <td rowspan="2" class="university-title text-center" style="width: 25%;">
+                    SISTEMA DIDÁCTICO<br>UNIVERSITARIO
+                </td>
+                <td rowspan="2" class="doc-title text-center" style="width: 35%;">
+                    PLANIFICACIÓN DIDÁCTICA
+                </td>
+                <td class="text-center font-bold bg-blue" style="width: 15%;">CÓDIGO</td>
+                <td class="text-center font-bold bg-blue" style="width: 10%;">Pág.</td>
+            </tr>
+            <tr>
+                <td class="text-center">F01-SDU-2026</td>
+                <td class="text-center page-number-cell"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Footer -->
+    <div id="footer-container">
+        <table class="footer-table">
+            <tr>
+                <td style="width: 20%; text-align: left;">SISTEMA DIDÁCTICO UNIVERSITARIO</td>
+                <td style="width: 60%; text-align: center;">Formato de Referencia</td>
+                <td style="width: 20%; text-align: right;">MPM00-VRA100-010623-308</td>
+            </tr>
+        </table>
+    </div>
 
     <!-- I. Identificación de la Unidad Curricular -->
     <div class="section-title">I. Identificación de la Unidad Curricular.</div>
@@ -216,22 +324,22 @@
 
     <!-- Evaluation Plan -->
     <div class="section-title">III. Plan de evaluación</div>
-    <table>
+    <table class="evaluation-table">
         <tr>
-            <th>Unidad</th>
-            <th>Competencia<br>específica</th>
-            <th>Criterio de<br>Desempeño</th>
-            <th>Estrategia<br>de<br>Evaluación</th>
-            <th>Instrumento<br>de<br>Evaluación</th>
-            <th>Tipo de<br>Evaluación</th>
-            <th>Evidencia<br>de<br>Evaluación</th>
-            <th>Retroalimentación</th>
-            <th>Lapso/<br>Entrega</th>
-            <th>Ponderación<br>/<br>Calificación</th>
+            <th style="width: 4%;">Unidad</th>
+            <th style="width: 38%;">Competencia<br>específica</th>
+            <th style="width: 8%;">Criterio de<br>Desempeño</th>
+            <th style="width: 10%;">Estrategia<br>de<br>Evaluación</th>
+            <th style="width: 9%;">Instrumento<br>de<br>Evaluación</th>
+            <th style="width: 7%;">Tipo de<br>Evaluación</th>
+            <th style="width: 8%;">Evidencia<br>de<br>Evaluación</th>
+            <th style="width: 8%;">Retroalimentación</th>
+            <th style="width: 4%;">Lapso/<br>Entrega</th>
+            <th style="width: 4%;">Ponderación<br>/<br>Calificación</th>
         </tr>
         {% for eval in evaluation_plans %}
         <tr>
-            <td style="height: 35px;">{{ eval.unit or '' }}</td>
+            <td>{{ eval.unit or '' }}</td>
             <td class="text-left">{{ eval.competence }}</td>
             <td class="text-left">{{ eval.performance_criterion }}</td>
             <td class="text-left">{{ eval.strategy }}</td>
@@ -251,30 +359,36 @@
     <div class="section-title">IV. Desarrollo de las unidades de contenidos</div>
     
     {% for week in weekly_contents %}
-    <table style="margin-bottom: 15px;">
-        <tr>
-            <th colspan="2" class="text-left" style="border-right: none;">Semana: {{ week.week_number }}</th>
-            <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: {{ week.unit_content }}</th>
-        </tr>
-        <tr>
-            <th style="width: 25%;">Contenido</th>
-            <th style="width: 20%;">Competencia Específica</th>
-            <th style="width: 20%;">Criterios de Desempeño</th>
-            <th style="width: 20%;">Estrategias Didácticas</th>
-            <th style="width: 15%;">Evaluación /<br>Realimentación</th>
-        </tr>
-        <tr>
-            <td class="text-left" style="height: 40px;">{{ week.content_description }}</td>
-            <td class="text-left">{{ week.specific_competence }}</td>
-            <td class="text-left">{{ week.performance_criteria }}</td>
-            <td class="text-left">{{ week.teaching_strategy }}</td>
-            <td class="text-left">{{ week.evaluation_feedback }}</td>
-        </tr>
-        <tr>
-            <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
-            <td colspan="4" class="text-left">{{ week.resources }}<br>{{ week.bibliography }}</td>
-        </tr>
-    </table>
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: {{ week.week_number }}</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: {{ week.unit_content }}</th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">{{ week.content_description }}</td>
+                    <td class="text-left">{{ week.specific_competence }}</td>
+                    <td class="text-left">{{ week.performance_criteria }}</td>
+                    <td class="text-left">{{ week.teaching_strategy }}</td>
+                    <td class="text-left">{{ week.evaluation_feedback }}</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left">{{ week.resources }}<br>{{ week.bibliography }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
     {% endfor %}
 
 </body>

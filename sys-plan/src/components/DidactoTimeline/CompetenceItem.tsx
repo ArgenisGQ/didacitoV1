@@ -14,11 +14,7 @@ export function CompetenceItem({ competence, isOverlay }: Props) {
     >
       
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <Target size={14} className="text-blue-500" />
-          <span className="font-bold text-xs uppercase text-foreground">Competencia</span>
-        </div>
-        <p className="text-sm font-medium text-foreground/80 line-clamp-2 leading-tight">
+        <p className="text-xs font-semibold text-foreground/80 line-clamp-3 leading-normal">
           {competence.description}
         </p>
       </div>

@@ -228,20 +228,22 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       objectives: plan.objectives?.length ? plan.objectives : [''],
       strategies: plan.strategies?.length ? plan.strategies : [''],
       evaluation_plans: plan.evaluation_plans?.length
-        ? plan.evaluation_plans.map((ep: any, idx: number) => ({
-            unit: ep.unit ?? (idx + 1),
-            title: ep.title || '',
-            competence: ep.competence || '',
-            performance_criteria: ep.performance_criteria || ep.performance_criterion || '',
-            strategy: ep.strategy || '',
-            instrument: ep.instrument || '',
-            evaluation_type: ep.evaluation_type || '',
-            evidence: ep.evidence || '',
-            feedback_method: ep.feedback_method || '',
-            weight: ep.weight || '',
-            due_week: ep.due_week || '',
-            due_date: ep.due_date || '',
-          }))
+        ? [...plan.evaluation_plans]
+            .sort((a: any, b: any) => (a.unit || 0) - (b.unit || 0))
+            .map((ep: any, idx: number) => ({
+                unit: ep.unit ?? (idx + 1),
+                title: ep.title || '',
+                competence: ep.competence || '',
+                performance_criteria: ep.performance_criteria || ep.performance_criterion || '',
+                strategy: ep.strategy || '',
+                instrument: ep.instrument || '',
+                evaluation_type: ep.evaluation_type || '',
+                evidence: ep.evidence || '',
+                feedback_method: ep.feedback_method || '',
+                weight: ep.weight || '',
+                due_week: ep.due_week || '',
+                due_date: ep.due_date || '',
+              }))
         : [1, 2, 3, 4].map(createEmptyEvaluation),
       weekly_contents: plan.weekly_contents?.length
         ? plan.weekly_contents.map((wc: any) => ({

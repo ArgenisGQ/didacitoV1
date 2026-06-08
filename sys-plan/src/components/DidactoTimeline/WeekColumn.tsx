@@ -4,16 +4,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EvaluationItem } from './EvaluationItem';
 import { CompetenceItem } from './CompetenceItem';
-import { Edit3, AlertTriangle, Target, CheckSquare } from 'lucide-react';
+import { Edit3, AlertTriangle, Target, CheckSquare, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Props {
   week: WeekData;
   onOpen: () => void;
+  onDropCompetence?: (comp: string) => void;
+  onRemoveCompetence?: (comp: string) => void;
 }
 
-export function WeekColumn({ week, onOpen }: Props) {
+export function WeekColumn({ week, onOpen, onDropCompetence, onRemoveCompetence }: Props) {
   // Automatically calculated based on unit mapping
+  const [isDragOver, setIsDragOver] = React.useState(false);
 
   const totalWeight = week.evaluations.reduce((sum, e) => sum + e.weight, 0);
   
@@ -23,12 +26,42 @@ export function WeekColumn({ week, onOpen }: Props) {
   const isMissingContent = totalWeight > 0 && (!week.contenido || !week.recursosAprendizaje);
   const isBottleneck = isHighWeight || isHighQuantity || isMissingContent;
 
+  const weekCompetences = React.useMemo(() => {
+    if (!week.contenido) return [];
+    return week.contenido
+      .split('.')
+      .map((item: string) => item.trim())
+      .filter((item: string) => item.length > 0);
+  }, [week.contenido]);
+
   const getBottleneckReasons = () => {
     const reasons = [];
     if (isHighWeight) reasons.push(`• El peso de evaluación (${totalWeight}%) supera el umbral recomendado (< 40%).`);
     if (isHighQuantity) reasons.push(`• Exceso de hitos (${week.evaluations.length} en una sola semana).`);
     if (isMissingContent) reasons.push(`• Hay evaluaciones programadas pero faltan temas o recursos de estudio.`);
     return reasons;
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const comp = e.dataTransfer.getData('text/plain');
+    if (comp && onDropCompetence) {
+      onDropCompetence(comp);
+    }
   };
 
   return (
@@ -40,9 +73,9 @@ export function WeekColumn({ week, onOpen }: Props) {
     >
       <CardHeader className="pb-3 border-b border-border/50 group-hover:border-border transition-colors">
         <div className="flex items-start justify-between">
-          <CardTitle className="text-xl font-black tracking-tight text-foreground flex flex-col">
+          <CardTitle className="text-sm font-bold tracking-tight text-foreground flex flex-col">
             <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">{week.weekLabel || `Semana ${week.weekNumber}`}</span>
-            {week.title || 'Contenido'}
+            {week.unitTitle || 'Unidad no asignada'}
           </CardTitle>
           <div className="bg-muted p-1.5 rounded-md text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 transition-colors">
             <Edit3 size={16} />
@@ -74,30 +107,90 @@ export function WeekColumn({ week, onOpen }: Props) {
 
         {/* Resumen abstracto */}
         <div className="space-y-3 flex-1">
-          <div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Temas</p>
-            <p className="text-sm font-medium text-foreground/80 line-clamp-2">
-              {week.contenido || <span className="text-muted-foreground/50 italic">Sin definir</span>}
-            </p>
-          </div>
           
           {/* Zona de Competencias */}
-          <div className="mt-2">
+          <div 
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`mt-2 p-2.5 rounded-lg border-2 border-dashed transition-all duration-200 ${
+              isDragOver 
+                ? 'border-primary bg-primary/5 shadow-sm scale-[1.02]' 
+                : 'border-border/60 hover:border-border'
+            }`}
+          >
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1"><Target size={12}/> Competencias</p>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-accent/10">{week.competences?.length || 0}</Badge>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-accent/10">{weekCompetences.length}</Badge>
             </div>
-            <div className="space-y-2 min-h-[40px]">
-              {week.competences?.map((c) => (
-                <CompetenceItem key={c.id} competence={c} />
+            <div className="space-y-2 max-h-[180px] overflow-y-auto custom-scrollbar pr-1">
+              {weekCompetences.map((comp, idx) => (
+                <div key={idx} className="group/item relative p-2.5 bg-background border border-border rounded-lg shadow-sm flex items-start gap-2">
+                  <p className="text-xs font-semibold text-foreground/80 leading-normal flex-1">
+                    {comp}
+                  </p>
+                  {onRemoveCompetence && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveCompetence(comp);
+                      }}
+                      className="text-muted-foreground hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
+                      title="Eliminar competencia"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
               ))}
-              {(!week.competences || week.competences.length === 0) && (
-                <div className="h-[40px] flex items-center justify-center border-2 border-dashed border-border/50 rounded-lg p-2 text-[10px] font-medium text-muted-foreground">
-                  Competencia de la Unidad sin definir
+              {weekCompetences.length === 0 && (
+                <div className="h-[40px] flex items-center justify-center p-2 text-[10px] font-medium text-muted-foreground text-center leading-normal">
+                  Arrastra competencias aquí
                 </div>
               )}
             </div>
           </div>
+
+          {/* Estrategias Didácticas */}
+          {week.estrategiasDidacticas && (
+            <div className="border-l-2 border-primary/30 pl-2 py-0.5 space-y-0.5">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Estrategias Didácticas</p>
+              <p className="text-xs font-semibold text-foreground/85 line-clamp-4 leading-relaxed">
+                {week.estrategiasDidacticas}
+              </p>
+            </div>
+          )}
+
+          {/* Recursos de Aprendizaje */}
+          {week.recursosAprendizaje && (
+            <div className="border-l-2 border-primary/30 pl-2 py-0.5 space-y-0.5">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Recursos de Aprendizaje</p>
+              <p className="text-xs font-semibold text-foreground/85 line-clamp-4 leading-relaxed">
+                {week.recursosAprendizaje}
+              </p>
+            </div>
+          )}
+
+          {/* Criterios de Desempeño */}
+          {week.criteriosDesempeno && (
+            <div className="border-l-2 border-primary/30 pl-2 py-0.5 space-y-0.5">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Criterios de Desempeño</p>
+              <p className="text-xs font-semibold text-foreground/85 line-clamp-4 leading-relaxed">
+                {week.criteriosDesempeno}
+              </p>
+            </div>
+          )}
+
+          {/* Bibliografía */}
+          {week.bibliografia && (
+            <div className="border-l-2 border-primary/30 pl-2 py-0.5 space-y-0.5">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Bibliografía</p>
+              <p className="text-xs font-semibold text-foreground/85 line-clamp-4 leading-relaxed">
+                {week.bibliografia}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Zona de Evaluaciones */}

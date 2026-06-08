@@ -54,6 +54,56 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
   const selectedUnitIndex = units.findIndex(u => u.id === selectedUnitId);
   const selectedEvaluationPlan = selectedUnitIndex >= 0 ? state.evaluation_plans[selectedUnitIndex] : null;
 
+  const contenidoValue = useWatch({ control, name: 'contenido' }) || '';
+
+  const rawContents = selectedUnitIndex >= 0 && syllabusDetail?.units?.[selectedUnitIndex]?.contents;
+  const availableCompetences = React.useMemo(() => {
+    if (!rawContents) return [];
+    return rawContents
+      .split('.')
+      .map((item: string) => item.trim())
+      .filter((item: string) => item.length > 0);
+  }, [rawContents]);
+
+  const handleToggleCompetence = (comp: string) => {
+    const current = getValues('contenido') || '';
+    const currentItems = current.split('.').map(s => s.trim()).filter(Boolean);
+    const index = currentItems.indexOf(comp);
+    
+    let newItems;
+    if (index >= 0) {
+      newItems = currentItems.filter((_, i) => i !== index);
+    } else {
+      newItems = [...currentItems, comp];
+    }
+    
+    const newValue = newItems.length > 0 ? newItems.join('. ') + '.' : '';
+    setValue('contenido', newValue, { shouldDirty: true });
+  };
+
+  const handleDragStart = (e: React.DragEvent, comp: string) => {
+    e.dataTransfer.setData('text/plain', comp);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const comp = e.dataTransfer.getData('text/plain');
+    if (!comp) return;
+
+    const current = getValues('contenido') || '';
+    const currentItems = current.split('.').map(s => s.trim()).filter(Boolean);
+    
+    if (!currentItems.includes(comp)) {
+      const newItems = [...currentItems, comp];
+      const newValue = newItems.join('. ') + '.';
+      setValue('contenido', newValue, { shouldDirty: true });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
   const handleEvaluationDateChange = (dateStr: string) => {
     if (selectedUnitIndex < 0) return;
     updateEvaluationItem(selectedUnitIndex, 'due_date', dateStr);
@@ -76,9 +126,16 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
     }
   };
 
+  const prevWeekIdRef = React.useRef<string | undefined>(undefined);
+
   useEffect(() => {
     if (week) {
-      reset(week);
+      if (week.id !== prevWeekIdRef.current) {
+        reset(week);
+        prevWeekIdRef.current = week.id;
+      }
+    } else {
+      prevWeekIdRef.current = undefined;
     }
   }, [week, reset]);
 
@@ -148,11 +205,12 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
         <form id="week-details-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           
           <div className="space-y-1.5">
-            <Label htmlFor="unitId" className="text-xs font-bold text-foreground">Unidad Temática</Label>
+            <Label htmlFor="unitId" className="text-xs font-bold text-foreground">Unidad Temática (Asignada automáticamente por fecha)</Label>
             <select
               id="unitId"
+              disabled
               {...register('unitId')}
-              className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 text-foreground"
+              className="w-full flex h-10 rounded-md border border-input bg-muted px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-80 text-foreground"
             >
               {units.map(u => (
                 <option key={u.id} value={u.id}>{u.title}</option>
@@ -160,10 +218,6 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
             </select>
             {selectedEvaluationPlan && (
               <div className="mt-2 p-3 bg-muted/30 border border-border rounded-md text-xs space-y-2">
-                <div>
-                  <span className="font-bold text-foreground">Competencia de Unidad: </span>
-                  <span className="text-muted-foreground">{selectedEvaluationPlan.competence || <span className="italic">Sin definir</span>}</span>
-                </div>
                 <div>
                   <span className="font-bold text-foreground">Estrategia de Evaluación: </span>
                   <span className="text-muted-foreground">{selectedEvaluationPlan.strategy || <span className="italic">Sin definir</span>}</span>
@@ -189,47 +243,46 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="title" className="text-xs font-bold text-foreground">Nombre del Tema</Label>
-            <Input
-              id="title"
-              {...register('title')}
-              className="bg-background border-border text-sm h-10 text-foreground placeholder:text-muted-foreground"
-              placeholder="Ej. Orígenes de Sociología..."
-            />
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="weekLabel" className="text-xs font-bold text-foreground">Etiqueta Visual</Label>
-              <Input
-                id="weekLabel"
-                {...register('weekLabel')}
-                className="bg-background border-border text-sm h-10 text-foreground placeholder:text-muted-foreground"
-                placeholder="Ej. Semanas 6 y 7"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="colspan" className="text-xs font-bold text-foreground">Agrupación (Columnas)</Label>
-              <Input
-                id="colspan"
-                type="number"
-                min="1"
-                max="10"
-                {...register('colspan', { valueAsNumber: true })}
-                className="bg-background border-border text-sm h-10 text-foreground placeholder:text-muted-foreground"
-                placeholder="1"
-              />
-            </div>
-          </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="contenido" className="text-xs font-bold text-foreground">Contenido (Temas)</Label>
-            <Textarea
+            <Label htmlFor="contenido" className="text-xs font-bold text-foreground">Competencias</Label>
+            
+            {availableCompetences.length > 0 && (
+              <div className="p-3 bg-muted/20 border border-border rounded-md space-y-2">
+                <span className="text-xs font-bold text-muted-foreground block">
+                  Competencias del Sinóptico (Haz clic o arrastra al cuadro de texto):
+                </span>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-1">
+                  {availableCompetences.map((comp: string, idx: number) => {
+                    const isSelected = contenidoValue.includes(comp);
+                    return (
+                      <div
+                        key={idx}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, comp)}
+                        onClick={() => handleToggleCompetence(comp)}
+                        className={cn(
+                          "text-xs px-2.5 py-1.5 rounded-md cursor-pointer border transition-all duration-200 select-none flex items-start gap-1.5 active:scale-95 text-left",
+                          isSelected 
+                            ? "bg-primary/10 border-primary text-primary font-semibold shadow-sm" 
+                            : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/50"
+                        )}
+                        title="Arrastra o haz clic para agregar/quitar"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0 mt-1.5" />
+                        <span className="flex-1 leading-normal">{comp}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <input
+              type="hidden"
               id="contenido"
               {...register('contenido')}
-              className="bg-background border-border text-sm min-h-[100px] resize-none text-foreground placeholder:text-muted-foreground"
-              placeholder="Descripción detallada de los temas..."
             />
           </div>
 

@@ -215,17 +215,23 @@ async def update_plan(
             if "lesson_plan:approve_global" in user_perms:
                 pass # Puede aprobar libremente
             elif "lesson_plan:approve_department" in user_perms:
-                if not current_user.department_id:
-                    raise HTTPException(status_code=403, detail="No tienes un departamento asignado para aprobar planes")
+                from api.models import user_departments, Department
+                dept_result = await db.execute(
+                    select(Department.subject_codes)
+                    .join(user_departments, user_departments.c.department_id == Department.id)
+                    .where(user_departments.c.user_id == current_user.id)
+                )
+                codes_rows = dept_result.scalars().all()
+                allowed_subjects = set()
+                for codes_str in codes_rows:
+                    if codes_str:
+                        allowed_subjects.update(c.strip() for c in codes_str.split(',') if c.strip())
                 
-                from api.models import Department
-                dept = await db.get(Department, current_user.department_id)
-                if not dept or not dept.subject_codes:
-                    raise HTTPException(status_code=403, detail="Tu departamento asignado no tiene asignaturas válidas configuradas")
+                if not allowed_subjects:
+                    raise HTTPException(status_code=403, detail="No tienes asignaturas configuradas en tus departamentos para aprobar planes")
                 
-                allowed_codes = [c.strip() for c in dept.subject_codes.split(",")]
-                if not plan.subject_code or plan.subject_code not in allowed_codes:
-                    raise HTTPException(status_code=403, detail="Este plan pertenece a una asignatura fuera de la jurisdicción de su departamento")
+                if not plan.subject_code or plan.subject_code not in allowed_subjects:
+                    raise HTTPException(status_code=403, detail="Este plan pertenece a una asignatura fuera de la jurisdicción de sus departamentos")
             else:
                 raise HTTPException(status_code=403, detail="No tienes permisos para aprobar planes didácticos")
                 

@@ -14,6 +14,7 @@ export interface Competence {
 export interface WeekData {
   id: string;
   unitId?: string; // Links this week to a specific Unit
+  unitTitle?: string; // Full title of the unit
   weekNumber: number; // For grouping, this could be the starting week
   weekLabel?: string; // Optional custom label, e.g., "Semanas 6, 7 y 8"
   colspan?: number; // How many weeks this block spans visually
