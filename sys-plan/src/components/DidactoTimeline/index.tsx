@@ -11,6 +11,9 @@ import { WizardProvider, useWizard } from '@/context/WizardContext';
 import { WizardBasicInfo } from '../wizard/WizardBasicInfo';
 import { WizardObjectives } from '../wizard/WizardObjectives';
 import { WizardReview } from '../wizard/WizardReview';
+import { useAutosave } from '@/hooks/useAutosave';
+import api from '@/lib/api-client';
+import { Clock } from 'lucide-react';
 
 // No more INITIAL_WEEKS or MOCK_EVALUATIONS as constants. They will be generated dynamically.
 
@@ -52,37 +55,139 @@ const TABS = [
 function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
   const { state, updateField } = useWizard();
   const [activeTab, setActiveTab] = useState('general');
+  const [activePlanId, setActivePlanId] = useState<number | null>(planId || null);
 
-  const [weeks, setWeeks] = useState<WeekData[]>([]);
   const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV'];
   
   const [units, setUnits] = useState<UnitData[]>(() => {
-    return state.evaluation_plans.slice(0, 4).map((ep, idx) => ({
+    const evPlans = initialData?.evaluation_plans || state.evaluation_plans;
+    return evPlans.slice(0, 4).map((ep: any, idx: number) => ({
       id: `unit-${idx + 1}`,
       title: ep.title ? `Unidad ${ROMAN_NUMERALS[idx]}: ${ep.title}` : `Unidad ${ROMAN_NUMERALS[idx]}`
     }));
   });
-  
-  const [selectedWeek, setSelectedWeek] = useState<WeekData | null>(null);
 
-  useEffect(() => {
-    if (state.weekly_contents?.length > 0 && weeks.length === 0) {
-      setWeeks(state.weekly_contents.map((w, idx) => ({
+  const [weeks, setWeeks] = useState<WeekData[]>(() => {
+    const initialWeeks = initialData?.weekly_contents;
+    if (initialWeeks && initialWeeks.length > 0) {
+      return initialWeeks.map((w: any, idx: number) => ({
         id: `week-${w.week_number}`,
         weekNumber: w.week_number,
-        title: '',
-        unitId: w.unit_id || units[Math.floor(idx / 4)]?.id || units[units.length - 1]?.id || 'unit-1',
+        title: w.unit_content || '',
+        unitId: w.unit_id || (idx < 4 ? 'unit-1' : idx < 8 ? 'unit-2' : idx < 12 ? 'unit-3' : 'unit-4'),
         contenido: w.content_description || '',
-        criteriosDesempeno: '',
+        criteriosDesempeno: w.performance_criteria || '',
         estrategiasDidacticas: w.teaching_strategy || '',
         recursosAprendizaje: w.resources || '',
         bibliografia: w.bibliography || '',
         evaluations: [],
         competences: [],
         colspan: 1
-      })));
+      }));
     }
-  }, [state.weekly_contents]);
+    // Default 12 weeks
+    return Array.from({ length: 12 }, (_, idx) => ({
+      id: `week-${idx + 1}`,
+      weekNumber: idx + 1,
+      title: '',
+      unitId: idx < 4 ? 'unit-1' : idx < 8 ? 'unit-2' : idx < 12 ? 'unit-3' : 'unit-4',
+      contenido: '',
+      criteriosDesempeno: '',
+      estrategiasDidacticas: '',
+      recursosAprendizaje: '',
+      bibliografia: '',
+      evaluations: [],
+      competences: [],
+      colspan: 1
+    }));
+  });
+  
+  const [selectedWeek, setSelectedWeek] = useState<WeekData | null>(null);
+
+  const payload = React.useMemo(() => ({
+    title: state.title,
+    status: state.status,
+    objectives: state.objectives.filter(o => o?.trim()),
+    strategies: state.strategies.filter(s => s?.trim()),
+    subject_code: state.subject_code,
+    section: state.section,
+    academic_period_id: state.academic_period_id,
+    modality: state.modality,
+    component_type: state.component_type,
+    hd_t: state.hd_t,
+    hd_lt: state.hd_lt,
+    hd_iscp: state.hd_iscp,
+    hiv_s: state.hiv_s,
+    hiv_a: state.hiv_a,
+    hde: state.hde,
+    evaluation_plans: state.evaluation_plans.slice(0, 4).filter(e => 
+      e.title?.trim() || e.competence?.trim() || e.performance_criteria?.trim() || 
+      e.strategy?.trim() || e.instrument?.trim() || e.evaluation_type?.trim() || 
+      e.evidence?.trim() || e.feedback_method?.trim() || 
+      e.weight || e.due_week || e.due_date?.trim()
+    ),
+    weekly_contents: weeks
+      .map(w => ({
+        week_number: w.weekNumber,
+        unit_content: w.unitId || '',
+        content_description: w.contenido || '',
+        teaching_strategy: w.estrategiasDidacticas || '',
+        resources: w.recursosAprendizaje || '',
+        bibliography: w.bibliografia || '',
+        performance_criteria: w.criteriosDesempeno || '',
+        specific_competence: w.competences?.[0]?.description || '',
+      }))
+  }), [state, weeks]);
+
+  const { saveState, saving, markDirty } = useAutosave(
+    () => payload,
+    {
+      planId: activePlanId,
+      enabled: activePlanId !== null,
+      intervalMs: 10000,
+    }
+  );
+
+  const saveCurrentStateToDB = async () => {
+    try {
+      // Sanitize payload before sending
+      const apiPayload = {
+        ...payload,
+        evaluation_plans: payload.evaluation_plans.map((ep: any) => {
+          const cleaned: any = {
+            unit: ep.unit ?? null,
+            title: ep.title || '',
+            competence: ep.competence || '',
+            performance_criterion: ep.performance_criteria || ep.performance_criterion || '',
+            strategy: ep.strategy || '',
+            instrument: ep.instrument || '',
+            evaluation_type: ep.evaluation_type || '',
+            evidence: ep.evidence || '',
+            feedback_method: ep.feedback_method || '',
+            weight: ep.weight === '' || ep.weight === null ? 0 : parseFloat(String(ep.weight)) || 0,
+            due_week: ep.due_week === '' || ep.due_week === null ? null : parseInt(String(ep.due_week)) || null,
+            due_date: ep.due_date || null,
+          };
+          return cleaned;
+        })
+      };
+
+      if (activePlanId === null) {
+        const { data } = await api.post('/plans', apiPayload);
+        setActivePlanId(data.id);
+      } else {
+        await api.put(`/plans/${activePlanId}`, apiPayload);
+      }
+    } catch (err) {
+      console.error('Error auto-saving plan:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activePlanId !== null) markDirty();
+  }, [state, weeks, activePlanId, markDirty]);
+
+
 
   // Auto-calculate evaluations and competences for each week
   const augmentedWeeks = weeks.map(w => {
@@ -95,19 +200,25 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
     }] : [];
 
     const evaluations: Evaluation[] = [];
-    if (evaluationPlan && evaluationPlan.due_week) {
-      const dueStr = String(evaluationPlan.due_week).toLowerCase();
-      // Match if the week number appears as an isolated word
-      const regex = new RegExp(`\\b${w.weekNumber}\\b`);
-      if (regex.test(dueStr)) {
-        evaluations.push({
-          id: `eval-${w.unitId}`,
-          title: evaluationPlan.strategy || 'Evaluación',
-          weight: parseFloat(String(evaluationPlan.weight)) || 0,
-          description: evaluationPlan.instrument || ''
-        });
+    state.evaluation_plans.slice(0, 4).forEach((ep, idx) => {
+      if (ep && ep.due_week) {
+        const dueStr = String(ep.due_week).toLowerCase();
+        const dueWeekNum = parseInt(dueStr, 10);
+        const isLastWeek = w.weekNumber === weeks[weeks.length - 1]?.weekNumber;
+        
+        // Match if the week number appears as an isolated word, or if it's beyond the max week and we are in the last week
+        const regex = new RegExp(`\\b${w.weekNumber}\\b`);
+        if (regex.test(dueStr) || (isLastWeek && dueWeekNum > w.weekNumber)) {
+          const epUnitId = units[idx]?.id || `unit-${idx + 1}`;
+          evaluations.push({
+            id: `eval-${epUnitId}-${w.id}`,
+            title: ep.strategy || `Evaluación U${ROMAN_NUMERALS[idx]}`,
+            weight: parseFloat(String(ep.weight)) || 0,
+            description: ep.instrument || ''
+          });
+        }
       }
-    }
+    });
 
     return { ...w, competences, evaluations };
   });
@@ -121,32 +232,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
   const handleUpdateWeek = async (updatedWeek: WeekData) => {
     const newWeeks = weeks.map((w) => (w.id === updatedWeek.id ? updatedWeek : w));
     setWeeks(newWeeks);
-    
-    // Auto-save to database
-    const currentAssignedEvaluations = newWeeks.flatMap(w => w.evaluations);
-    const payload = {
-      title: state.title,
-      status: state.status,
-      objectives: state.objectives.filter(o => o.trim()),
-      strategies: state.strategies.filter(s => s.trim()),
-      subject_code: state.subject_code,
-      section: state.section,
-      academic_period_id: state.academic_period_id,
-      evaluation_plans: state.evaluation_plans.slice(0, 4),
-      weekly_contents: newWeeks.map(w => ({
-        week_number: w.weekNumber,
-        unit_id: w.unitId || null,
-        content_description: w.contenido || '',
-        teaching_strategy: w.estrategiasDidacticas || '',
-        resources: w.recursosAprendizaje || '',
-        bibliography: w.bibliografia || ''
-      }))
-    };
-    try {
-      await onSave(payload);
-    } catch (err) {
-      console.error("Error auto-saving on week update:", err);
-    }
+    // Auto-save triggers automatically via useAutosave since weeks changed
   };
 
   const handleAddWeek = () => {
@@ -169,35 +255,20 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
   };
 
   const handleSavePlan = async () => {
-    const payload = {
-      title: state.title,
-      status: state.status,
-      objectives: state.objectives.filter(o => o.trim()),
-      strategies: state.strategies.filter(s => s.trim()),
-      subject_code: state.subject_code,
-      section: state.section,
-      academic_period_id: state.academic_period_id,
-      evaluation_plans: state.evaluation_plans.slice(0, 4),
-      weekly_contents: weeks.map(w => ({
-        week_number: w.weekNumber,
-        unit_id: w.unitId || null,
-        content_description: w.contenido || '',
-        teaching_strategy: w.estrategiasDidacticas || '',
-        resources: w.recursosAprendizaje || '',
-        bibliography: w.bibliografia || ''
-      }))
-    };
-    await onSave(payload);
+    await onSave({ ...payload, planId: activePlanId });
   };
 
   // Sync state so Review step works
   useEffect(() => {
     updateField('weekly_contents', weeks.map(w => ({
       week_number: w.weekNumber,
+      unit_content: w.unitId || '',
       content_description: w.contenido || '',
       teaching_strategy: w.estrategiasDidacticas || '',
       resources: w.recursosAprendizaje || '',
-      bibliography: w.bibliografia || ''
+      bibliography: w.bibliografia || '',
+      performance_criteria: w.criteriosDesempeno || '',
+      specific_competence: w.competences?.[0]?.description || '',
     })));
   }, [weeks, updateField]);
 
@@ -236,10 +307,26 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
           ))}
         </div>
 
-        <Button onClick={handleSavePlan} className="gap-2 font-bold shadow-sm">
-          <Save size={18} />
-          Guardar Planificación
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+            {saving ? (
+              <span className="animate-pulse">Guardando...</span>
+            ) : saveState ? (
+              <>
+                <Clock size={12} />
+                <span>Guardado {saveState.toLocaleTimeString()}</span>
+              </>
+            ) : null}
+          </div>
+          <Button variant="outline" onClick={async () => {
+            await saveCurrentStateToDB();
+          }} className="gap-2 font-bold shadow-sm hidden sm:flex border-primary/20 hover:bg-primary/5">
+            <Save size={16} /> Guardar Borrador
+          </Button>
+          <Button onClick={handleSavePlan} className="gap-2 font-bold shadow-sm">
+            <CheckCircle2 size={18} /> Guardar y Salir
+          </Button>
+        </div>
       </div>
 
       {/* Main Workspace Area */}

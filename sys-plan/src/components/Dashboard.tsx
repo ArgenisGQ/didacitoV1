@@ -380,7 +380,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         header: 'Estado',
         cell: ({ row }) => {
           const s = row.original.status
-          const label = s === 'DRAFT' ? 'Borrador' : s === 'IN_REVIEW' ? 'En Revision' : s === 'APPROVED' ? 'Aprobado' : s === 'NOT_STARTED' ? 'No Iniciado' : s
+          const label = s === 'DRAFT' ? 'Borrador' : s === 'IN_REVIEW' ? 'En Revision' : s === 'APPROVED' ? 'Aprobado' : s === 'NOT_STARTED' ? 'No Iniciado' : s === 'OBSERVED' ? 'En Observación' : s
           const variant = s === 'DRAFT' ? 'outline' : s === 'APPROVED' ? 'default' : s === 'NOT_STARTED' ? 'destructive' : 'secondary'
           return <Badge variant={variant as any}>{label}</Badge>
         },
@@ -883,7 +883,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                             {filteredTeacherRequiredPlans.map((item: any, idx: number) => {
                               const isRealizado = !!item.plan
                               const planStatus = item.plan?.status
-                              const displayStatus = planStatus === 'DRAFT' ? 'Borrador' : planStatus === 'IN_REVIEW' ? 'En Revision' : planStatus === 'APPROVED' ? 'Aprobado' : '-'
+                              const displayStatus = planStatus === 'DRAFT' ? 'Borrador' : planStatus === 'IN_REVIEW' ? 'En Revision' : planStatus === 'APPROVED' ? 'Aprobado' : planStatus === 'OBSERVED' ? 'En Observación' : '-'
                               const isBlocked = !item.hasSyllabus
                               
                               return (
@@ -1040,7 +1040,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                             <SelectItem value="ALL">Todos los planes</SelectItem>
                             <SelectItem value="APPROVED">Aprobados</SelectItem>
                             <SelectItem value="IN_REVIEW">En Revisión</SelectItem>
-                            <SelectItem value="OBSERVED">Devueltos</SelectItem>
+                            <SelectItem value="OBSERVED">En Observación</SelectItem>
                             <SelectItem value="DRAFT">Borradores</SelectItem>
                             <SelectItem value="NOT_STARTED">No Iniciados</SelectItem>
                           </SelectContent>

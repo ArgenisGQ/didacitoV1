@@ -197,6 +197,9 @@ class LessonPlan(Base):
     hde = Column(Integer, default=0, nullable=True)
     component_type = Column(String(100), nullable=True)
 
+    objectives = Column(JSON, nullable=True)
+    strategies = Column(JSON, nullable=True)
+
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -250,15 +253,17 @@ class EvaluationPlan(Base):
         nullable=False
     )
     unit = Column(Integer)
-    competence = Column(String(255))
+    title = Column(Text, nullable=True)
+    competence = Column(Text, nullable=True)
     performance_criterion = Column(Text, nullable=True)
-    strategy = Column(String(255))
-    instrument = Column(String(255))
+    strategy = Column(Text, nullable=True)
+    instrument = Column(Text, nullable=True)
     evaluation_type = Column(String(100), nullable=True)
-    evidence = Column(String(255))
-    feedback_method = Column(String(255))
+    evidence = Column(Text, nullable=True)
+    feedback_method = Column(Text, nullable=True)
     weight = Column(Float)
     due_week = Column(Integer)
+    due_date = Column(String(20), nullable=True)
 
     lesson_plan = relationship("LessonPlan", back_populates="evaluation_plans")
 
@@ -284,7 +289,7 @@ class WeeklyContent(Base):
 
     __table_args__ = (
         CheckConstraint(
-            'week_number >= 1 AND week_number <= 12',
+            'week_number >= 1 AND week_number <= 18',
             name='check_week_number_range'
         ),
     )

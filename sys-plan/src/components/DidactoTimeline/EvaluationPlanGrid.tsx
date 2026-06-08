@@ -8,6 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV'];
 
@@ -83,10 +88,8 @@ export function EvaluationPlanGrid() {
       const diffTime = selected.getTime() - start.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       
-      // Calculate week number but clamp it to the amount of weeks currently in the plan (default 12)
+      // Calculate actual week number
       let weekNumber = Math.floor(diffDays / 7) + 1;
-      const maxWeeks = state.weekly_contents.length > 0 ? state.weekly_contents.length : 12;
-      weekNumber = Math.min(weekNumber, maxWeeks);
       
       updateEvaluationItem(idx, 'due_week', weekNumber);
     } else {
@@ -300,14 +303,48 @@ export function EvaluationPlanGrid() {
                         <span>Lapso / Fecha Entrega</span>
                         {unit.due_week && <span className="text-primary">Semana {unit.due_week}</span>}
                       </Label>
-                      <Input
-                        type="date"
-                        min={activePeriod?.start_date}
-                        max={activePeriod?.end_date}
-                        value={unit.due_date || ''}
-                        onChange={(e) => handleDateChange(idx, e.target.value)}
-                        className="bg-background font-medium text-sm"
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-medium text-sm bg-background border-input h-10 px-3",
+                              !unit.due_date && "text-muted-foreground"
+                            )}
+                          >
+                            <Clock className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                            {unit.due_date ? (
+                              (() => {
+                                const [y, m, d] = unit.due_date.split('-');
+                                return format(new Date(parseInt(y), parseInt(m) - 1, parseInt(d)), "PPP", { locale: es });
+                              })()
+                            ) : (
+                              <span>Seleccionar fecha</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            showWeekNumber
+                            academicStartDate={activePeriod?.start_date ? new Date(activePeriod.start_date + 'T00:00:00') : undefined}
+                            selected={unit.due_date ? (() => {
+                               const [y, m, d] = unit.due_date.split('-');
+                               return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+                            })() : undefined}
+                            onSelect={(date) => {
+                               if (date) {
+                                  const year = date.getFullYear();
+                                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                                  const day = String(date.getDate()).padStart(2, '0');
+                                  handleDateChange(idx, `${year}-${month}-${day}`);
+                               } else {
+                                  handleDateChange(idx, '');
+                               }
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-muted-foreground flex justify-between">

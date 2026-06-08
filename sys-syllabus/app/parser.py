@@ -305,17 +305,28 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
         criteria = ""
         
         if lines:
-            unit_title = lines[0]
-            
             has_contenidos = re.search(r'CONTENIDOS', chunk, re.IGNORECASE)
             has_criterios = re.search(r'CRITERIOS DE DESEMPEÑO', chunk, re.IGNORECASE)
+            
+            title_end = len(chunk)
+            if has_contenidos and has_criterios:
+                title_end = min(has_contenidos.start(), has_criterios.start())
+            elif has_contenidos:
+                title_end = has_contenidos.start()
+            elif has_criterios:
+                title_end = has_criterios.start()
+                
+            if title_end < len(chunk):
+                raw_title = chunk[:title_end].strip()
+                unit_title = re.sub(r'\s+', ' ', raw_title)
+            else:
+                unit_title = lines[0]
             
             # Heuristics:
             if has_contenidos:
                 contents = extract_between(r'CONTENIDOS[^\n]*\n?', r'CRITERIOS DE DESEMPEÑO|Unidad|$', chunk)
             elif has_criterios:
-                escaped_title = re.escape(unit_title)
-                contents = extract_between(rf'{escaped_title}[^\n]*\n?', r'CRITERIOS DE DESEMPEÑO', chunk)
+                contents = chunk[title_end:has_criterios.start()].strip()
                 
             if has_criterios:
                 criteria = extract_between(r'CRITERIOS DE DESEMPEÑO[^\n]*\n?', r'Unidad|$', chunk)

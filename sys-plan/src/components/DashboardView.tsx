@@ -270,7 +270,7 @@ export function DashboardView({
       'APPROVED': { label: 'Hechos / Aprobados', color: '#10b981' }, // Verde
       'DRAFT': { label: 'En Borrador', color: '#2563eb' }, // Azul
       'IN_REVIEW': { label: 'En Revisión', color: '#facc15' }, // Amarillo
-      'OBSERVED': { label: 'Devueltos', color: '#f97316' }, // Naranja
+      'OBSERVED': { label: 'En Observación', color: '#f97316' }, // Naranja
       'NOT_STARTED': { label: 'No Iniciados', color: '#4b5563' } // Gris Oscuro
     };
 

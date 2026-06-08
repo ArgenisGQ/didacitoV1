@@ -230,8 +230,9 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       evaluation_plans: plan.evaluation_plans?.length
         ? plan.evaluation_plans.map((ep: any, idx: number) => ({
             unit: ep.unit ?? (idx + 1),
+            title: ep.title || '',
             competence: ep.competence || '',
-            performance_criteria: ep.performance_criteria || '',
+            performance_criteria: ep.performance_criteria || ep.performance_criterion || '',
             strategy: ep.strategy || '',
             instrument: ep.instrument || '',
             evaluation_type: ep.evaluation_type || '',

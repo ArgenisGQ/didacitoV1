@@ -69,9 +69,33 @@ async def create_plan(
         subject_code=plan_in.subject_code,
         section=plan_in.section,
         academic_period_id=plan_in.academic_period_id,
+        modality=plan_in.modality,
+        component_type=plan_in.component_type,
+        hd_t=plan_in.hd_t,
+        hd_lt=plan_in.hd_lt,
+        hd_iscp=plan_in.hd_iscp,
+        hiv_s=plan_in.hiv_s,
+        hiv_a=plan_in.hiv_a,
+        hde=plan_in.hde,
+        objectives=plan_in.objectives,
+        strategies=plan_in.strategies,
     )
     db.add(new_plan)
     await db.commit()
+    await db.refresh(new_plan)
+
+    # Save evaluation_plans if provided
+    if plan_in.evaluation_plans:
+        for ev in plan_in.evaluation_plans:
+            db.add(EvaluationPlan(lesson_plan_id=new_plan.id, **ev.model_dump()))
+
+    # Save weekly_contents if provided
+    if plan_in.weekly_contents:
+        for wc in plan_in.weekly_contents:
+            db.add(WeeklyContent(lesson_plan_id=new_plan.id, **wc.model_dump()))
+
+    if plan_in.evaluation_plans or plan_in.weekly_contents:
+        await db.commit()
     
     from sqlalchemy.orm import selectinload
     query = select(LessonPlan).options(
@@ -227,6 +251,27 @@ async def update_plan(
         plan.section = plan_in.section
     if plan_in.academic_period_id is not None:
         plan.academic_period_id = plan_in.academic_period_id
+    if plan_in.modality is not None:
+        plan.modality = plan_in.modality
+    if plan_in.component_type is not None:
+        plan.component_type = plan_in.component_type
+    if plan_in.hd_t is not None:
+        plan.hd_t = plan_in.hd_t
+    if plan_in.hd_lt is not None:
+        plan.hd_lt = plan_in.hd_lt
+    if plan_in.hd_iscp is not None:
+        plan.hd_iscp = plan_in.hd_iscp
+    if plan_in.hiv_s is not None:
+        plan.hiv_s = plan_in.hiv_s
+    if plan_in.hiv_a is not None:
+        plan.hiv_a = plan_in.hiv_a
+    if plan_in.hde is not None:
+        plan.hde = plan_in.hde
+        
+    if plan_in.objectives is not None:
+        plan.objectives = plan_in.objectives
+    if plan_in.strategies is not None:
+        plan.strategies = plan_in.strategies
 
     # Replace evaluation plans
     if plan_in.evaluation_plans is not None:

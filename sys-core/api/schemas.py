@@ -72,7 +72,7 @@ class UserResponse(BaseModel):
 # Weekly Content Schemas
 # ---------------------------------------------------------------------------
 class WeeklyContentBase(BaseModel):
-    week_number: int = Field(..., ge=1, le=12)
+    week_number: int = Field(..., ge=1, le=18)
     unit_content: Optional[str] = None
     content_description: Optional[str] = None
     specific_competence: Optional[str] = None
@@ -93,6 +93,7 @@ class WeeklyContentResponse(WeeklyContentBase):
 # ---------------------------------------------------------------------------
 class EvaluationPlanBase(BaseModel):
     unit: Optional[int] = None
+    title: Optional[str] = None
     competence: Optional[str] = None
     performance_criterion: Optional[str] = None
     strategy: Optional[str] = None
@@ -102,6 +103,7 @@ class EvaluationPlanBase(BaseModel):
     feedback_method: Optional[str] = None
     weight: Optional[float] = None
     due_week: Optional[int] = None
+    due_date: Optional[str] = None
 
 
 class EvaluationPlanResponse(EvaluationPlanBase):
@@ -129,6 +131,11 @@ class LessonPlanCreate(BaseModel):
     hde: Optional[int] = 0
     component_type: Optional[str] = None
 
+    objectives: Optional[List[str]] = None
+    strategies: Optional[List[str]] = None
+    evaluation_plans: Optional[List[EvaluationPlanBase]] = None
+    weekly_contents: Optional[List[WeeklyContentBase]] = None
+
 
 class LessonPlanUpdate(BaseModel):
     title: Optional[str] = None
@@ -150,6 +157,9 @@ class LessonPlanUpdate(BaseModel):
     hde: Optional[int] = None
     component_type: Optional[str] = None
 
+    objectives: Optional[List[str]] = None
+    strategies: Optional[List[str]] = None
+
 
 class LessonPlanResponse(BaseModel):
     id: int
@@ -158,6 +168,8 @@ class LessonPlanResponse(BaseModel):
     author_name: Optional[str] = None
     program_id: Optional[int] = None
     status: str
+    objectives: Optional[List[str]] = None
+    strategies: Optional[List[str]] = None
     coordinator_id: Optional[int] = None
     subject_code: Optional[str] = None
     section: Optional[str] = None

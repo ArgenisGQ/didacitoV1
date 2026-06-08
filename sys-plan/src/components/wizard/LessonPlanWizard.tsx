@@ -53,13 +53,23 @@ function WizardInner({
     () => ({
       title: state.title,
       status: state.status,
-      objectives: state.objectives.filter((o) => o.trim()),
-      strategies: state.strategies.filter((s) => s.trim()),
-      evaluation_plans: state.evaluation_plans.filter((e) => e.competence.trim()),
-      weekly_contents: state.weekly_contents.filter((w) => w.content_description.trim()),
+      objectives: state.objectives.filter((o) => o?.trim()),
+      strategies: state.strategies.filter((s) => s?.trim()),
+      evaluation_plans: state.evaluation_plans.filter((e) => 
+        e.competence?.trim() || e.due_week || e.weight || e.strategy?.trim() || e.evidence?.trim() || e.instrument?.trim()
+      ),
+      weekly_contents: state.weekly_contents,
       subject_code: state.subject_code,
       section: state.section,
       academic_period_id: state.academic_period_id,
+      modality: state.modality,
+      component_type: state.component_type,
+      hd_t: state.hd_t,
+      hd_lt: state.hd_lt,
+      hd_iscp: state.hd_iscp,
+      hiv_s: state.hiv_s,
+      hiv_a: state.hiv_a,
+      hde: state.hde,
     }),
     [state]
   )

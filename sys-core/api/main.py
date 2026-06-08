@@ -11,6 +11,7 @@ from api.routers import health, auth, plans, users, admin, syllabus_proxy, ai_pr
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from api.core.limiter import limiter
+from fastapi.exceptions import RequestValidationError
 
 
 
@@ -29,6 +30,15 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    body = await request.body()
+    logger.error(f"422 Error on {request.url.path}. Body: {body.decode('utf-8')[:1000]}")
+    logger.error(f"Validation errors: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": body.decode("utf-8")},
+    )
 
 @app.middleware("http")
 async def catch_exceptions_middleware(request: Request, call_next):

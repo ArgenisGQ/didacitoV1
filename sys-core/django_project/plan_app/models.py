@@ -260,15 +260,17 @@ class EvaluationPlan(models.Model):
         related_name="evaluation_plans",
     )
     unit = models.IntegerField(null=True, blank=True)
-    competence = models.CharField(max_length=255, blank=True)
+    title = models.TextField(blank=True, null=True)
+    competence = models.TextField(blank=True, null=True)
     performance_criterion = models.TextField(blank=True, null=True)
-    strategy = models.CharField(max_length=255, blank=True)
-    instrument = models.CharField(max_length=255, blank=True)
+    strategy = models.TextField(blank=True, null=True)
+    instrument = models.TextField(blank=True, null=True)
     evaluation_type = models.CharField(max_length=100, blank=True, null=True)
-    evidence = models.CharField(max_length=255, blank=True)
-    feedback_method = models.CharField(max_length=255, blank=True)
+    evidence = models.TextField(blank=True, null=True)
+    feedback_method = models.TextField(blank=True, null=True)
     weight = models.FloatField(null=True, blank=True)
     due_week = models.IntegerField(null=True, blank=True)
+    due_date = models.CharField(max_length=20, blank=True, null=True)
 
     class Meta:
         db_table = "plan_app_evaluationplan"
@@ -301,7 +303,7 @@ class WeeklyContent(models.Model):
         verbose_name_plural = "Contenidos Semanales"
         constraints = [
             models.CheckConstraint(
-                check=models.Q(week_number__gte=1) & models.Q(week_number__lte=12),
+                check=models.Q(week_number__gte=1) & models.Q(week_number__lte=18),
                 name="check_week_number_range",
             )
         ]

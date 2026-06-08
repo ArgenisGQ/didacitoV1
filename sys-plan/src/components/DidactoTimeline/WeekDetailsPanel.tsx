@@ -9,6 +9,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { X, Save, Info, Wand2 } from 'lucide-react';
 import { useWizard } from '@/context/WizardContext';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { Clock } from 'lucide-react';
 
 interface Props {
   week: WeekData | null;
@@ -20,7 +26,7 @@ interface Props {
 
 export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Props) {
   const { register, handleSubmit, reset, control, setValue, getValues, formState: { isDirty } } = useForm<WeekData>();
-  const { state } = useWizard();
+  const { state, updateEvaluationItem } = useWizard();
   
   const { data: academicLoad } = useQuery({
     queryKey: ['academicLoad'],
@@ -29,6 +35,8 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
       return data;
     },
   });
+
+  const activePeriod = academicLoad?.active_period;
 
   const subject = academicLoad?.subjects?.find((s: any) => s.code === state.subject_code);
 
@@ -45,6 +53,28 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
   const selectedUnitId = useWatch({ control, name: 'unitId' });
   const selectedUnitIndex = units.findIndex(u => u.id === selectedUnitId);
   const selectedEvaluationPlan = selectedUnitIndex >= 0 ? state.evaluation_plans[selectedUnitIndex] : null;
+
+  const handleEvaluationDateChange = (dateStr: string) => {
+    if (selectedUnitIndex < 0) return;
+    updateEvaluationItem(selectedUnitIndex, 'due_date', dateStr);
+    
+    if (!dateStr || !activePeriod?.start_date) {
+      updateEvaluationItem(selectedUnitIndex, 'due_week', null);
+      return;
+    }
+
+    const start = new Date(activePeriod.start_date);
+    const selected = new Date(dateStr);
+    
+    if (selected >= start) {
+      const diffTime = selected.getTime() - start.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      let weekNumber = Math.floor(diffDays / 7) + 1;
+      updateEvaluationItem(selectedUnitIndex, 'due_week', weekNumber);
+    } else {
+      updateEvaluationItem(selectedUnitIndex, 'due_week', 1);
+    }
+  };
 
   useEffect(() => {
     if (week) {
@@ -138,9 +168,22 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
                   <span className="font-bold text-foreground">Estrategia de Evaluación: </span>
                   <span className="text-muted-foreground">{selectedEvaluationPlan.strategy || <span className="italic">Sin definir</span>}</span>
                 </div>
+                {selectedEvaluationPlan.due_date && (
+                  <div>
+                    <span className="font-bold text-foreground">Fecha de Entrega: </span>
+                    <span className="text-muted-foreground">
+                      {(() => {
+                        const [y, m, d] = selectedEvaluationPlan.due_date.split('-');
+                        return format(new Date(parseInt(y), parseInt(m) - 1, parseInt(d)), "PPP", { locale: es });
+                      })()}
+                    </span>
+                  </div>
+                )}
                 <div>
                   <span className="font-bold text-foreground">Entrega/Lapso: </span>
-                  <span className="text-muted-foreground">{selectedEvaluationPlan.due_week || <span className="italic">Sin definir</span>}</span>
+                  <span className="text-muted-foreground">
+                    {selectedEvaluationPlan.due_week ? `Semana ${selectedEvaluationPlan.due_week}` : <span className="italic">Sin definir</span>}
+                  </span>
                 </div>
               </div>
             )}
