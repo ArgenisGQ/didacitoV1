@@ -131,6 +131,18 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
     
     # --- Code ---
     subject_code = fallback_code
+    ident_match = re.search(r'IDENTIFICACION(.*?)(?=PRELACION|$)', full_text, re.IGNORECASE | re.DOTALL)
+    if ident_match:
+        ident_text = ident_match.group(1)
+        code_match = re.search(r'\b([A-Z]{3,4}-\d{3,5})\b', ident_text)
+        if code_match:
+            subject_code = code_match.group(1).strip()
+        elif not subject_code:
+            code_match_no_hyphen = re.search(r'\b([A-Z]{3,4}\d{3,5})\b', ident_text)
+            if code_match_no_hyphen:
+                c = code_match_no_hyphen.group(1)
+                subject_code = f"{c[:3]}-{c[3:]}" if len(c) >= 7 else f"{c[:4]}-{c[4:]}"
+                
     if not subject_code or not re.match(r'^[A-Z]{3,4}-\d{3,5}$', subject_code):
         code_match = re.search(r'\b([A-Z]{3,4}-\d{3,5})\b', full_text)
         if code_match:
@@ -260,20 +272,8 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
         bibliographic_references = full_text[bib_idx.end():].strip()
 
     # --- Correspondences ---
+    # Disabled by user request: do not parse/save correspondences data
     correspondences = []
-    # Find patterns like: TAA-1100   Aprender Sirviendo a la Comunidad
-    corr_matches = re.finditer(r'\b([A-Z]{3,4}-\d{3,4})\s+([^\n\d]+)', full_text)
-    seen_codes = {subject_code} if subject_code else set()
-    for m in corr_matches:
-        code_found = m.group(1).strip()
-        name_found = m.group(2).strip()
-        if code_found not in seen_codes:
-            seen_codes.add(code_found)
-            correspondences.append({
-                "code": code_found,
-                "name": name_found,
-                "requirements": None
-            })
 
     # --- Learning Units ---
     units_dict = {}
