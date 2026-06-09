@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Planificación Didáctica</title>
+    <style>
+        @page {
+            size: letter landscape;
+            margin-top: 32mm;
+            margin-bottom: 25mm;
+            margin-left: 18mm;
+            margin-right: 18mm;
+            @top-center {
+                content: element(header);
+                width: 100%;
+            }
+            @bottom-center {
+                content: element(footer);
+                width: 100%;
+            }
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 9px;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 4px;
+            page-break-inside: auto;
+        }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        th, td {
+            border: 1px solid #4a86e8; /* Exact blue border match */
+            padding: 2px 4px; /* Tighter padding */
+            text-align: center;
+            vertical-align: middle;
+            height: 15px;
+        }
+        th {
+            background-color: #dde6f0; /* Reference blue background */
+            font-weight: bold;
+        }
+        td:empty::before {
+            content: "\00a0";
+        }
+        .header-table th, .header-table td {
+            border: 1px solid #4a86e8;
+            height: auto;
+        }
+        .logo-container {
+            width: 90px;
+            text-align: center;
+        }
+        .logo-container img {
+            max-width: 70px;
+            height: auto;
+        }
+        .university-title {
+            font-weight: bold;
+            font-size: 10px;
+        }
+        .doc-title {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .section-title {
+            text-align: left;
+            font-weight: bold;
+            font-size: 10px;
+            margin-top: 8px;
+            margin-bottom: 2px;
+        }
+        .text-left { text-align: left; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .bg-blue { background-color: #dde6f0 !important; }
+        
+        /* Running Header and Footer styles */
+        #header-container {
+            position: running(header);
+            width: 100%;
+        }
+        #footer-container {
+            position: running(footer);
+            width: 100%;
+        }
+        .page-number-cell::after {
+            content: counter(page) "/" counter(pages);
+        }
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-top: 1.5px solid #4a86e8 !important;
+            border-left: none !important;
+            border-bottom: none !important;
+            border-right: none !important;
+            margin-top: 5px;
+        }
+        .footer-table td {
+            border: none !important;
+            border-right: 1.5px solid #4a86e8 !important;
+            height: auto !important;
+            padding: 4px 6px !important;
+            font-size: 7.5px !important;
+            color: #333 !important;
+            font-family: Arial, sans-serif !important;
+        }
+        .footer-table td:last-child {
+            border-right: none !important;
+        }
+
+        /* Evaluation Table Styles */
+        .evaluation-table {
+            width: 100%;
+            border-collapse: collapse;
+            height: 132mm;
+        }
+        .evaluation-table tr {
+            height: 29mm;
+        }
+        .evaluation-table td {
+            height: 29mm !important;
+        }
+        .evaluation-table th, .evaluation-table td {
+            border: 1px solid #4a86e8;
+            padding: 2px 4px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        /* Weekly contents styles */
+        .weekly-section {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            margin-bottom: 15px;
+        }
+        .weekly-table {
+            width: 100%;
+        }
+        .weekly-table tr.keep-with-next {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div id="header-container">
+        <table class="header-table" style="margin-bottom: 0; width: 100%;">
+            <tr>
+                <td rowspan="2" class="logo-container" style="width: 15%;">
+                    <img src="" alt="Logo">
+                </td>
+                <td rowspan="2" class="university-title text-center" style="width: 25%;">
+                    SISTEMA DIDÁCTICO<br>UNIVERSITARIO
+                </td>
+                <td rowspan="2" class="doc-title text-center" style="width: 35%;">
+                    PLANIFICACIÓN DIDÁCTICA
+                </td>
+                <td class="text-center font-bold bg-blue" style="width: 15%;">CÓDIGO</td>
+                <td class="text-center font-bold bg-blue" style="width: 10%;">Pág.</td>
+            </tr>
+            <tr>
+                <td class="text-center">F01-SDU-2026</td>
+                <td class="text-center page-number-cell"></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Footer -->
+    <div id="footer-container">
+        <table class="footer-table">
+            <tr>
+                <td style="width: 20%; text-align: left;">SISTEMA DIDÁCTICO UNIVERSITARIO</td>
+                <td style="width: 60%; text-align: center;">Formato de Referencia</td>
+                <td style="width: 20%; text-align: right;">MPM00-VRA100-010623-308</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- I. Identificación de la Unidad Curricular -->
+    <div class="section-title">I. Identificación de la Unidad Curricular.</div>
+    
+    <!-- Table 1 -->
+    <table>
+        <tr>
+            <th class="text-left bg-blue" style="width: 25%;">Nombre de la Unidad Curricular</th>
+            <td class="text-left" style="width: 40%;">CONTABILIDAD DE SERVICIO Y PRODUCCIÓN</td>
+            <th class="bg-blue" style="width: 15%;">Código</th>
+            <td style="width: 20%;">TAS-1354</td>
+        </tr>
+        <tr>
+            <th class="text-left bg-blue">Propósito de la Unidad Curricular</th>
+            <td colspan="3" class="text-left"></td>
+        </tr>
+        <tr>
+            <th class="text-left bg-blue">Facultad/Decanato</th>
+            <td class="text-left"></td>
+            <th class="bg-blue">Carrera – Programa / Programa</th>
+            <td></td>
+        </tr>
+    </table>
+
+    <!-- Table 2 -->
+    <table>
+        <tr>
+            <th rowspan="2" class="bg-blue">Sección</th>
+            <th rowspan="2" class="bg-blue">Prelación</th>
+            <th rowspan="2" class="bg-blue">Total Horas</th>
+            <th colspan="3" class="bg-blue">HD</th>
+            <th colspan="2" class="bg-blue">HIV</th>
+            <th rowspan="2" class="bg-blue">HDE</th>
+        </tr>
+        <tr>
+            <th class="bg-blue">T</th>
+            <th class="bg-blue">L/T</th>
+            <th class="bg-blue">I/SC/P</th>
+            <th class="bg-blue">S</th>
+            <th class="bg-blue">A</th>
+        </tr>
+        <tr>
+            <td>ED01D0V</td>
+            <td></td>
+            <td>0</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </table>
+
+    <!-- Table 3 -->
+    <table>
+        <tr>
+            <th colspan="4" class="bg-blue">Componente Pregrado</th>
+            <th colspan="3" class="bg-blue">Componente Postgrado</th>
+            <th rowspan="2" class="bg-blue">Período<br>Académico</th>
+            <th colspan="3" class="bg-blue">Modalidad</th>
+        </tr>
+        <tr>
+            <th class="bg-blue">General</th>
+            <th class="bg-blue">Básica</th>
+            <th class="bg-blue">Profesional</th>
+            <th class="bg-blue">Investigación<br>/Pasantía</th>
+            <th class="bg-blue">Obligatorio</th>
+            <th class="bg-blue">Electiva</th>
+            <th class="bg-blue">Investigación</th>
+            <th class="bg-blue">Presencial</th>
+            <th class="bg-blue">Mixta</th>
+            <th class="bg-blue">Virtual</th>
+        </tr>
+        <tr>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>Trimestre 2026-2</td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </table>
+    
+    <div style="font-size: 9px; margin-top: 5px; margin-bottom: 15px;">
+        <strong>Leyenda:</strong> (HD) Horas Docentes, (T) Teóricas, (L/T) Laboratorio/Taller, (I/SC/P) Intervención / Servicio Comunitario / Proyecto, (HIV) Horas de Interacción Virtual, (S) Síncronas, (A) Asíncronas, (HDE) Horas de Dedicación Estudiante.
+    </div>
+
+    <!-- Teacher Info -->
+    <div class="section-title">II. Identificación del Docente</div>
+    <table>
+        <tr>
+            <th class="bg-blue">Nombre Docente/Tutor:</th>
+            <th class="bg-blue">N° Cédula</th>
+            <th class="bg-blue">Teléfono</th>
+            <th class="bg-blue">Correo:</th>
+        </tr>
+        <tr>
+            <td>Test Author</td>
+            <td>123456</td>
+            <td></td> <!-- Teléfono en blanco por ahora -->
+            <td>test@example.com</td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <th class="bg-blue">Horario de clases:</th>
+            <th class="bg-blue">Horario de Tutoría Docente:</th>
+            <th class="bg-blue">Total, horas docentes:</th>
+        </tr>
+        <tr>
+            <td></td> <!-- Vacío por ahora -->
+            <td></td> <!-- Vacío por ahora -->
+            <td></td> <!-- Vacío por ahora -->
+        </tr>
+    </table>
+
+    <div style="page-break-before: always;"></div>
+
+    <!-- Evaluation Plan -->
+    <div class="section-title">III. Plan de evaluación</div>
+    <table class="evaluation-table">
+        <tr>
+            <th style="width: 4%;">Unidad</th>
+            <th style="width: 38%;">Competencia<br>específica</th>
+            <th style="width: 8%;">Criterio de<br>Desempeño</th>
+            <th style="width: 10%;">Estrategia<br>de<br>Evaluación</th>
+            <th style="width: 9%;">Instrumento<br>de<br>Evaluación</th>
+            <th style="width: 7%;">Tipo de<br>Evaluación</th>
+            <th style="width: 8%;">Evidencia<br>de<br>Evaluación</th>
+            <th style="width: 8%;">Retroalimentación</th>
+            <th style="width: 4%;">Lapso/<br>Entrega</th>
+            <th style="width: 4%;">Ponderación<br>/<br>Calificación</th>
+        </tr>
+        
+        <tr>
+            <td>1</td>
+            <td class="text-left">Importancia de la actividad agropecuaria en Venezuela. Problemática que la afecta en el contexto nacional e internacional. Las empresas ganaderas en Venezuela. Fundamentos de contabilidad pecuaria. Aspectos contables y administrativos. Proceso de acumulación de costos de producción ganadera. Productos y subproductos pecuarios. Inversiones agropecuarias. NIC N°41 Activos Biológicos. Tratamiento contable. Reconocimiento, medición, presentación y revelación. Actividad agropecuaria en Venezuela / fundamentos de contabilidad pecuaria</td>
+            <td class="text-left">None</td>
+            <td class="text-left">Cuestionario virtual</td>
+            <td class="text-left">Prueba escrita</td>
+            <td>Formativa y Sumativa</td>
+            <td class="text-left">Prueba escrita</td>
+            <td class="text-left">Análisis de los resultados obtenidos</td>
+            <td>7</td>
+            <td>25.0%</td>
+        </tr>
+        
+        <tr>
+            <td>2</td>
+            <td class="text-left">Fundamentos de contabilidad agrícola. Gestión agrícola. Inversiones agrícolas. Proceso de acumulación de costos agrícolas. Cultivos a corto y largo plazo. Tratamiento contable. Reconocimiento, medición, presentación y revelación. El presupuesto agropecuario. Punto de equilibrio. Fuentes de financiamiento de la empresa agropecuaria venezolana. Fundamentos de contabilidad agrícola</td>
+            <td class="text-left">None</td>
+            <td class="text-left">Cuestionario virtual</td>
+            <td class="text-left">Prueba escrita</td>
+            <td>Formativa y Sumativa</td>
+            <td class="text-left">Prueba escrita</td>
+            <td class="text-left">Análisis de los resultados obtenidos</td>
+            <td>9</td>
+            <td>25.0%</td>
+        </tr>
+        
+        <tr>
+            <td>3</td>
+            <td class="text-left">Empresas de servicios. Importancia en la actividad económica nacional. Aspectos administrativos y contables de las empresas de servicios. Importancia de la construcción en la economía del país. Características de las empresas constructoras. Fundamentos de contabilidad de empresas constructoras. NIC N°11 Contratos de Construcción. Costos de construcción. Anticipos y valuaciones. Distribución anual de costos e ingresos. Método del porcentaje de avance de obra. Empresas de servicios / fundamentos de contabilidad de empresas constructoras</td>
+            <td class="text-left">None</td>
+            <td class="text-left">Estudio de caso</td>
+            <td class="text-left">Rúbrica de evaluación</td>
+            <td>Formativa y Sumativa</td>
+            <td class="text-left">Informe del Estudio de caso</td>
+            <td class="text-left">Análisis de los resultados obtenidos</td>
+            <td>10</td>
+            <td>25.0%</td>
+        </tr>
+        
+        <tr>
+            <td>4</td>
+            <td class="text-left">Importancia en la actividad turística en el contexto económico y social del país. Características de las empresas turísticas en Venezuela. Aspectos contables y administrativos. Fundamentos básicos de contabilidad de hoteles y empresas turísticas. Estados financieros. Actividad turística en Venezuela / fundamentos de contabilidad de empresas turísticas DESARROLLO DE LAS</td>
+            <td class="text-left">None</td>
+            <td class="text-left">Proyecto prospectivo</td>
+            <td class="text-left">Escala de estimación</td>
+            <td>Sumativa y Formativa</td>
+            <td class="text-left">Informe del Estudio de caso</td>
+            <td class="text-left">Nivel de participación</td>
+            <td>12</td>
+            <td>25.0%</td>
+        </tr>
+        
+    </table>
+
+    <div style="page-break-before: always;"></div>
+
+    <!-- Weekly Contents -->
+    <div class="section-title">IV. Desarrollo de las unidades de contenidos</div>
+    
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 1</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Importancia de la actividad agropecuaria en Venezuela. Las empresas ganaderas en Venezuela.</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Conoce la problemática que afecta la actividad agropecuaria en Venezuela con el fin de aportar soluciones para fortalecer el este sector económico. Aplica las herramientas contables y administrativas para el manejo eficiente de una empresa de producción agropecuaria. Valora el rol del contador público como asesor en las entidades económicas del sector pecuario para la toma de decisiones en materia de inversiones y expansión. Analiza las operaciones contables y administrativas de la empresa agropecuaria, a fin de proveer información financiera que sustente la toma de decisiones estratégicas para el logro de su misión.</td>
+                    <td class="text-left">Análisis de casos. 
+
+
+Panel de discusión y debate. 
+cuadros y gráficos, 
+Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 2</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Importancia de la actividad agropecuaria en Venezuela. Reconocimiento, medición, presentación y revelación.</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Conoce la problemática que afecta la actividad agropecuaria en Venezuela con el fin de aportar soluciones para fortalecer el este sector económico. Aplica las herramientas contables y administrativas para el manejo eficiente de una empresa de producción agropecuaria. Valora el rol del contador público como asesor en las entidades económicas del sector pecuario para la toma de decisiones en materia de inversiones y expansión. Analiza las operaciones contables y administrativas de la empresa agropecuaria, a fin de proveer información financiera que sustente la toma de decisiones estratégicas para el logro de su misión.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 3</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Importancia de la actividad agropecuaria en Venezuela. Problemática que la afecta en el contexto nacional e internacional. Las empresas ganaderas en Venezuela. Fundamentos de contabilidad pecuaria. Aspectos contables y administrativos. Proceso de acumulación de costos de producción ganadera. Productos y subproductos pecuarios. Inversiones agropecuarias. NIC N°41 Activos Biológicos. Tratamiento contable. Reconocimiento, medición, presentación y revelación. Actividad agropecuaria en Venezuela / fundamentos de contabilidad pecuaria</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Conoce la problemática que afecta la actividad agropecuaria en Venezuela con el fin de aportar soluciones para fortalecer el este sector económico. Aplica las herramientas contables y administrativas para el manejo eficiente de una empresa de producción agropecuaria. Valora el rol del contador público como asesor en las entidades económicas del sector pecuario para la toma de decisiones en materia de inversiones y expansión. Analiza las operaciones contables y administrativas de la empresa agropecuaria, a fin de proveer información financiera que sustente la toma de decisiones estratégicas para el logro de su misión.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 4</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Importancia de la actividad agropecuaria en Venezuela. Problemática que la afecta en el contexto nacional e internacional. Las empresas ganaderas en Venezuela. Fundamentos de contabilidad pecuaria. Aspectos contables y administrativos. Proceso de acumulación de costos de producción ganadera. Productos y subproductos pecuarios. Inversiones agropecuarias. NIC N°41 Activos Biológicos. Tratamiento contable. Reconocimiento, medición, presentación y revelación. Actividad agropecuaria en Venezuela / fundamentos de contabilidad pecuaria</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Conoce la problemática que afecta la actividad agropecuaria en Venezuela con el fin de aportar soluciones para fortalecer el este sector económico. Aplica las herramientas contables y administrativas para el manejo eficiente de una empresa de producción agropecuaria. Valora el rol del contador público como asesor en las entidades económicas del sector pecuario para la toma de decisiones en materia de inversiones y expansión. Analiza las operaciones contables y administrativas de la empresa agropecuaria, a fin de proveer información financiera que sustente la toma de decisiones estratégicas para el logro de su misión.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 5</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Importancia de la actividad agropecuaria en Venezuela. Problemática que la afecta en el contexto nacional e internacional. Las empresas ganaderas en Venezuela. Fundamentos de contabilidad pecuaria. Aspectos contables y administrativos. Proceso de acumulación de costos de producción ganadera. Productos y subproductos pecuarios. Inversiones agropecuarias. NIC N°41 Activos Biológicos. Tratamiento contable. Reconocimiento, medición, presentación y revelación. Actividad agropecuaria en Venezuela / fundamentos de contabilidad pecuaria</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Conoce la problemática que afecta la actividad agropecuaria en Venezuela con el fin de aportar soluciones para fortalecer el este sector económico. Aplica las herramientas contables y administrativas para el manejo eficiente de una empresa de producción agropecuaria. Valora el rol del contador público como asesor en las entidades económicas del sector pecuario para la toma de decisiones en materia de inversiones y expansión. Analiza las operaciones contables y administrativas de la empresa agropecuaria, a fin de proveer información financiera que sustente la toma de decisiones estratégicas para el logro de su misión.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 6</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Importancia de la actividad agropecuaria en Venezuela. Problemática que la afecta en el contexto nacional e internacional. Las empresas ganaderas en Venezuela. Fundamentos de contabilidad pecuaria. Aspectos contables y administrativos. Proceso de acumulación de costos de producción ganadera. Productos y subproductos pecuarios. Inversiones agropecuarias. NIC N°41 Activos Biológicos. Tratamiento contable. Reconocimiento, medición, presentación y revelación. Actividad agropecuaria en Venezuela / fundamentos de contabilidad pecuaria</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Conoce la problemática que afecta la actividad agropecuaria en Venezuela con el fin de aportar soluciones para fortalecer el este sector económico. Aplica las herramientas contables y administrativas para el manejo eficiente de una empresa de producción agropecuaria. Valora el rol del contador público como asesor en las entidades económicas del sector pecuario para la toma de decisiones en materia de inversiones y expansión. Analiza las operaciones contables y administrativas de la empresa agropecuaria, a fin de proveer información financiera que sustente la toma de decisiones estratégicas para el logro de su misión.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 7</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Importancia de la actividad agropecuaria en Venezuela. Problemática que la afecta en el contexto nacional e internacional. Las empresas ganaderas en Venezuela. Fundamentos de contabilidad pecuaria. Aspectos contables y administrativos. Proceso de acumulación de costos de producción ganadera. Productos y subproductos pecuarios. Inversiones agropecuarias. NIC N°41 Activos Biológicos. Tratamiento contable. Reconocimiento, medición, presentación y revelación. Actividad agropecuaria en Venezuela / fundamentos de contabilidad pecuaria</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Conoce la problemática que afecta la actividad agropecuaria en Venezuela con el fin de aportar soluciones para fortalecer el este sector económico. Aplica las herramientas contables y administrativas para el manejo eficiente de una empresa de producción agropecuaria. Valora el rol del contador público como asesor en las entidades económicas del sector pecuario para la toma de decisiones en materia de inversiones y expansión. Analiza las operaciones contables y administrativas de la empresa agropecuaria, a fin de proveer información financiera que sustente la toma de decisiones estratégicas para el logro de su misión.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 8</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Fundamentos de contabilidad agrícola. Gestión agrícola. Inversiones agrícolas. Proceso de acumulación de costos agrícolas. Cultivos a corto y largo plazo. Tratamiento contable. Reconocimiento, medición, presentación y revelación. El presupuesto agropecuario. Punto de equilibrio. Fuentes de financiamiento de la empresa agropecuaria venezolana. Fundamentos de contabilidad agrícola</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Describe los fundamentos teórico-prácticos sobre el proceso de acumulación de los costos de producción agrícola con el fin evaluar la rentabilidad y productividad de la empresa. Ejecuta los procedimientos que permitan optimizar el proceso productivo al objeto de incrementar la rentabilidad y competitividad de la empresa agrícola. Estima el valor de las prácticas sostenibles en la actividad agrícola como instrumento para aumentar la producción de bienes, fortalecer la seguridad alimentaria y contribuir a la protección del medio ambiente. Diseña sistemas de costos de producción agrícola que provean información útil para la toma de decisiones gerenciales en un contexto de protección al medio ambiente.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 9</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Fundamentos de contabilidad agrícola. Gestión agrícola. Inversiones agrícolas. Proceso de acumulación de costos agrícolas. Cultivos a corto y largo plazo. Tratamiento contable. Reconocimiento, medición, presentación y revelación. El presupuesto agropecuario. Punto de equilibrio. Fuentes de financiamiento de la empresa agropecuaria venezolana. Fundamentos de contabilidad agrícola</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Describe los fundamentos teórico-prácticos sobre el proceso de acumulación de los costos de producción agrícola con el fin evaluar la rentabilidad y productividad de la empresa. Ejecuta los procedimientos que permitan optimizar el proceso productivo al objeto de incrementar la rentabilidad y competitividad de la empresa agrícola. Estima el valor de las prácticas sostenibles en la actividad agrícola como instrumento para aumentar la producción de bienes, fortalecer la seguridad alimentaria y contribuir a la protección del medio ambiente. Diseña sistemas de costos de producción agrícola que provean información útil para la toma de decisiones gerenciales en un contexto de protección al medio ambiente.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 10</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Empresas de servicios. Importancia en la actividad económica nacional. Aspectos administrativos y contables de las empresas de servicios. Importancia de la construcción en la economía del país. Características de las empresas constructoras. Fundamentos de contabilidad de empresas constructoras. NIC N°11 Contratos de Construcción. Costos de construcción. Anticipos y valuaciones. Distribución anual de costos e ingresos. Método del porcentaje de avance de obra. Empresas de servicios / fundamentos de contabilidad de empresas constructoras</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Identifica los elementos que intervienen en el ámbito de las empresas de construcción y la importancia de esta actividad para el desarrollo social y económico del país. Desarrolla sistemas contables y administrativos para optimizar el uso de los recursos y aumentar la productividad en las empresas del ramo de la construcción. Aprecia la función que cumplen las empresas constructoras para la generación de empleo y satisfacer las necesidades en materia de vivienda y construcción de obras de interés público. Maneja las técnicas contables y administrativas para contribuir al logro de las metas y objetivos de las empresas del sector de servicios en el país.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 11</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Importancia en la actividad turística en el contexto económico y social del país. Características de las empresas turísticas en Venezuela. Aspectos contables y administrativos. Fundamentos básicos de contabilidad de hoteles y empresas turísticas. Estados financieros. Actividad turística en Venezuela / fundamentos de contabilidad de empresas turísticas DESARROLLO DE LAS</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Indaga sobre la problemática que afecta al sector turístico e identifica las estrategias más idóneas para mejorar los procesos administrativos y contables de las empresas del ramo. Diseña los planes y estrategias que contribuyan a mejorar la gestión de las empresas del sector turismo con el fin optimizar el servicio a sus usuarios. Valora el rol del contador público como asesor de las empresas turísticas para lograr los objetivos de generación de ingresos, aumento del empleo y promoción cultural del país. Evalúa el desarrollo de una cultura de servicio en materia turística, en un contexto de protección al ambiente, como actividad generadora de recursos económicos para el país. ESTRATEGIAS DIDACTICAS Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas. ESTRATEGIAS DE EVALUACION Diagnostica Formativa Sumativa Discusión grupal, debates, lluvia de ideas. Talleres, estudio de casos, foro. Talleres, trabajos, foros de discusión. Aprendizajes basados en problemas. Mapas metales, videos. REFERENCIAS BIBLIOGRAFICAS Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="weekly-section">
+        <table class="weekly-table">
+            <thead>
+                <tr class="keep-with-next">
+                    <th colspan="2" class="text-left" style="border-right: none;">Semana: 12</th>
+                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: </th>
+                </tr>
+                <tr class="keep-with-next">
+                    <th style="width: 25%;">Contenido</th>
+                    <th style="width: 20%;">Competencia Específica</th>
+                    <th style="width: 20%;">Criterios de Desempeño</th>
+                    <th style="width: 20%;">Estrategias Didácticas</th>
+                    <th style="width: 15%;">Evaluación /<br>Realimentación</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left" style="height: 40px;">Importancia en la actividad turística en el contexto económico y social del país. Características de las empresas turísticas en Venezuela. Aspectos contables y administrativos. Fundamentos básicos de contabilidad de hoteles y empresas turísticas. Estados financieros. Actividad turística en Venezuela / fundamentos de contabilidad de empresas turísticas DESARROLLO DE LAS</td>
+                    <td class="text-left"></td>
+                    <td class="text-left">Indaga sobre la problemática que afecta al sector turístico e identifica las estrategias más idóneas para mejorar los procesos administrativos y contables de las empresas del ramo. Diseña los planes y estrategias que contribuyan a mejorar la gestión de las empresas del sector turismo con el fin optimizar el servicio a sus usuarios. Valora el rol del contador público como asesor de las empresas turísticas para lograr los objetivos de generación de ingresos, aumento del empleo y promoción cultural del país. Evalúa el desarrollo de una cultura de servicio en materia turística, en un contexto de protección al ambiente, como actividad generadora de recursos económicos para el país. ESTRATEGIAS DIDACTICAS Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas. ESTRATEGIAS DE EVALUACION Diagnostica Formativa Sumativa Discusión grupal, debates, lluvia de ideas. Talleres, estudio de casos, foro. Talleres, trabajos, foros de discusión. Aprendizajes basados en problemas. Mapas metales, videos. REFERENCIAS BIBLIOGRAFICAS Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                    <td class="text-left">Análisis de casos. Panel de discusión y debate. cuadros y gráficos, Foros colaborativos. Videos, Mapas mentales y lluvia de ideas.</td>
+                    <td class="text-left">None</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
+                    <td colspan="4" class="text-left"><br>Álvarez R. (1979). Contabilidad Agropecuaria. Editorial Dosmil. Bogotá. Cerda, R., Chandía, A. y Faúndez, M. (2003). Gestión de Operaciones en Empresas Agropecuarias, Tópico III. Universidad de Concepción. Chile. Delgado M. (2001). Contabilidad Agropecuaria. Enciclopedia Agropecuaria Terranova. Bogotá. García A. (2008) Contabilidad de Empresas Inmobiliarias y Constructoras. Editorial Gestión 2000. Barcelona, España. García, M. (2010). Contabilidad Hotelera. Editorial Trillas. México. Gómez Rondón F. (2004) Contabilidad Ganadera en Venezuela. Editorial Fragor. Caracas. Gómez Rondón F. (2004) Contabilidad Agrícola y Piscícola. Editorial Fragor. Caracas. González, R. (2016). Introducción a la Contabilidad de las Empresas Turísticas. Editorial Académica Española. Madrid. Gutiérrez M. (2004). Contabilidad de Empresas Constructoras. Editorial Instituto de Contabilidad. Madrid. Horwath, E. (2009). Contabilidad para Hoteles. Editorial Diana. México. IASB (2019). Normas Internacionales de Información Financiera. NIC 11 Contratos de Construcción. IASB. Reino Unido. Jeffrey, A. (1975). Contabilidad Agropecuaria. Editorial Lacribia. Zaragoza, España. Lerdon J. (2005). Contabilidad de Gestión Agropecuaria. Instituto de Economía Agrícola. Chile. Martínez, R. (2010). Manual de Contabilidad para Empresas Turísticas. Editorial Temis. Bogotá. Parra E. (2013). Contabilidad de la Empresa Turística. Editorial McGraw-Hill. México. Peña, A. (2010). Contabilidad Hotelera, de Restaurantes y de Gestión. Editorial Universidad Libre. Cartagena, Colombia. Vargas, M. (2005). Introducción a la Contabilidad Agropecuaria. Editorial Machala. Ecuador.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+
+</body>
+</html>

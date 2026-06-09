@@ -46,6 +46,15 @@ class Subject(Base):
     eval_formativa = Column(Text, nullable=True)
     eval_sumativa = Column(Text, nullable=True)
     bibliographic_references = Column(Text, nullable=True)
+    
+    # Missing fields from Django migrations
+    component_type = Column(String(100), nullable=True)
+    hd_iscp = Column(Integer, default=0, nullable=False)
+    hd_lt = Column(Integer, default=0, nullable=False)
+    hd_t = Column(Integer, default=0, nullable=False)
+    hiv_a = Column(Integer, default=0, nullable=False)
+    hiv_s = Column(Integer, default=0, nullable=False)
+
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 

@@ -127,9 +127,9 @@ export function WizardEvaluation() {
               <Label className="text-xs">Criterio de Desempeño</Label>
               <Input
                 placeholder="Criterio de desempeño asociado..."
-                value={ev.performance_criteria || ''}
+                value={ev.performance_criterion || ''}
                 onChange={(e) =>
-                  updateEvaluationItem(idx, 'performance_criteria', e.target.value)
+                  updateEvaluationItem(idx, 'performance_criterion', e.target.value)
                 }
               />
             </div>

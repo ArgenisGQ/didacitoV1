@@ -67,8 +67,8 @@ export function EvaluationPlanGrid() {
       }
 
       // Llenar Criterios de Desempeño
-      if (!state.evaluation_plans[idx].performance_criteria || state.evaluation_plans[idx].performance_criteria === 'No se encontraron criterios de desempeño específicos en el PDF.') {
-         updateEvaluationItem(idx, 'performance_criteria', unit.performance_criteria || "No se encontraron criterios de desempeño específicos en el PDF.");
+      if (!state.evaluation_plans[idx].performance_criterion || state.evaluation_plans[idx].performance_criterion === 'No se encontraron criterios de desempeño específicos en el PDF.') {
+         updateEvaluationItem(idx, 'performance_criterion', unit.performance_criteria || "No se encontraron criterios de desempeño específicos en el PDF.");
       }
     });
   };
@@ -175,8 +175,8 @@ export function EvaluationPlanGrid() {
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-muted-foreground">Criterios de Desempeño</Label>
                     <Textarea
-                      value={unit.performance_criteria}
-                      onChange={(e) => updateEvaluationItem(idx, 'performance_criteria', e.target.value)}
+                      value={unit.performance_criterion || ''}
+                      onChange={(e) => updateEvaluationItem(idx, 'performance_criterion', e.target.value)}
                       placeholder="Ej. Aplica metodologías..."
                       className="min-h-[80px] bg-background resize-none text-sm"
                     />

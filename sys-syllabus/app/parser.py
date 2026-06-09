@@ -131,15 +131,16 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
     
     # --- Code ---
     subject_code = fallback_code
-    code_match = re.search(r'\b([A-Z]{3,4}-\d{3,4})\b', full_text)
-    if code_match:
-        subject_code = code_match.group(1).strip()
-    elif not subject_code:
-        # Try finding code without hyphen (e.g. TAA0600)
-        code_match_no_hyphen = re.search(r'\b([A-Z]{3,4}\d{3,4})\b', full_text)
-        if code_match_no_hyphen:
-            c = code_match_no_hyphen.group(1)
-            subject_code = f"{c[:3]}-{c[3:]}" if len(c) == 7 else f"{c[:4]}-{c[4:]}"
+    if not subject_code or not re.match(r'^[A-Z]{3,4}-\d{3,5}$', subject_code):
+        code_match = re.search(r'\b([A-Z]{3,4}-\d{3,5})\b', full_text)
+        if code_match:
+            subject_code = code_match.group(1).strip()
+        elif not subject_code:
+            # Try finding code without hyphen (e.g. TAA0600)
+            code_match_no_hyphen = re.search(r'\b([A-Z]{3,4}\d{3,5})\b', full_text)
+            if code_match_no_hyphen:
+                c = code_match_no_hyphen.group(1)
+                subject_code = f"{c[:3]}-{c[3:]}" if len(c) >= 7 else f"{c[:4]}-{c[4:]}"
             
     # --- Document Code (e.g., FOR-VRA120-060723-316) ---
     doc_code = ""

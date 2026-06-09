@@ -21,6 +21,7 @@ export interface WeeklyContent {
 
 export interface EvaluationPlan {
   unit?: number;
+  title?: string;
   competence: string;
   performance_criterion?: string;
   strategy: string;
@@ -30,6 +31,7 @@ export interface EvaluationPlan {
   feedback_method: string;
   weight?: number;
   due_week?: number;
+  due_date?: string;
 }
 
 export interface LessonPlan {

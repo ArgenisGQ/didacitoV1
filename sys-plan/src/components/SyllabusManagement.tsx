@@ -311,6 +311,13 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
     if (!files || files.length === 0) return
 
     const file = files[0]
+    
+    if (file.size > 50 * 1024 * 1024) {
+      setUploadError(`El archivo '${file.name}' supera el límite recomendado de 50 MB. Por favor, divida el lote en varios ZIPs o reduzca el tamaño del PDF para garantizar estabilidad.`)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
     const formData = new FormData()
     formData.append('file', file)
 
@@ -329,7 +336,8 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
           headers: { 'Content-Type': 'multipart/form-data' }
         })
         const errorsText = data.errors.length > 0 ? ` Con advertencias en ${data.errors.length} archivos.` : ''
-        setUploadSuccess(`Lote ZIP completado: ${data.inserted} materias nuevas importadas, ${data.updated} actualizadas, y ${data.ignored_duplicates} archivos duplicados omitidos por hash de seguridad.${errorsText}`)
+        const dupesText = data.ignored_duplicates > 0 ? ` Archivos omitidos (duplicados): ${data.ignored_duplicate_names.join(', ')}.` : ''
+        setUploadSuccess(`Lote ZIP completado: ${data.inserted} materias nuevas importadas, ${data.updated} actualizadas, y ${data.ignored_duplicates} archivos duplicados omitidos por hash de seguridad.${errorsText} ${dupesText}`)
       }
       refetch()
       setUploadType(null)
@@ -445,6 +453,10 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
               accept={uploadType === 'pdf' ? '.pdf' : '.zip'}
               onChange={handleFileUpload}
             />
+            <div className="w-full text-xs text-muted-foreground font-semibold mt-1 flex items-center gap-1.5">
+              <Info size={14} className="text-primary/70 shrink-0" />
+              <span>Límite de carga: <strong>50 MB</strong> por archivo (PDF o ZIP). Si excede este tamaño, divídalo en varios archivos.</span>
+            </div>
           </div>
         )}
       </div>

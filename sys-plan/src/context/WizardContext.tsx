@@ -4,7 +4,7 @@ export interface EvaluationItem {
   unit: number | null
   title?: string
   competence: string
-  performance_criteria: string
+  performance_criterion: string
   strategy: string
   instrument: string
   evaluation_type: string
@@ -54,7 +54,7 @@ const createEmptyEvaluation = (unitNum: number): EvaluationItem => ({
   unit: unitNum,
   title: '',
   competence: '',
-  performance_criteria: '',
+  performance_criterion: '',
   strategy: '',
   instrument: '',
   evaluation_type: '',
@@ -234,7 +234,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
                 unit: ep.unit ?? (idx + 1),
                 title: ep.title || '',
                 competence: ep.competence || '',
-                performance_criteria: ep.performance_criteria || ep.performance_criterion || '',
+                performance_criterion: ep.performance_criteria || ep.performance_criterion || '',
                 strategy: ep.strategy || '',
                 instrument: ep.instrument || '',
                 evaluation_type: ep.evaluation_type || '',

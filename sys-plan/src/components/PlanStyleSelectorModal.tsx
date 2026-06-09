@@ -48,7 +48,7 @@ export function PlanStyleSelectorModal({ isOpen, onClose, onSelect }: Props) {
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4 group-hover:bg-primary/10 group-hover:text-primary transition-colors text-muted-foreground">
               <Map size={32} />
             </div>
-            <h3 className="font-bold text-lg mb-2 text-foreground">Línea de Tiempo Visual</h3>
+            <h3 className="font-bold text-lg mb-2 text-foreground">Asistente Dinamico</h3>
             <p className="text-sm text-muted-foreground">
               Visión panorámica e interactiva. Ideal para distribuir cargas de trabajo.
             </p>

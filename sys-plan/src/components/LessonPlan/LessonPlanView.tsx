@@ -15,6 +15,26 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
   const tdClass = `border ${borderColor} px-1.5 py-0.5 text-center text-[9px]`
   const tdLeftClass = `border ${borderColor} px-2 py-1 text-left align-middle text-[10px] sm:text-xs`;
 
+  const formatDueDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const clean = dateStr.trim();
+    if (clean.length === 10 && clean[2] === '/' && clean[5] === '/') {
+      return clean;
+    }
+    if (clean.includes('-')) {
+      const parts = clean.split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+    }
+    return clean;
+  };
+
+  const formatWeight = (w?: number) => {
+    if (w === undefined || w === null) return '0';
+    return Number.isInteger(w) ? w.toString() : w.toFixed(1);
+  };
+
   // Provide fallbacks for UI
   const subjectName = plan.title || "---"; // using title as subject name for preview
   const authorName = plan.author_name || "---";
@@ -171,22 +191,7 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
         </tbody>
       </table>
 
-      <table className="w-full border-collapse mb-2">
-        <thead>
-          <tr>
-            <th className={thClass}>Horario de clases:</th>
-            <th className={thClass}>Horario de Tutoría Docente:</th>
-            <th className={thClass}>Total, horas docentes:</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td className={tdClass}></td>
-            <td className={tdClass}></td>
-            <td className={tdClass}></td>
-          </tr>
-        </tbody>
-      </table>
+
 
       {/* Legend */}
       <div className="text-center font-bold mt-2 mb-1 text-[11px]">Leyenda</div>
@@ -253,8 +258,13 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
               <td className={tdClass}>{evalPlan.evaluation_type}</td>
               <td className={tdLeftClass}>{evalPlan.evidence}</td>
               <td className={tdLeftClass}>{evalPlan.feedback_method}</td>
-              <td className={tdClass}>{evalPlan.due_week || ''}</td>
-              <td className={tdClass}>{evalPlan.weight || 0}%</td>
+              <td className={tdClass}>
+                {evalPlan.due_week ? `Semana ${evalPlan.due_week} /` : ''}
+                {evalPlan.due_date && <><br/>{formatDueDate(evalPlan.due_date)}</>}
+              </td>
+              <td className={tdClass}>
+                {formatWeight(evalPlan.weight)}% / 20 pts
+              </td>
             </tr>
           ))}
         </tbody>
@@ -273,11 +283,14 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
         <table key={idx} className="w-full border-collapse mb-4">
           <thead>
             <tr>
-              <th colSpan={2} className={`${thClass} text-left border-r-0`}>
+              <th className={`${thClass} text-left`}>
                 Semana: {week.week_number}
               </th>
-              <th colSpan={3} className={`${thClass} text-left border-l-0`}>
-                Unidad de Contenido: 
+              <th className={thClass}>
+                Unidad de Contenido
+              </th>
+              <th colSpan={3} className={`${thClass} text-left bg-white font-normal`}>
+                {week.unit_content || ''}
               </th>
             </tr>
             <tr>

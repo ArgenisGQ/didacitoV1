@@ -43,9 +43,8 @@ export function LessonPlanWebModal({ plan, onClose }: LessonPlanWebModalProps) {
         </DialogHeader>
         
         <div className="flex-1 flex overflow-hidden">
-          {/* Main Plan View */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-8">
-            <div className="bg-background shadow-xl max-w-[900px] mx-auto border border-border print:shadow-none print:border-none">
+            <div className="bg-background shadow-xl max-w-[1100px] mx-auto border border-border print:shadow-none print:border-none">
               <LessonPlanView plan={plan} />
             </div>
           </div>

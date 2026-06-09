@@ -128,7 +128,7 @@ async def upload_pdf(
     if existing_version:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El archivo PDF subido es idéntico a una versión existente del sistema."
+            detail=f"El archivo PDF '{file.filename}' es un duplicado idéntico a una versión existente del sistema."
         )
 
     # Parse document details
@@ -323,6 +323,7 @@ async def upload_zip(
             inserted = 0
             updated = 0
             ignored_duplicates = 0
+            ignored_duplicate_names = []
             errors = []
 
             # Traverse directory looking for PDFs
@@ -348,6 +349,7 @@ async def upload_zip(
                         existing_hash = hash_res.scalars().first()
                         if existing_hash:
                             ignored_duplicates += 1
+                            ignored_duplicate_names.append(f_name)
                             continue # Skip processing entirely
 
                         # Parse PDF
@@ -480,6 +482,7 @@ async def upload_zip(
                 "inserted": inserted,
                 "updated": updated,
                 "ignored_duplicates": ignored_duplicates,
+                "ignored_duplicate_names": ignored_duplicate_names,
                 "errors": errors
             }
         finally:

@@ -335,6 +335,104 @@ async def delete_plan(
     await db.commit()
     return {"message": "Plan deleted"}
 
+def to_roman(val):
+    if not val:
+        return ""
+    val_str = str(val).strip()
+    roman_map = {
+        "1": "I", "2": "II", "3": "III", "4": "IV", "5": "V",
+        "6": "VI", "7": "VII", "8": "VIII", "9": "IX", "10": "X",
+        "i": "I", "ii": "II", "iii": "III", "iv": "IV", "v": "V",
+        "vi": "VI", "vii": "VII", "viii": "VIII", "ix": "IX", "x": "X"
+    }
+    return roman_map.get(val_str, val_str)
+
+
+def format_due_date(date_str):
+    if not date_str:
+        return ""
+    date_str = str(date_str).strip()
+    if len(date_str) == 10 and date_str[2] == '/' and date_str[5] == '/':
+        return date_str
+    if '-' in date_str:
+        parts = date_str.split('-')
+        if len(parts) == 3 and len(parts[0]) == 4:
+            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+    try:
+        from datetime import datetime
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        return dt.strftime("%d/%m/%Y")
+    except Exception:
+        try:
+            dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            return dt.strftime("%d/%m/%Y")
+        except Exception:
+            return date_str
+
+
+
+def get_unit_for_week(week_num, evaluation_plans):
+    valid_evs = [ev for ev in evaluation_plans if ev.unit is not None]
+    
+    def get_unit_int(ev):
+        val = getattr(ev, 'unit', None)
+        if val is None:
+            return 999
+        val_str = str(val).strip().upper()
+        roman_to_int = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10}
+        if val_str in roman_to_int:
+            return roman_to_int[val_str]
+        if val_str.isdigit():
+            return int(val_str)
+        return 999
+
+    sorted_ev = sorted(valid_evs, key=get_unit_int)
+    
+    w1 = 4
+    w2 = 8
+    w3 = 12
+    
+    def get_due_week(ev):
+        dw = getattr(ev, 'due_week', None)
+        if dw is None:
+            return None
+        try:
+            return int(dw)
+        except ValueError:
+            return None
+
+    if len(sorted_ev) > 0 and get_due_week(sorted_ev[0]) is not None:
+        w1 = get_due_week(sorted_ev[0])
+    if len(sorted_ev) > 1 and get_due_week(sorted_ev[1]) is not None:
+        w2 = max(w1 + 1, get_due_week(sorted_ev[1]))
+    else:
+        w2 = max(w1 + 1, 8)
+    if len(sorted_ev) > 2 and get_due_week(sorted_ev[2]) is not None:
+        w3 = max(w2 + 1, get_due_week(sorted_ev[2]))
+    else:
+        w3 = max(w2 + 1, 12)
+        
+    if week_num <= w1:
+        unit_idx = 0
+    elif week_num <= w2:
+        unit_idx = 1
+    elif week_num <= w3:
+        unit_idx = 2
+    else:
+        unit_idx = 3
+        
+    roman = ["I", "II", "III", "IV"][min(unit_idx, 3)]
+    
+    if unit_idx < len(sorted_ev):
+        ep = sorted_ev[unit_idx]
+        title = getattr(ep, 'title', None)
+        if title and title.strip():
+            return f"Unidad {roman}: {title.strip()}"
+            
+    return f"Unidad {roman}"
+
+
+
 @router.get("/{plan_id}/pdf")
 async def generate_plan_pdf(
     plan_id: int,
@@ -375,6 +473,24 @@ async def generate_plan_pdf(
     if plan.subject_code:
         subj_res = await db.execute(select(Subject).where(Subject.code == plan.subject_code))
         subject = subj_res.scalars().first()
+
+    # Map weeks to units dynamically
+    for w in plan.weekly_contents:
+        w.unit_content = get_unit_for_week(w.week_number, plan.evaluation_plans)
+
+    # Convert units to Roman numerals and format evaluation plan fields
+    for ev in plan.evaluation_plans:
+        ev.unit = to_roman(ev.unit)
+        
+        # Format Lapso/Entrega
+        week_part = f"Semana {ev.due_week} /" if ev.due_week else ""
+        date_part = format_due_date(ev.due_date)
+        ev.formatted_lapso = f"{week_part}<br>{date_part}" if date_part else (f"Semana {ev.due_week}" if ev.due_week else "")
+        
+        # Format Ponderación/Calificación
+        w = ev.weight or 0
+        w_str = str(int(w)) if isinstance(w, float) and w.is_integer() else f"{w}"
+        ev.formatted_weight = f"{w_str}% / 20 pts"
 
     # Prepare template data
     templates_dir = os.path.join(os.path.dirname(__file__), "../../templates")
@@ -464,6 +580,25 @@ async def preview_plan_pdf(
     static_dir = os.path.join(os.path.dirname(__file__), "../../static")
     logo_path = "file://" + os.path.abspath(os.path.join(static_dir, "img", "university_logo.png")).replace("\\", "/")
     
+    # Map weeks to units dynamically
+    for w in (payload.weekly_contents or []):
+        w.unit_content = get_unit_for_week(w.week_number, payload.evaluation_plans or [])
+
+    # Convert units to Roman numerals and format evaluation plan fields
+    eval_plans = payload.evaluation_plans or []
+    for ev in eval_plans:
+        ev.unit = to_roman(ev.unit)
+        
+        # Format Lapso/Entrega
+        week_part = f"Semana {ev.due_week} /" if ev.due_week else ""
+        date_part = format_due_date(ev.due_date)
+        ev.formatted_lapso = f"{week_part}<br>{date_part}" if date_part else (f"Semana {ev.due_week}" if ev.due_week else "")
+        
+        # Format Ponderación/Calificación
+        w = ev.weight or 0
+        w_str = str(int(w)) if isinstance(w, float) and w.is_integer() else f"{w}"
+        ev.formatted_weight = f"{w_str}% / 20 pts"
+
     context = {
         "logo_url": logo_path,
         "plan": {
@@ -487,7 +622,7 @@ async def preview_plan_pdf(
             "id_document": getattr(current_user, 'id_user', ''),
             "email": current_user.email,
         },
-        "evaluation_plans": payload.evaluation_plans or [],
+        "evaluation_plans": eval_plans,
         "weekly_contents": sorted(payload.weekly_contents or [], key=lambda x: getattr(x, 'week_number', 0))
     }
 

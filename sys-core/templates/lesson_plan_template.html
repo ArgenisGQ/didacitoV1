@@ -117,13 +117,12 @@
         .evaluation-table {
             width: 100%;
             border-collapse: collapse;
-            height: 132mm;
         }
         .evaluation-table tr {
-            height: 29mm;
+            height: auto;
         }
         .evaluation-table td {
-            height: 29mm !important;
+            height: auto !important;
         }
         .evaluation-table th, .evaluation-table td {
             border: 1px solid #4a86e8;
@@ -307,18 +306,7 @@
         </tr>
     </table>
 
-    <table>
-        <tr>
-            <th class="bg-blue">Horario de clases:</th>
-            <th class="bg-blue">Horario de Tutoría Docente:</th>
-            <th class="bg-blue">Total, horas docentes:</th>
-        </tr>
-        <tr>
-            <td></td> <!-- Vacío por ahora -->
-            <td></td> <!-- Vacío por ahora -->
-            <td></td> <!-- Vacío por ahora -->
-        </tr>
-    </table>
+
 
     <div style="page-break-before: always;"></div>
 
@@ -347,8 +335,8 @@
             <td>{{ eval.evaluation_type }}</td>
             <td class="text-left">{{ eval.evidence }}</td>
             <td class="text-left">{{ eval.feedback_method }}</td>
-            <td>{{ eval.due_week or '' }}</td>
-            <td>{{ eval.weight }}%</td>
+            <td>{{ eval.formatted_lapso | safe }}</td>
+            <td>{{ eval.formatted_weight }}</td>
         </tr>
         {% endfor %}
     </table>
@@ -363,8 +351,9 @@
         <table class="weekly-table">
             <thead>
                 <tr class="keep-with-next">
-                    <th colspan="2" class="text-left" style="border-right: none;">Semana: {{ week.week_number }}</th>
-                    <th colspan="3" class="text-left" style="border-left: none;">Unidad de Contenido: {{ week.unit_content }}</th>
+                    <th class="text-left">Semana: {{ week.week_number }}</th>
+                    <th>Unidad de Contenido</th>
+                    <th colspan="3" class="text-left" style="font-weight: normal; background-color: #fff;">{{ week.unit_content }}</th>
                 </tr>
                 <tr class="keep-with-next">
                     <th style="width: 25%;">Contenido</th>

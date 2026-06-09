@@ -130,7 +130,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
     hiv_a: state.hiv_a,
     hde: state.hde,
     evaluation_plans: state.evaluation_plans.slice(0, 4).filter(e => 
-      e.title?.trim() || e.competence?.trim() || e.performance_criteria?.trim() || 
+      e.title?.trim() || e.competence?.trim() || e.performance_criterion?.trim() || 
       e.strategy?.trim() || e.instrument?.trim() || e.evaluation_type?.trim() || 
       e.evidence?.trim() || e.feedback_method?.trim() || 
       e.weight || e.due_week || e.due_date?.trim()
@@ -167,7 +167,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
             unit: ep.unit ?? null,
             title: ep.title || '',
             competence: ep.competence || '',
-            performance_criterion: ep.performance_criteria || ep.performance_criterion || '',
+            performance_criterion: ep.performance_criterion || '',
             strategy: ep.strategy || '',
             instrument: ep.instrument || '',
             evaluation_type: ep.evaluation_type || '',
