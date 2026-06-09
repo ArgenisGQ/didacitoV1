@@ -946,7 +946,7 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
                           onChange={e => setEditForm({ ...editForm, academic_period: parseInt(e.target.value) || null })}
                         />
                       ) : (
-                        <p className="font-bold text-lg">Trimestre / Semestre {editForm.academic_period || 'N/A'}</p>
+                        <p className="font-bold text-lg">{editForm.academic_period || 'N/A'}</p>
                       )}
                     </div>
 
@@ -1107,11 +1107,11 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
 
                   <Separator />
 
-                  {/* Section 4: Learning units program structure */}
+                  {/* Section 4a: ESTRUCTURA DE LAS UNIDADES DE APRENDIZAJE */}
                   <div className="space-y-4">
                     <h4 className="text-sm font-black text-foreground flex items-center gap-2">
                       <Layers size={16} className="text-primary" />
-                      Estructura Programática y Unidades de Aprendizaje
+                      Estructura de las Unidades de Aprendizaje
                     </h4>
                     {editForm.units && editForm.units.length > 0 ? (
                       <div className="space-y-4">
@@ -1125,17 +1125,11 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
                                 {unit.unit_title || 'Unidad de Aprendizaje'}
                               </span>
                             </div>
-                            <CardContent className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <CardContent className="p-5">
                               <div className="space-y-2">
-                                <span className="text-[10px] font-black tracking-wider uppercase text-muted-foreground">Contenidos Curriculares</span>
+                                <span className="text-[10px] font-black tracking-wider uppercase text-muted-foreground">Contenidos</span>
                                 <p className="text-sm leading-relaxed text-muted-foreground bg-muted/10 rounded-xl p-4 whitespace-pre-line font-medium">
                                   {unit.contents ? formatParagraphs(unit.contents) : 'Contenidos temáticos no provistos.'}
-                                </p>
-                              </div>
-                              <div className="space-y-2">
-                                <span className="text-[10px] font-black tracking-wider uppercase text-muted-foreground">Criterios de Desempeño</span>
-                                <p className="text-sm leading-relaxed text-muted-foreground bg-muted/10 rounded-xl p-4 whitespace-pre-line font-medium">
-                                  {unit.performance_criteria ? formatParagraphs(unit.performance_criteria) : 'Criterios evaluativos no provistos.'}
                                 </p>
                               </div>
                             </CardContent>
@@ -1145,6 +1139,58 @@ export default function SyllabusManagement({ userRole }: { userRole?: string | n
                     ) : (
                       <p className="text-sm text-muted-foreground italic">
                         No se han cargado unidades de aprendizaje estructuradas para esta materia.
+                      </p>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Section 4b: DESARROLLO DE LAS UNIDADES DE APRENDIZAJE */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-black text-foreground flex items-center gap-2">
+                      <Layers size={16} className="text-emerald-500" />
+                      Desarrollo de las Unidades de Aprendizaje
+                    </h4>
+                    {editForm.units && editForm.units.length > 0 ? (
+                      <div className="space-y-4">
+                        {editForm.units.map((unit, idx) => {
+                          const criteria = unit.performance_criteria || '';
+                          const competenciaMatch = criteria.match(/^Competencia:\n([\s\S]*?)(?=\n\nCriterios de Desempeño:|$)/);
+                          const criteriosMatch = criteria.match(/Criterios de Desempeño:\n([\s\S]*)$/);
+                          const competenciaText = competenciaMatch ? competenciaMatch[1].trim() : '';
+                          const criteriosText = criteriosMatch ? criteriosMatch[1].trim() : criteria;
+
+                          return (
+                            <Card key={idx} className="border border-muted/50 overflow-hidden bg-card">
+                              <div className="bg-emerald-500/5 px-5 py-3 border-b flex justify-between items-center">
+                                <Badge className="font-extrabold text-[11px] bg-emerald-500/10 text-emerald-600 border-0 rounded-full px-3 py-1 uppercase">
+                                  {unit.unit_number}
+                                </Badge>
+                                <span className="text-sm font-black text-card-foreground">
+                                  {unit.unit_title || 'Unidad de Aprendizaje'}
+                                </span>
+                              </div>
+                              <CardContent className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                  <span className="text-[10px] font-black tracking-wider uppercase text-muted-foreground">Competencia de la Unidad</span>
+                                  <p className="text-sm leading-relaxed text-muted-foreground bg-muted/10 rounded-xl p-4 whitespace-pre-line font-medium">
+                                    {competenciaText ? formatParagraphs(competenciaText) : 'Competencia no provista.'}
+                                  </p>
+                                </div>
+                                <div className="space-y-2">
+                                  <span className="text-[10px] font-black tracking-wider uppercase text-muted-foreground">Criterios de Desempeño</span>
+                                  <p className="text-sm leading-relaxed text-muted-foreground bg-muted/10 rounded-xl p-4 whitespace-pre-line font-medium">
+                                    {criteriosText ? formatParagraphs(criteriosText) : 'Criterios evaluativos no provistos.'}
+                                  </p>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">
+                        No se han cargado unidades de desarrollo para esta materia.
                       </p>
                     )}
                   </div>

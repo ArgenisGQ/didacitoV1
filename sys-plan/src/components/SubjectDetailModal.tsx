@@ -280,7 +280,7 @@ export function SubjectDetailModal({
                     </div>
                     <div className="space-y-1">
                       <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Periodo Recomendado</span>
-                      <p className="font-bold text-base bg-muted/30 p-3 rounded-xl">Trimestre / Semestre {subject.academic_period || 'N/A'}</p>
+                      <p className="font-bold text-base bg-muted/30 p-3 rounded-xl">{subject.academic_period || 'N/A'}</p>
                     </div>
                     <div className="space-y-1">
                       <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Horas Acompañamiento (HAD)</span>
