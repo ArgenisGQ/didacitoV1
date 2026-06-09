@@ -246,24 +246,58 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
     teaching_strategies = extract_between(r'ESTRIGIAS DIDACTICAS|ESTRATEGIAS DIDACTICAS\s*\n', r'ESTRATEGIAS DE EVALUACION', full_text)
 
     # --- Evaluation strategies ---
-    eval_text = extract_between(r'ESTRATEGIAS DE EVALUACION\s*\n', r'REFERENCIAS BIBLIOGRAFICAS', full_text)
     eval_diagnostica = ""
     eval_formativa = ""
     eval_sumativa = ""
-    if eval_text:
-        # Simple heuristic split
-        # Diagnostica, Formativa, Sumativa
-        diag_match = re.search(r'Diagnostica\s*\n(.*?)(?=Formativa|Sumativa|$)', eval_text, re.DOTALL | re.IGNORECASE)
-        form_match = re.search(r'Formativa\s*\n(.*?)(?=Sumativa|$)', eval_text, re.DOTALL | re.IGNORECASE)
-        sum_match = re.search(r'Sumativa\s*\n(.*)', eval_text, re.DOTALL | re.IGNORECASE)
+    
+    start_page_idx = -1
+    start_y = 0
+    end_page_idx = -1
+    end_y = 999999
+    
+    for idx, page in enumerate(doc):
+        blocks = page.get_text("blocks")
+        for b in blocks:
+            text = b[4].strip()
+            if "ESTRATEGIAS DE EVALUACION" in text:
+                start_page_idx = idx
+                start_y = b[1]
+            if "REFERENCIAS BIBLIOGRAFICAS" in text:
+                end_page_idx = idx
+                end_y = b[1]
+                
+    if start_page_idx != -1:
+        eval_diag_lines = []
+        eval_form_lines = []
+        eval_sum_lines = []
         
-        eval_diagnostica = diag_match.group(1).strip() if diag_match else ""
-        eval_formativa = form_match.group(1).strip() if form_match else ""
-        eval_sumativa = sum_match.group(1).strip() if sum_match else ""
-        
-        if not eval_diagnostica and not eval_formativa:
-            # If standard split failed, put whole text in formativa
-            eval_formativa = eval_text
+        max_idx = end_page_idx if end_page_idx != -1 else len(doc) - 1
+        for idx in range(start_page_idx, max_idx + 1):
+            page = doc[idx]
+            blocks = page.get_text("blocks")
+            sorted_blocks = sorted(blocks, key=lambda x: x[1])
+            
+            for b in sorted_blocks:
+                if idx == start_page_idx and b[1] <= start_y:
+                    continue
+                if idx == end_page_idx and b[1] >= end_y:
+                    continue
+                    
+                text_clean = b[4].strip().replace('\n', ' ')
+                if re.match(r'^(Diagnostica\s+Formativa\s+Sumativa|Diagnostica|Formativa|Sumativa)$', text_clean, re.IGNORECASE):
+                    continue
+                    
+                x0 = b[0]
+                if x0 < 200:
+                    eval_diag_lines.append(b[4].strip())
+                elif 200 <= x0 < 380:
+                    eval_form_lines.append(b[4].strip())
+                else:
+                    eval_sum_lines.append(b[4].strip())
+                    
+        eval_diagnostica = " ".join(eval_diag_lines)
+        eval_formativa = " ".join(eval_form_lines)
+        eval_sumativa = " ".join(eval_sum_lines)
 
     # --- Bibliography ---
     bibliographic_references = ""
@@ -277,92 +311,163 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
 
     # --- Learning Units ---
     units_dict = {}
-    # We parse the learning units from both ESTRUCTURA and DESARROLLO
-    # Look for "Unidad I", "Unidad II", "Unidad III", etc.
-    # We find text for Unidad I, Unidad II, etc.
-    unit_matches = re.finditer(r'\b(Unidad [IVXLCDM\d]+)\b', full_text, re.IGNORECASE)
-    unit_positions = []
-    for m in unit_matches:
-        unit_positions.append((m.group(1), m.start()))
     
-    # Deduplicate positions that are very close (due to repeating headers)
-    filtered_pos = []
-    last_pos = -100
-    for title, pos in unit_positions:
-        if pos - last_pos > 50:
-            filtered_pos.append((title, pos))
-            last_pos = pos
-            
-    # For each unit, we can try to extract contents
-    for i in range(len(filtered_pos)):
-        title, start_pos = filtered_pos[i]
-        end_pos = filtered_pos[i+1][1] if i + 1 < len(filtered_pos) else len(full_text)
-        chunk = full_text[start_pos:end_pos].strip()
-        
-        # Try to clean chunk and separate contents & criteria
-        lines = [l.strip() for l in chunk.split('\n') if l.strip()]
-        unit_title = ""
-        contents = ""
-        criteria = ""
-        
-        if lines:
-            has_contenidos = re.search(r'CONTENIDOS', chunk, re.IGNORECASE)
-            has_criterios = re.search(r'CRITERIOS DE DESEMPEÑO', chunk, re.IGNORECASE)
-            
-            title_end = len(chunk)
-            if has_contenidos and has_criterios:
-                title_end = min(has_contenidos.start(), has_criterios.start())
-            elif has_contenidos:
-                title_end = has_contenidos.start()
-            elif has_criterios:
-                title_end = has_criterios.start()
+    # 1. Parse ESTRUCTURA DE LAS UNIDADES DE APRENDIZAJE using block coordinates
+    est_page_idx = -1
+    est_y = 0
+    dev_page_idx = -1
+    dev_y = 999999
+    
+    for idx, page in enumerate(doc):
+        blocks = page.get_text("blocks")
+        for b in blocks:
+            text = b[4].strip()
+            if "ESTRUCTURA DE LAS UNIDADES" in text:
+                if est_page_idx == -1:
+                    est_page_idx = idx
+                    est_y = b[1]
+            if "DESARROLLO DE LAS UNIDADES" in text:
+                if dev_page_idx == -1:
+                    dev_page_idx = idx
+                    dev_y = b[1]
                 
-            if title_end < len(chunk):
-                raw_title = chunk[:title_end].strip()
-                unit_title = re.sub(r'\s+', ' ', raw_title)
-            else:
-                unit_title = lines[0]
-            
-            # Heuristics:
-            if has_contenidos:
-                contents = extract_between(r'CONTENIDOS[^\n]*\n?', r'CRITERIOS DE DESEMPEÑO|Unidad|$', chunk)
-            elif has_criterios:
-                contents = chunk[title_end:has_criterios.start()].strip()
-                
-            if has_criterios:
-                criteria = extract_between(r'CRITERIOS DE DESEMPEÑO[^\n]*\n?', r'Unidad|$', chunk)
-            
-            if not contents and not criteria:
-                # Fallback: divide chunk into lines
-                contents = "\n".join(lines[1:min(10, len(lines))])
-            
-            # Avoid duplicate units by checking number
-            unit_num_match = re.search(r'\b(Unidad\s+[IVXLCDM\d]+)\b', unit_title, re.IGNORECASE)
-            
-        unit_num = unit_num_match.group(1).upper() if unit_num_match else title.upper()
+    if est_page_idx != -1:
+        unit_titles = {}
+        unit_contents = {}
+        current_unit = None
         
-        # Only add if it contains actual content
-        if contents or criteria:
+        max_idx = dev_page_idx if dev_page_idx != -1 else len(doc) - 1
+        for idx in range(est_page_idx, max_idx + 1):
+            page = doc[idx]
+            blocks = page.get_text("blocks")
+            sorted_blocks = sorted(blocks, key=lambda x: (x[1], x[0]))
+            
+            for b in sorted_blocks:
+                if idx == est_page_idx and b[1] <= est_y:
+                    continue
+                if idx == dev_page_idx and b[1] >= dev_y:
+                    continue
+                    
+                text_clean = b[4].strip().replace('\n', ' ')
+                unit_header_match = re.search(r'\b(Unidad\s+[IVXLCDM\d]+)\b', text_clean, re.IGNORECASE)
+                if unit_header_match:
+                    current_unit = unit_header_match.group(1).upper()
+                    if current_unit not in unit_titles:
+                        unit_titles[current_unit] = []
+                    if current_unit not in unit_contents:
+                        unit_contents[current_unit] = []
+                    
+                    text_without_header = re.sub(r'\bUnidad\s+[IVXLCDM\d]+\b', '', text_clean, flags=re.IGNORECASE)
+                    text_without_header = re.sub(r'CONTENIDOS', '', text_without_header, flags=re.IGNORECASE).strip()
+                    if text_without_header:
+                        x0 = b[0]
+                        if x0 < 200:
+                            unit_titles[current_unit].append(text_without_header)
+                        else:
+                            unit_contents[current_unit].append(text_without_header)
+                    continue
+                    
+                if current_unit:
+                    if text_clean.upper() == "CONTENIDOS":
+                        continue
+                    x0 = b[0]
+                    if x0 < 200:
+                        unit_titles[current_unit].append(text_clean)
+                    else:
+                        unit_contents[current_unit].append(text_clean)
+                        
+        for unit_num, titles in unit_titles.items():
             clean_num = clean_short_field(unit_num)
-            clean_title = clean_short_field(unit_title.replace(unit_num_match.group(1) if unit_num_match else title, "").strip(" -:"))
-            clean_cont = clean_paragraph_text(contents)
-            clean_crit = clean_paragraph_text(criteria)
+            clean_title = clean_short_field(" ".join(titles))
+            clean_cont = clean_paragraph_text(" ".join(unit_contents.get(unit_num, [])))
+            units_dict[clean_num] = {
+                "unit_number": clean_num,
+                "unit_title": clean_title,
+                "contents": clean_cont,
+                "performance_criteria": ""
+            }
+
+    # 2. Parse DESARROLLO DE LAS UNIDADES DE APRENDIZAJE for performance criteria using block coordinates
+    dev_page_idx = -1
+    dev_y = 0
+    didacticas_page_idx = -1
+    didacticas_y = 999999
+    
+    for idx, page in enumerate(doc):
+        blocks = page.get_text("blocks")
+        for b in blocks:
+            text = b[4].strip()
+            if "DESARROLLO DE LAS UNIDADES" in text:
+                if dev_page_idx == -1:
+                    dev_page_idx = idx
+                    dev_y = b[1]
+            if "ESTRATEGIAS DIDACTICAS" in text or "ESTRIGIAS DIDACTICAS" in text or "ESTRATEGIAS DE EVALUACION" in text or "REFERENCIAS BIBLIOGRAFICAS" in text:
+                if dev_page_idx != -1 and idx >= dev_page_idx:
+                    if didacticas_page_idx == -1 or idx < didacticas_page_idx or (idx == didacticas_page_idx and b[1] < didacticas_y):
+                        didacticas_page_idx = idx
+                        didacticas_y = b[1]
+
+    if dev_page_idx != -1:
+        dev_left = {}
+        dev_right = {}
+        current_unit = None
+        
+        max_idx = didacticas_page_idx if didacticas_page_idx != -1 else len(doc) - 1
+        for idx in range(dev_page_idx, max_idx + 1):
+            page = doc[idx]
+            blocks = page.get_text("blocks")
+            sorted_blocks = sorted(blocks, key=lambda x: (x[1], x[0]))
             
-            if clean_num not in units_dict:
+            for b in sorted_blocks:
+                if idx == dev_page_idx and b[1] <= dev_y:
+                    continue
+                if idx == didacticas_page_idx and b[1] >= didacticas_y:
+                    continue
+                    
+                text_clean = b[4].strip().replace('\n', ' ')
+                unit_match = re.search(r'\b(UNIDAD\s+[IVXLCDM\d]+)\b', text_clean, re.IGNORECASE)
+                if unit_match:
+                    current_unit = unit_match.group(1).upper()
+                    if current_unit not in dev_left:
+                        dev_left[current_unit] = []
+                    if current_unit not in dev_right:
+                        dev_right[current_unit] = []
+                    continue
+                    
+                if current_unit:
+                    upper_text = text_clean.upper()
+                    if "CRITERIOS DE DESEMPEÑO" in upper_text or "COMPETENCIA DE LA UNIDAD" in upper_text or "DESARROLLO DE LAS UNIDADES" in upper_text or "ESTRUCTURA DE LAS UNIDADES" in upper_text:
+                        continue
+                    
+                    x0 = b[0]
+                    if x0 < 250:
+                        dev_left[current_unit].append(text_clean)
+                    else:
+                        dev_right[current_unit].append(text_clean)
+                        
+        for unit_num, lefts in dev_left.items():
+            clean_num = clean_short_field(unit_num)
+            left_str = clean_paragraph_text(" ".join(lefts))
+            right_str = clean_paragraph_text(" ".join(dev_right.get(unit_num, [])))
+            
+            parts = []
+            if left_str:
+                parts.append(f"Competencia:\n{left_str}")
+            if right_str:
+                parts.append(f"Criterios de Desempeño:\n{right_str}")
+            
+            clean_crit = "\n\n".join(parts)
+            
+            if clean_num in units_dict:
+                units_dict[clean_num]["performance_criteria"] = clean_crit
+            else:
                 units_dict[clean_num] = {
                     "unit_number": clean_num,
-                    "unit_title": clean_title,
-                    "contents": clean_cont,
+                    "unit_title": "",
+                    "contents": "",
                     "performance_criteria": clean_crit
                 }
-            else:
-                if not units_dict[clean_num]["contents"] and clean_cont:
-                    units_dict[clean_num]["contents"] = clean_cont
-                if not units_dict[clean_num]["performance_criteria"] and clean_crit:
-                    units_dict[clean_num]["performance_criteria"] = clean_crit
-                if not units_dict[clean_num]["unit_title"] and clean_title:
-                    units_dict[clean_num]["unit_title"] = clean_title
-
+                
     units = list(units_dict.values())
 
     # Apply cleanup to all fields before returning
