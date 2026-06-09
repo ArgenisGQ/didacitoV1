@@ -8,7 +8,11 @@ from sqlalchemy import select, delete
 
 async def reparse():
     async with get_task_db() as db:
-        result = await db.execute(select(SyllabusVersion).options(selectinload(SyllabusVersion.subject)))
+        result = await db.execute(
+            select(SyllabusVersion)
+            .where(SyllabusVersion.is_active == True)
+            .options(selectinload(SyllabusVersion.subject))
+        )
         versions = result.scalars().all()
         for v in versions:
             if not v.file_path:
