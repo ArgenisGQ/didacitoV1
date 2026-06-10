@@ -22,7 +22,8 @@ async def list_plans(
     query = select(LessonPlan).options(
         selectinload(LessonPlan.author),
         selectinload(LessonPlan.evaluation_plans),
-        selectinload(LessonPlan.weekly_contents)
+        selectinload(LessonPlan.weekly_contents),
+        selectinload(LessonPlan.subject)
     ).execution_options(populate_existing=True)
     if current_user.role == UserRole.DOCENTE:
         query = query.where(LessonPlan.author_id == current_user.id)
@@ -124,7 +125,8 @@ async def get_plan(
     result = await db.execute(
         select(LessonPlan).options(
             selectinload(LessonPlan.evaluation_plans),
-            selectinload(LessonPlan.weekly_contents)
+            selectinload(LessonPlan.weekly_contents),
+            selectinload(LessonPlan.subject)
         ).where(LessonPlan.id == plan_id).execution_options(populate_existing=True)
     )
     plan = result.scalars().first()
@@ -148,7 +150,8 @@ async def update_plan(
     result = await db.execute(
         select(LessonPlan).options(
             selectinload(LessonPlan.evaluation_plans),
-            selectinload(LessonPlan.weekly_contents)
+            selectinload(LessonPlan.weekly_contents),
+            selectinload(LessonPlan.subject)
         ).where(LessonPlan.id == plan_id)
     )
     plan = result.scalars().first()
@@ -302,7 +305,8 @@ async def update_plan(
     result = await db.execute(
         select(LessonPlan).options(
             selectinload(LessonPlan.evaluation_plans),
-            selectinload(LessonPlan.weekly_contents)
+            selectinload(LessonPlan.weekly_contents),
+            selectinload(LessonPlan.subject)
         ).where(LessonPlan.id == plan_id)
     )
     plan = result.scalars().first()
@@ -456,7 +460,8 @@ async def generate_plan_pdf(
         selectinload(LessonPlan.author),
         selectinload(LessonPlan.evaluation_plans),
         selectinload(LessonPlan.weekly_contents),
-        selectinload(LessonPlan.academic_period)
+        selectinload(LessonPlan.academic_period),
+        selectinload(LessonPlan.subject)
     ).where(LessonPlan.id == plan_id)
     
     result = await db.execute(query)
@@ -507,19 +512,22 @@ async def generate_plan_pdf(
         "logo_url": logo_path,
         "plan": {
             "subject_name": subject.name if subject else "",
-            "subject_purpose": "",
+            "subject_purpose": subject.purpose if subject else "",
             "subject_code": plan.subject_code or "",
             "section": plan.section or "",
-            "pre_requisite": getattr(subject, 'pre_requisite', "") if subject else "",
+            "pre_requisite": getattr(subject, 'prerequisite', "") if subject else "",
             "total_hours": subject.academic_credits * 16 if subject else "",
+            "program": subject.program if subject else "",
             "total_hours_2": "",
-            "hd_t": "",
-            "hd_lt": "",
-            "hiv_iscp": "",
-            "hiv_s": "",
-            "hiv_a": "",
-            "hde": "",
+            "hd_t": plan.hd_t if plan.hd_t is not None else "",
+            "hd_lt": plan.hd_lt if plan.hd_lt is not None else "",
+            "hd_iscp": plan.hd_iscp if plan.hd_iscp is not None else "",
+            "hiv_s": plan.hiv_s if plan.hiv_s is not None else "",
+            "hiv_a": plan.hiv_a if plan.hiv_a is not None else "",
+            "hde": plan.hde if plan.hde is not None else "",
             "academic_period": plan.academic_period.name if plan.academic_period else "",
+            "modality": plan.modality or "",
+            "component_type": plan.component_type or "",
         },
         "author": {
             "name": getattr(plan.author, 'first_name', '') + " " + getattr(plan.author, 'last_name', '') if getattr(plan.author, 'first_name', None) else plan.author.email,
@@ -603,19 +611,22 @@ async def preview_plan_pdf(
         "logo_url": logo_path,
         "plan": {
             "subject_name": subject.name if subject else "",
-            "subject_purpose": "",
+            "subject_purpose": subject.purpose if subject else "",
             "subject_code": payload.subject_code or "",
             "section": payload.section or "",
-            "pre_requisite": getattr(subject, 'pre_requisite', "") if subject else "",
+            "pre_requisite": getattr(subject, 'prerequisite', "") if subject else "",
             "total_hours": subject.academic_credits * 16 if subject else "",
+            "program": subject.program if subject else "",
             "total_hours_2": "",
-            "hd_t": "",
-            "hd_lt": "",
-            "hiv_iscp": "",
-            "hiv_s": "",
-            "hiv_a": "",
-            "hde": "",
+            "hd_t": payload.hd_t if payload.hd_t is not None else "",
+            "hd_lt": payload.hd_lt if payload.hd_lt is not None else "",
+            "hd_iscp": payload.hd_iscp if payload.hd_iscp is not None else "",
+            "hiv_s": payload.hiv_s if payload.hiv_s is not None else "",
+            "hiv_a": payload.hiv_a if payload.hiv_a is not None else "",
+            "hde": payload.hde if payload.hde is not None else "",
             "academic_period": academic_period_name,
+            "modality": payload.modality or "",
+            "component_type": payload.component_type or "",
         },
         "author": {
             "name": getattr(current_user, 'first_name', '') + " " + getattr(current_user, 'last_name', '') if getattr(current_user, 'first_name', None) else current_user.email,

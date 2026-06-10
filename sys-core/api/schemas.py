@@ -189,6 +189,11 @@ class LessonPlanResponse(BaseModel):
     updated_at: Optional[datetime] = None
     evaluation_plans: List[EvaluationPlanResponse] = []
     weekly_contents: List[WeeklyContentResponse] = []
+    
+    subject_purpose: Optional[str] = None
+    pre_requisite: Optional[str] = None
+    total_hours: Optional[int] = None
+    program: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

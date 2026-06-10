@@ -216,6 +216,30 @@ class LessonPlan(Base):
         foreign_keys=[author_id]
     )
 
+    subject = relationship(
+        "Subject",
+        primaryjoin="LessonPlan.subject_code == Subject.code",
+        foreign_keys="[LessonPlan.subject_code]",
+        uselist=False,
+        viewonly=True
+    )
+
+    @property
+    def subject_purpose(self):
+        return self.subject.purpose if self.subject else ""
+
+    @property
+    def pre_requisite(self):
+        return self.subject.prerequisite if self.subject else ""
+
+    @property
+    def total_hours(self):
+        return (self.subject.academic_credits * 16) if self.subject else 0
+
+    @property
+    def program(self):
+        return self.subject.program if self.subject else ""
+
     @property
     def author_name(self):
         if self.author:
