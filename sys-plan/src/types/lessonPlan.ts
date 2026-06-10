@@ -43,6 +43,7 @@ export interface LessonPlan {
   academic_period_id?: number;
   academic_period?: string;
   modality?: string;
+  feedback?: string;
   
   subject_purpose?: string;
   pre_requisite?: string;

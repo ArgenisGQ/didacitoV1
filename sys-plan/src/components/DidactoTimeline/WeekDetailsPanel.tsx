@@ -54,6 +54,26 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
   const selectedUnitIndex = units.findIndex(u => u.id === selectedUnitId);
   const selectedEvaluationPlan = selectedUnitIndex >= 0 ? state.evaluation_plans[selectedUnitIndex] : null;
 
+  const weekEvaluations = React.useMemo(() => {
+    if (!week) return [];
+    const evals: { title: string; weight: number }[] = [];
+    state.evaluation_plans.slice(0, 4).forEach((ep, idx) => {
+      if (ep && ep.due_week) {
+        const dueStr = String(ep.due_week).toLowerCase();
+        const dueWeekNum = parseInt(dueStr, 10);
+        const isLastWeek = week.weekNumber === 12;
+        const regex = new RegExp(`\\b${week.weekNumber}\\b`);
+        if (regex.test(dueStr) || (isLastWeek && dueWeekNum > week.weekNumber)) {
+          evals.push({
+            title: ep.strategy || `Evaluación U${idx + 1}`,
+            weight: parseFloat(String(ep.weight)) || 0
+          });
+        }
+      }
+    });
+    return evals;
+  }, [state.evaluation_plans, week]);
+
   const contenidoValue = useWatch({ control, name: 'contenido' }) || '';
 
   const rawContents = selectedUnitIndex >= 0 && syllabusDetail?.units?.[selectedUnitIndex]?.contents;
@@ -220,6 +240,27 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
                 <option key={u.id} value={u.id}>{u.title}</option>
               ))}
             </select>
+
+            <div className="space-y-1.5 mt-3">
+              <Label htmlFor="title" className="text-xs font-bold text-foreground">Unidad de Contenido</Label>
+              <Input
+                id="title"
+                {...register('title')}
+                className="bg-background border-border text-sm text-foreground placeholder:text-muted-foreground"
+                placeholder="Ej. Unidad I: Conceptos Básicos..."
+              />
+            </div>
+
+            <div className="space-y-1.5 mt-3">
+              <Label htmlFor="specificCompetence" className="text-xs font-bold text-foreground">Competencia Específica</Label>
+              <Textarea
+                id="specificCompetence"
+                {...register('specificCompetence')}
+                className="bg-background border-border text-sm min-h-[60px] resize-none text-foreground placeholder:text-muted-foreground"
+                placeholder="Describa la competencia específica..."
+              />
+            </div>
+
             {selectedEvaluationPlan && (
               <div className="mt-2 p-3 bg-muted/30 border border-border rounded-md text-xs space-y-2">
                 <div>
@@ -328,6 +369,42 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
               className="bg-background border-border text-sm min-h-[80px] resize-none text-foreground placeholder:text-muted-foreground"
               placeholder="Referencias bibliográficas..."
             />
+          </div>
+
+          <div className="space-y-3 pt-4 border-t border-border">
+            <Label className="text-xs font-bold text-foreground uppercase tracking-wider block">
+              Evaluación de la Semana
+            </Label>
+            
+            {/* Fixed evaluations assigned to this week */}
+            {weekEvaluations.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-muted-foreground block">
+                  Evaluaciones del Plan de Unidad (Fijo):
+                </span>
+                <div className="space-y-2">
+                  {weekEvaluations.map((ev, idx) => (
+                    <div key={idx} className="p-3 bg-muted border border-border rounded-md text-xs flex justify-between items-center font-medium">
+                      <span className="text-foreground">{ev.title}</span>
+                      <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-bold">{ev.weight}% Peso</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Field for placing other evaluations by hand */}
+            <div className="space-y-1.5">
+              <Label htmlFor="evaluationFeedback" className="text-[11px] font-bold text-muted-foreground">
+                Otras Evaluaciones / Retroalimentación (Escrito a mano)
+              </Label>
+              <Textarea
+                id="evaluationFeedback"
+                {...register('evaluationFeedback')}
+                className="bg-background border-border text-sm min-h-[80px] resize-none text-foreground placeholder:text-muted-foreground"
+                placeholder="Describe otras actividades evaluativas o de retroalimentación para esta semana..."
+              />
+            </div>
           </div>
 
         </form>

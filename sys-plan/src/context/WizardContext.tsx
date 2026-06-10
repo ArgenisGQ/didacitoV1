@@ -51,6 +51,7 @@ export interface WizardState {
   subject_purpose: string | null
   pre_requisite: string | null
   program: string | null
+  feedback: string | null
 }
 
 const createEmptyEvaluation = (unitNum: number): EvaluationItem => ({
@@ -127,6 +128,7 @@ const initialState: WizardState = {
   subject_purpose: null,
   pre_requisite: null,
   program: null,
+  feedback: null,
 }
 
 export function WizardProvider({ children }: { children: ReactNode }) {
@@ -234,6 +236,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       subject_purpose: plan.subject_purpose || null,
       pre_requisite: plan.pre_requisite || null,
       program: plan.program || null,
+      feedback: plan.feedback || null,
       objectives: plan.objectives?.length ? plan.objectives : [''],
       strategies: plan.strategies?.length ? plan.strategies : [''],
       evaluation_plans: (() => {

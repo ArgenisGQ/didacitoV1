@@ -83,7 +83,7 @@ export function WeekColumn({ week, onOpen, onDropCompetence, onRemoveCompetence 
         </div>
       </CardHeader>
       
-      <CardContent className="flex-1 p-4 flex flex-col gap-4">
+      <CardContent className="flex-1 p-4 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
         {isBottleneck && (
           <TooltipProvider>
             <Tooltip delayDuration={300}>
@@ -196,7 +196,7 @@ export function WeekColumn({ week, onOpen, onDropCompetence, onRemoveCompetence 
         {/* Zona de Evaluaciones */}
         <div className={`mt-auto pt-4 border-t border-border/50 ${isBottleneck ? 'border-amber-500/30' : ''}`}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1"><CheckSquare size={12}/> Hitos de Evaluación</p>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1"><CheckSquare size={12}/> Evaluación</p>
             {totalWeight > 0 && (
               <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${isBottleneck ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}>
                 {totalWeight}% Peso
@@ -207,7 +207,13 @@ export function WeekColumn({ week, onOpen, onDropCompetence, onRemoveCompetence 
             {week.evaluations.map((e) => (
               <EvaluationItem key={e.id} evaluation={e} />
             ))}
-            {week.evaluations.length === 0 && (
+            {week.evaluationFeedback && (
+              <div className="p-2.5 bg-muted/40 border border-border/50 rounded-lg text-xs font-semibold text-foreground/80 leading-normal">
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Otras Evaluaciones</span>
+                {week.evaluationFeedback}
+              </div>
+            )}
+            {week.evaluations.length === 0 && !week.evaluationFeedback && (
               <div className="h-[60px] flex items-center justify-center border-2 border-dashed border-border rounded-lg p-3 text-xs font-medium text-muted-foreground transition-colors group-hover:border-border/80">
                 Sin evaluación programada
               </div>

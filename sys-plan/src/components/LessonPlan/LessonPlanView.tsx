@@ -41,6 +41,131 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
     return text.toString().trim().replace(/\.(?!\d)(?!\s*$)\s*/g, rep);
   };
 
+  const getUnitForWeek = (weekNum: number, evaluationPlans: any[]) => {
+    const validEvs = (evaluationPlans || []).filter(ev => ev.unit !== null && ev.unit !== undefined);
+    
+    const getUnitInt = (ev: any) => {
+      const val = ev.unit;
+      if (val === null || val === undefined) return 999;
+      const valStr = String(val).trim().toUpperCase();
+      const romanToInt: Record<string, number> = {
+        "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10
+      };
+      if (romanToInt[valStr]) return romanToInt[valStr];
+      if (/^\d+$/.test(valStr)) return parseInt(valStr, 10);
+      return 999;
+    };
+
+    const sortedEv = [...validEvs].sort((a, b) => getUnitInt(a) - getUnitInt(b));
+    
+    let w1 = 4;
+    let w2 = 8;
+    let w3 = 12;
+    
+    const getDueWeek = (ev: any) => {
+      const dw = ev.due_week;
+      if (dw === null || dw === undefined) return null;
+      const val = parseInt(String(dw), 10);
+      return isNaN(val) ? null : val;
+    };
+
+    if (sortedEv.length > 0 && getDueWeek(sortedEv[0]) !== null) {
+      w1 = getDueWeek(sortedEv[0])!;
+    }
+    if (sortedEv.length > 1 && getDueWeek(sortedEv[1]) !== null) {
+      w2 = Math.max(w1 + 1, getDueWeek(sortedEv[1])!);
+    } else {
+      w2 = Math.max(w1 + 1, 8);
+    }
+    if (sortedEv.length > 2 && getDueWeek(sortedEv[2]) !== null) {
+      w3 = Math.max(w2 + 1, getDueWeek(sortedEv[2])!);
+    } else {
+      w3 = Math.max(w2 + 1, 12);
+    }
+    
+    let unitIdx = 3;
+    if (weekNum <= w1) {
+      unitIdx = 0;
+    } else if (weekNum <= w2) {
+      unitIdx = 1;
+    } else if (weekNum <= w3) {
+      unitIdx = 2;
+    }
+    
+    const roman = ["I", "II", "III", "IV"][Math.min(unitIdx, 3)];
+    
+    if (unitIdx < sortedEv.length) {
+      const ep = sortedEv[unitIdx];
+      const title = ep.title;
+      if (title && title.trim()) {
+        return `Unidad ${roman}: ${title.trim()}`;
+      }
+    }
+    return `Unidad ${roman}`;
+  };
+
+  const getCompetenceForWeek = (weekNum: number, currentSpecificCompetence: string | undefined, evaluationPlans: any[]) => {
+    if (currentSpecificCompetence && currentSpecificCompetence.trim()) {
+      return currentSpecificCompetence;
+    }
+    
+    const validEvs = (evaluationPlans || []).filter(ev => ev.unit !== null && ev.unit !== undefined);
+    
+    const getUnitInt = (ev: any) => {
+      const val = ev.unit;
+      if (val === null || val === undefined) return 999;
+      const valStr = String(val).trim().toUpperCase();
+      const romanToInt: Record<string, number> = {
+        "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10
+      };
+      if (romanToInt[valStr]) return romanToInt[valStr];
+      if (/^\d+$/.test(valStr)) return parseInt(valStr, 10);
+      return 999;
+    };
+
+    const sortedEv = [...validEvs].sort((a, b) => getUnitInt(a) - getUnitInt(b));
+    
+    let w1 = 4;
+    let w2 = 8;
+    let w3 = 12;
+    
+    const getDueWeek = (ev: any) => {
+      const dw = ev.due_week;
+      if (dw === null || dw === undefined) return null;
+      const val = parseInt(String(dw), 10);
+      return isNaN(val) ? null : val;
+    };
+
+    if (sortedEv.length > 0 && getDueWeek(sortedEv[0]) !== null) {
+      w1 = getDueWeek(sortedEv[0])!;
+    }
+    if (sortedEv.length > 1 && getDueWeek(sortedEv[1]) !== null) {
+      w2 = Math.max(w1 + 1, getDueWeek(sortedEv[1])!);
+    } else {
+      w2 = Math.max(w1 + 1, 8);
+    }
+    if (sortedEv.length > 2 && getDueWeek(sortedEv[2]) !== null) {
+      w3 = Math.max(w2 + 1, getDueWeek(sortedEv[2])!);
+    } else {
+      w3 = Math.max(w2 + 1, 12);
+    }
+    
+    let unitIdx = 3;
+    if (weekNum <= w1) {
+      unitIdx = 0;
+    } else if (weekNum <= w2) {
+      unitIdx = 1;
+    } else if (weekNum <= w3) {
+      unitIdx = 2;
+    }
+    
+    if (unitIdx < sortedEv.length) {
+      const ep = sortedEv[unitIdx];
+      return ep.competence || '';
+    }
+    return '';
+  };
+
   // Provide fallbacks for UI
   const subjectName = plan.title || "---"; // using title as subject name for preview
   const authorName = plan.author_name || "---";
@@ -296,7 +421,7 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
                 Unidad de Contenido
               </th>
               <th colSpan={3} className={`${thClass} text-left bg-white font-normal`}>
-                {week.unit_content || ''}
+                {week.unit_content || getUnitForWeek(week.week_number, plan.evaluation_plans || [])}
               </th>
             </tr>
             <tr>
@@ -310,7 +435,7 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
           <tbody>
             <tr>
               <td className={`${tdLeftClass} h-[40px]`}>{formatPeriods(week.content_description)}</td>
-              <td className={tdLeftClass}>{formatPeriods(week.specific_competence)}</td>
+              <td className={tdLeftClass}>{formatPeriods(getCompetenceForWeek(week.week_number, week.specific_competence, plan.evaluation_plans || []))}</td>
               <td className={tdLeftClass}>{formatPeriods(week.performance_criteria)}</td>
               <td className={tdLeftClass}>{formatPeriods(week.teaching_strategy)}</td>
               <td className={tdLeftClass}>{formatPeriods(week.evaluation_feedback)}</td>

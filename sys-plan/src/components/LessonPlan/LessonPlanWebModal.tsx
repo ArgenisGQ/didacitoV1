@@ -15,9 +15,13 @@ import { Badge } from '@/components/ui/badge';
 interface LessonPlanWebModalProps {
   plan: LessonPlan;
   onClose: () => void;
+  userRole?: string | null;
+  onApprove?: (planId: number) => void;
+  onObserve?: (planId: number, feedback: string) => void;
 }
 
-export function LessonPlanWebModal({ plan, onClose }: LessonPlanWebModalProps) {
+export function LessonPlanWebModal({ plan, onClose, userRole, onApprove, onObserve }: LessonPlanWebModalProps) {
+  const [localFeedback, setLocalFeedback] = React.useState('');
   const { data: aiEvaluation, isLoading: isLoadingAI } = useQuery({
     queryKey: ['ai-evaluation', plan.id],
     queryFn: async () => {
@@ -135,6 +139,42 @@ export function LessonPlanWebModal({ plan, onClose }: LessonPlanWebModalProps) {
                   </div>
                 )}
               </div>
+
+              {/* Coordinator Actions */}
+              {onApprove && onObserve && plan.status === 'IN_REVIEW' && (userRole === 'COORDINADOR' || userRole === 'SUPER_ADMIN' || userRole === 'ADMIN_GESTION') && (
+                <div className="p-4 border-t bg-muted/40 space-y-4 shrink-0 shadow-lg">
+                  <h4 className="font-bold text-sm text-card-foreground">Dictamen del Coordinador</h4>
+                  <textarea
+                    placeholder="Escribe observaciones para devolver el plan (requerido para corregir)..."
+                    value={localFeedback}
+                    onChange={(e) => setLocalFeedback(e.target.value)}
+                    className="w-full min-h-[90px] p-2 text-sm rounded-lg border border-border bg-background resize-none focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (window.confirm('¿Estás seguro de devolver este plan para correcciones?')) {
+                          onObserve(plan.id!, localFeedback);
+                        }
+                      }}
+                      disabled={!localFeedback.trim()}
+                      className="flex-1 py-2 px-3 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow"
+                    >
+                      Corregir (Observar)
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('¿Estás seguro de aprobar este plan?')) {
+                          onApprove(plan.id!);
+                        }
+                      }}
+                      className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow"
+                    >
+                      Aceptar (Aprobar)
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

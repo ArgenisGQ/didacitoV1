@@ -29,6 +29,8 @@ export interface WeekData {
 
   evaluations: Evaluation[];
   competences: Competence[]; // Drag & Drop competences
+  evaluationFeedback?: string;
+  specificCompetence?: string;
 }
 
 export interface UnitData {

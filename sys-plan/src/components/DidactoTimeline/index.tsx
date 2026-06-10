@@ -89,6 +89,8 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
         estrategiasDidacticas: w.teaching_strategy || '',
         recursosAprendizaje: w.resources || '',
         bibliografia: w.bibliography || '',
+        evaluationFeedback: w.evaluation_feedback || '',
+        specificCompetence: w.specific_competence || '',
         evaluations: [],
         competences: [],
         colspan: 1
@@ -105,6 +107,8 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
       estrategiasDidacticas: '',
       recursosAprendizaje: '',
       bibliografia: '',
+      evaluationFeedback: '',
+      specificCompetence: '',
       evaluations: [],
       competences: [],
       colspan: 1
@@ -157,7 +161,8 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
         resources: w.recursosAprendizaje || '',
         bibliography: w.bibliografia || '',
         performance_criteria: w.criteriosDesempeno || '',
-        specific_competence: w.competences?.[0]?.description || '',
+        specific_competence: w.specificCompetence || w.competences?.[0]?.description || '',
+        evaluation_feedback: w.evaluationFeedback || '',
       }))
   }), [state, weeks]);
 
@@ -311,6 +316,8 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
       estrategiasDidacticas: '',
       recursosAprendizaje: '',
       bibliografia: '',
+      evaluationFeedback: '',
+      specificCompetence: '',
       evaluations: [],
       competences: [],
       colspan: 1
@@ -331,7 +338,8 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
       resources: w.recursosAprendizaje || '',
       bibliography: w.bibliografia || '',
       performance_criteria: w.criteriosDesempeno || '',
-      specific_competence: w.competences?.[0]?.description || '',
+      specific_competence: w.specificCompetence || w.competences?.[0]?.description || '',
+      evaluation_feedback: w.evaluationFeedback || '',
     })));
   }, [weeks, updateField]);
 
@@ -470,6 +478,8 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
                           estrategiasDidacticas: '',
                           recursosAprendizaje: '',
                           bibliografia: '',
+                          evaluationFeedback: '',
+                          specificCompetence: '',
                           weekLabel: ''
                         };
                         const newWeeks = weeks.map(w => w.id === currentWeek.id ? clearedWeek : w);

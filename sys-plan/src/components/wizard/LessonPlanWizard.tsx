@@ -20,6 +20,7 @@ import {
   Save,
   Clock,
   Eye,
+  AlertTriangle,
 } from 'lucide-react'
 import { WizardBasicInfo } from './WizardBasicInfo'
 import { WizardObjectives } from './WizardObjectives'
@@ -206,6 +207,16 @@ function WizardInner({
           ) : null}
         </div>
       </div>
+
+      {state.status === 'OBSERVED' && state.feedback && (
+        <div className="mx-2 p-3 bg-orange-500/10 border border-orange-500/30 text-orange-600 dark:text-orange-400 rounded-xl flex items-start gap-2.5 text-xs font-semibold">
+          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-orange-500" />
+          <div>
+            <span className="font-extrabold block mb-0.5">Observaciones del Coordinador:</span>
+            <p className="whitespace-pre-wrap">{state.feedback}</p>
+          </div>
+        </div>
+      )}
 
       {/* Step content */}
       <div className="flex-1 overflow-y-auto px-1">

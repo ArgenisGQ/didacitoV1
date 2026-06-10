@@ -86,6 +86,15 @@ import {
 } from '@/components/ui/select'
 import { SubjectDetailModal } from './SubjectDetailModal'
 import { LessonPlanWebModal } from './LessonPlan/LessonPlanWebModal'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 
 interface LessonPlan {
   id?: number
@@ -107,6 +116,7 @@ interface LessonPlan {
   hiv_a?: number
   subject_purpose?: string
   pre_requisite?: string
+  modality?: string | null
   subject_bibliography?: string
   subject_strategies?: string
 }
@@ -127,6 +137,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [previewPlanId, setPreviewPlanId] = useState<number | null>(null)
   const [previewPlanTitle, setPreviewPlanTitle] = useState<string>('')
   const [webPreviewPlan, setWebPreviewPlan] = useState<any | null>(null)
+  
+  // Coordinator observe plan modal states
+  const [isObserveModalOpen, setIsObserveModalOpen] = useState(false)
+  const [observePlanId, setObservePlanId] = useState<number | null>(null)
+  const [observeFeedback, setObserveFeedback] = useState('')
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -223,10 +238,21 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       subject_code: payload.subject_code || editingPlan?.subject_code || null,
       section: payload.section || editingPlan?.section || null,
       academic_period_id: payload.academic_period_id || editingPlan?.academic_period_id || null,
+      objectives: payload.objectives || [],
+      strategies: payload.strategies || [],
+      modality: payload.modality || editingPlan?.modality || null,
+      component_type: payload.component_type || editingPlan?.component_type || null,
+      hd_t: payload.hd_t ?? editingPlan?.hd_t ?? 0,
+      hd_lt: payload.hd_lt ?? editingPlan?.hd_lt ?? 0,
+      hd_iscp: payload.hd_iscp ?? editingPlan?.hd_iscp ?? 0,
+      hiv_s: payload.hiv_s ?? editingPlan?.hiv_s ?? 0,
+      hiv_a: payload.hiv_a ?? editingPlan?.hiv_a ?? 0,
+      hde: payload.hde ?? editingPlan?.hde ?? 0,
     }
 
-    if (existingId || editingPlan) {
-      await updateMutation.mutateAsync({ id: existingId || editingPlan!.id, ...apiPayload })
+    const targetId = existingId || editingPlan?.id
+    if (targetId) {
+      await updateMutation.mutateAsync({ id: targetId, ...apiPayload })
     } else {
       await createMutation.mutateAsync(apiPayload)
     }
@@ -244,13 +270,25 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
-  const handleObservePlan = async (planId: number) => {
-    if (window.confirm('¿Estás seguro de devolver este plan para correcciones?')) {
-      try {
-        await updateMutation.mutateAsync({ id: planId, status: 'OBSERVED' } as any)
-      } catch (e: any) {
-        alert(e.response?.data?.detail || 'Error al observar el plan')
-      }
+  const handleObservePlan = (planId: number) => {
+    setObservePlanId(planId)
+    setObserveFeedback('')
+    setIsObserveModalOpen(true)
+  }
+
+  const handleConfirmObserve = async () => {
+    if (!observePlanId) return
+    try {
+      await updateMutation.mutateAsync({ 
+        id: observePlanId, 
+        status: 'OBSERVED', 
+        feedback: observeFeedback 
+      } as any)
+      setIsObserveModalOpen(false)
+      setObservePlanId(null)
+      setObserveFeedback('')
+    } catch (e: any) {
+      alert(e.response?.data?.detail || 'Error al observar el plan')
     }
   }
 
@@ -896,6 +934,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                                       <div>
                                         <p className="font-bold text-sm">{item.subjectName}</p>
                                         <p className="text-xs text-muted-foreground font-semibold">{item.subjectCode}</p>
+                                        {planStatus === 'OBSERVED' && item.plan?.feedback && (
+                                          <p className="text-[11px] text-orange-600 dark:text-orange-400 mt-1 max-w-[250px] truncate font-medium" title={item.plan.feedback}>
+                                            Obs: {item.plan.feedback}
+                                          </p>
+                                        )}
                                       </div>
                                     </div>
                                   </TableCell>
@@ -1332,9 +1375,69 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       {webPreviewPlan && (
         <LessonPlanWebModal
           plan={webPreviewPlan}
+          userRole={userRole}
+          onApprove={async (id) => {
+            try {
+              await updateMutation.mutateAsync({ id, status: 'APPROVED' } as any);
+              setWebPreviewPlan(null);
+            } catch (e: any) {
+              alert(e.response?.data?.detail || 'Error al aprobar el plan');
+            }
+          }}
+          onObserve={async (id, feedback) => {
+            try {
+              await updateMutation.mutateAsync({ id, status: 'OBSERVED', feedback } as any);
+              setWebPreviewPlan(null);
+            } catch (e: any) {
+              alert(e.response?.data?.detail || 'Error al observar el plan');
+            }
+          }}
           onClose={() => setWebPreviewPlan(null)}
         />
       )}
+
+      <Dialog open={isObserveModalOpen} onOpenChange={setIsObserveModalOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-2xl border border-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <AlertTriangle className="text-orange-500 w-5 h-5" />
+              Devolver Plan a Revisión
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground mt-1">
+              Proporcione comentarios u observaciones detalladas para que el docente pueda corregir la planificación didáctica.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Escribe las observaciones aquí..."
+              value={observeFeedback}
+              onChange={(e) => setObserveFeedback(e.target.value)}
+              className="min-h-[120px] rounded-xl border-border bg-muted/40 focus:bg-background resize-none focus:ring-primary"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsObserveModalOpen(false)
+                setObservePlanId(null)
+                setObserveFeedback('')
+              }}
+              className="rounded-xl font-semibold border-border hover:bg-muted"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleConfirmObserve}
+              className="rounded-xl font-semibold bg-orange-600 hover:bg-orange-700 text-white"
+              disabled={!observeFeedback.trim()}
+            >
+              Devolver con Observaciones
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

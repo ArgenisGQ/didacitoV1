@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Loader2, Users, FileText, CheckCircle2, Clock, AlertTriangle, LayoutDashboard, PieChart as PieChartIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, Brush, ReferenceArea } from 'recharts';
 import { Button } from '@/components/ui/button';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface DashboardWidget {
   id: number;
@@ -33,9 +34,11 @@ export function DashboardView({
   onWebPreviewPlan?: (plan: any) => void;
   plans?: any[];
 }) {
+  const queryClient = useQueryClient();
   const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedObservedPlanId, setSelectedObservedPlanId] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,7 +64,7 @@ export function DashboardView({
     };
 
     const connectWebSocket = () => {
-      if (userRole === 'DOCENTE' || userRole === 'COORDINADOR') return; // DOCENTE y COORDINADOR no usan tiempo real global por ahora
+      // Todos los roles usan tiempo real ahora
 
       const apiUrl = apiClient.defaults.baseURL || '/api';
       let wsUrl = '';
@@ -90,6 +93,10 @@ export function DashboardView({
           const data = JSON.parse(event.data);
           if (data.type === 'ANALYTICS_UPDATE' && isMounted) {
             setAnalytics(data.data);
+            // Invalida cache para cargar planes, carga académica y demás info en tiempo real
+            queryClient.invalidateQueries({ queryKey: ['plans'] });
+            queryClient.invalidateQueries({ queryKey: ['analytics'] });
+            queryClient.invalidateQueries({ queryKey: ['academicLoad'] });
           }
         } catch (err) {
           console.error("Error parsing WS message", err);
@@ -364,7 +371,7 @@ export function DashboardView({
   };
 
   const renderTeacherProgressWidget = () => {
-    const drafts = analytics?.draft_plans || [];
+    const drafts = plans.filter(p => p.status === 'DRAFT' || p.status === 'draft');
     
     return (
       <Card className="h-full shadow-md border-border border-l-4 border-l-primary bg-card">
@@ -416,27 +423,75 @@ export function DashboardView({
     );
   };
 
-  const renderTeacherAlertWidget = () => (
-    <Card className="h-full shadow-md border-border border-l-4 border-l-destructive bg-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><AlertTriangle size={20} className="text-destructive"/> Mis Planes Observados</CardTitle>
-        <CardDescription>Planes que requieren tu atención o corrección</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {analytics?.needs_attention > 0 ? (
-           <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive font-semibold">
-             Tienes <strong>{analytics.needs_attention}</strong> planes con observaciones.
-           </div>
-        ) : (
-           <p className="text-slate-500 italic">No tienes planes observados.</p>
-        )}
-      </CardContent>
-    </Card>
-  );
+  const renderTeacherAlertWidget = () => {
+    const observed = plans.filter(p => p.status === 'OBSERVED');
+    
+    return (
+      <Card className="h-full shadow-md border-border border-l-4 border-l-orange-500 bg-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-card-foreground">
+            <AlertTriangle size={20} className="text-orange-500"/> Mis Planes Observados
+          </CardTitle>
+          <CardDescription>Planes que requieren tu atención o corrección</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {observed.length > 0 ? (
+              observed.map((p: any) => (
+                <div key={p.id} className="flex flex-col p-4 bg-orange-500/5 rounded-xl border border-orange-500/20 gap-2 transition-all">
+                  <div 
+                    className="flex justify-between items-center gap-3 cursor-pointer select-none"
+                    onClick={() => setSelectedObservedPlanId(selectedObservedPlanId === p.id ? null : p.id)}
+                  >
+                    <span className="font-bold text-card-foreground truncate flex-1" title={p.title || 'Plan sin título'}>
+                      {p.title || <span className="text-muted-foreground italic font-normal">Plan sin título</span>}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] bg-orange-500/10 border border-orange-500/30 text-orange-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Observado</span>
+                      <span className="text-xs text-orange-600 dark:text-orange-400 font-bold hover:underline">
+                        {selectedObservedPlanId === p.id ? 'Ocultar' : 'Ver Detalle'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {selectedObservedPlanId === p.id && (
+                    <div className="mt-2 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                      {p.feedback && (
+                        <div className="bg-orange-500/10 dark:bg-orange-950/20 text-orange-800 dark:text-orange-300 p-3 rounded-lg text-sm border border-orange-500/20 font-medium">
+                          <strong>Observación del Coordinador:</strong>
+                          <p className="mt-1 whitespace-pre-wrap">{p.feedback}</p>
+                        </div>
+                      )}
+                      {onEditPlan && (
+                        <div className="flex justify-end">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => onEditPlan(p.id)}
+                            className="h-8 px-4 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-lg"
+                          >
+                            Corregir Plan
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+                <p>No tienes planes observados o rechazados.</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderTeacherSemesterWidget = () => null;
   const renderTeacherHistoryWidget = () => {
-    const approved = analytics?.approved_plans || [];
+    const approved = plans.filter(p => p.status === 'APPROVED');
     
     return (
       <Card className="h-full shadow-md border-border border-l-4 border-l-emerald-500 bg-card">
@@ -528,8 +583,8 @@ export function DashboardView({
                              {onWebPreviewPlan && (
                                <Button variant="ghost" size="sm" onClick={() => onWebPreviewPlan(d)} className="h-8 px-2 text-muted-foreground hover:text-foreground">Ver</Button>
                              )}
-                             {onApprovePlan && (
-                               <Button variant="default" size="sm" onClick={() => onApprovePlan(d.id)} className="h-8">Revisar</Button>
+                             {onWebPreviewPlan && (
+                               <Button variant="default" size="sm" onClick={() => onWebPreviewPlan(d)} className="h-8">Revisar</Button>
                              )}
                            </div>
                         </td>
