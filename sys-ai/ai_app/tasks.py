@@ -396,7 +396,23 @@ Responde en formato JSON estrictamente, con esta estructura:
         # 7. Guardar resultado exitoso
         eval_result.result_data = result_data
         eval_result.status = "SUCCESS"
+        
+        # Extraer metadatos de tokens si están disponibles
+        prompt_tokens = 0
+        completion_tokens = 0
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            prompt_tokens = response.usage_metadata.get('input_tokens', 0) or response.usage_metadata.get('prompt_tokens', 0) or 0
+            completion_tokens = response.usage_metadata.get('output_tokens', 0) or response.usage_metadata.get('completion_tokens', 0) or 0
+        elif hasattr(response, 'response_metadata') and response.response_metadata:
+            token_usage = response.response_metadata.get('token_usage')
+            if token_usage:
+                prompt_tokens = token_usage.get('prompt_tokens', 0) or token_usage.get('input_tokens', 0) or 0
+                completion_tokens = token_usage.get('completion_tokens', 0) or token_usage.get('output_tokens', 0) or 0
+
+        eval_result.prompt_tokens = prompt_tokens
+        eval_result.completion_tokens = completion_tokens
         eval_result.save()
+
 
         # 8. Transicionar estado del plan en CoreLessonPlan y guardar feedback
         if cumple:

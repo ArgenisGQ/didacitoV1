@@ -835,3 +835,372 @@ def clear_all_chats(request):
     ChatSession.objects.filter(user=user).delete()
     return JsonResponse({"status": "success", "message": "Historial de chat completamente limpio."})
 
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def ai_metrics_summary(request):
+    """
+    Retorna resumen analítico de métricas de IA para Super Admins y Administradores de Gestión.
+    """
+    user = get_request_user(request)
+    if not user or user.role not in ['SUPER_ADMIN', 'ADMIN_GESTION']:
+        return JsonResponse({"error": "No autorizado"}, status=403)
+
+    from django.db.models import Count, Sum
+    from django.utils.dateparse import parse_datetime
+    from .models import EvaluationResult, ChatSession, ChatMessage
+    import datetime
+
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+
+    eval_qs = EvaluationResult.objects.all()
+    chat_qs = ChatSession.objects.all()
+    msg_qs = ChatMessage.objects.all()
+
+    if start_date_str:
+        try:
+            dt_start = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+            eval_qs = eval_qs.filter(created_at__gte=dt_start)
+            chat_qs = chat_qs.filter(created_at__gte=dt_start)
+            msg_qs = msg_qs.filter(session__created_at__gte=dt_start)
+        except Exception:
+            pass
+    if end_date_str:
+        try:
+            dt_end = datetime.datetime.strptime(end_date_str, "%Y-%m-%d") + datetime.timedelta(days=1)
+            eval_qs = eval_qs.filter(created_at__lt=dt_end)
+            chat_qs = chat_qs.filter(created_at__lt=dt_end)
+            msg_qs = msg_qs.filter(session__created_at__lt=dt_end)
+        except Exception:
+            pass
+
+    total_evals = eval_qs.count()
+    success_evals = eval_qs.filter(status='SUCCESS').count()
+    failed_evals = eval_qs.filter(status='ERROR').count()
+    total_chats = chat_qs.count()
+    total_messages = msg_qs.count()
+
+    # Suma de tokens
+    tokens_agg = eval_qs.aggregate(
+        total_prompt=Sum('prompt_tokens'),
+        total_completion=Sum('completion_tokens')
+    )
+    total_prompt_tokens = tokens_agg.get('total_prompt') or 0
+    total_completion_tokens = tokens_agg.get('total_completion') or 0
+    total_tokens = total_prompt_tokens + total_completion_tokens
+
+    # Distrubución por agente
+    agent_evals = []
+    for ae in eval_qs.values('agent__name').annotate(count=Count('id')).order_by('-count'):
+        agent_evals.append({
+            "name": ae['agent__name'] or "Por Defecto",
+            "count": ae['count']
+        })
+
+    # Top chatters
+    top_chatters = []
+    for tc in chat_qs.values('user__full_name', 'user__email', 'user__role').annotate(count=Count('id')).order_by('-count')[:5]:
+        top_chatters.append({
+            "full_name": tc['user__full_name'],
+            "email": tc['user__email'],
+            "role": tc['user__role'],
+            "count": tc['count']
+        })
+
+    # Últimas 10 evaluaciones
+    last_evaluations = []
+    for ev in eval_qs.select_related('lesson_plan', 'lesson_plan__author', 'agent').order_by('-created_at')[:10]:
+        obs_count = 0
+        if ev.result_data and isinstance(ev.result_data, dict):
+            obs = ev.result_data.get('observaciones') or ev.result_data.get('observations') or ev.result_data.get('deficiencies') or []
+            if isinstance(obs, list):
+                obs_count = len(obs)
+
+        last_evaluations.append({
+            "id": ev.id,
+            "lesson_plan_title": ev.lesson_plan.title if ev.lesson_plan else "N/A",
+            "subject_code": ev.lesson_plan.subject_code if ev.lesson_plan else "N/A",
+            "author_name": ev.lesson_plan.author.full_name if ev.lesson_plan and ev.lesson_plan.author else "N/A",
+            "agent_name": ev.agent.name if ev.agent else "Por Defecto",
+            "status": ev.status,
+            "observations_count": obs_count,
+            "prompt_tokens": ev.prompt_tokens,
+            "completion_tokens": ev.completion_tokens,
+            "created_at": ev.created_at.isoformat()
+        })
+
+    # Historial diario de tokens para el gráfico estructurado por semanas académicas (S0-S12)
+    from .models import CoreAcademicPeriod
+    from collections import defaultdict
+    import datetime
+    
+    active_period = CoreAcademicPeriod.objects.filter(is_active=True).first()
+    today = datetime.datetime.utcnow()
+    
+    if active_period and active_period.start_date:
+        start_date_dt = datetime.datetime.combine(active_period.start_date, datetime.time.min)
+        monday_offset = start_date_dt.weekday()
+        period_start = start_date_dt - datetime.timedelta(days=monday_offset)
+    else:
+        monday_offset = today.weekday()
+        period_start = today - datetime.timedelta(days=monday_offset + 91 - 7)
+        period_start = period_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+    period_end = period_start + datetime.timedelta(days=91)
+    
+    # Agrupar tokens por fecha
+    tokens_by_day = defaultdict(lambda: {"prompt_tokens": 0, "completion_tokens": 0})
+    evals_in_period = eval_qs.filter(created_at__gte=period_start, created_at__lt=period_end)
+    for ev in evals_in_period:
+        d = ev.created_at.date()
+        tokens_by_day[d]["prompt_tokens"] += ev.prompt_tokens
+        tokens_by_day[d]["completion_tokens"] += ev.completion_tokens
+        
+    tokens_series = []
+    days_es = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    current_date = today.date()
+    
+    for w in range(13):
+        for d in range(7):
+            day_dt = period_start + datetime.timedelta(days=w*7 + d)
+            is_future = day_dt.date() > current_date
+            
+            day_data = tokens_by_day[day_dt.date()]
+            prompt_val = 0 if is_future else day_data["prompt_tokens"]
+            comp_val = 0 if is_future else day_data["completion_tokens"]
+            
+            tokens_series.append({
+                "name": f"S{w}-{days_es[d]}",
+                "prompt_tokens": prompt_val,
+                "completion_tokens": comp_val,
+                "total_tokens": prompt_val + comp_val,
+                "weekIndex": w,
+                "is_today": day_dt.date() == current_date
+            })
+
+    return JsonResponse({
+        "total_evaluations": total_evals,
+        "success_evaluations": success_evals,
+        "failed_evaluations": failed_evals,
+        "total_chats": total_chats,
+        "total_messages": total_messages,
+        "total_prompt_tokens": total_prompt_tokens,
+        "total_completion_tokens": total_completion_tokens,
+        "total_tokens": total_tokens,
+        "agent_evaluations": agent_evals,
+        "top_chatters": top_chatters,
+        "last_evaluations": last_evaluations,
+        "tokens_series": tokens_series
+    })
+
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def ai_metrics_evaluations_export(request):
+    """
+    Exporta el historial de evaluaciones de IA en CSV compatible con Excel.
+    """
+    user = get_request_user(request)
+    if not user or user.role not in ['SUPER_ADMIN', 'ADMIN_GESTION']:
+        return HttpResponse("No autorizado", status=403)
+
+    from .models import EvaluationResult
+    import datetime
+    import csv
+    from django.http import HttpResponse
+
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+
+    eval_qs = EvaluationResult.objects.all()
+    if start_date_str:
+        try:
+            dt_start = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+            eval_qs = eval_qs.filter(created_at__gte=dt_start)
+        except Exception:
+            pass
+    if end_date_str:
+        try:
+            dt_end = datetime.datetime.strptime(end_date_str, "%Y-%m-%d") + datetime.timedelta(days=1)
+            eval_qs = eval_qs.filter(created_at__lt=dt_end)
+        except Exception:
+            pass
+
+    eval_qs = eval_qs.select_related('lesson_plan', 'lesson_plan__author', 'agent').order_by('-created_at')
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="reporte_evaluaciones_ia.csv"'
+    
+    # Escribir BOM UTF-8 para compatibilidad absoluta con Excel en español
+    response.write('\ufeff'.encode('utf-8'))
+
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow([
+        "ID Evaluacion", "Plan de Clase", "Codigo Asignatura", 
+        "Docente", "Correo Docente", "Agente Utilizado", 
+        "Estado", "Obs Encontradas", "Tokens Entrada", "Tokens Salida", "Tokens Totales", "Fecha Evaluacion", "Mensaje Error"
+    ])
+
+    for ev in eval_qs:
+        obs_count = 0
+        if ev.result_data and isinstance(ev.result_data, dict):
+            obs = ev.result_data.get('observaciones') or ev.result_data.get('observations') or ev.result_data.get('deficiencies') or []
+            if isinstance(obs, list):
+                obs_count = len(obs)
+
+        writer.writerow([
+            ev.id,
+            ev.lesson_plan.title if ev.lesson_plan else "N/A",
+            ev.lesson_plan.subject_code if ev.lesson_plan else "N/A",
+            ev.lesson_plan.author.full_name if ev.lesson_plan and ev.lesson_plan.author else "N/A",
+            ev.lesson_plan.author.email if ev.lesson_plan and ev.lesson_plan.author else "N/A",
+            ev.agent.name if ev.agent else "Por Defecto",
+            ev.status,
+            obs_count,
+            ev.prompt_tokens,
+            ev.completion_tokens,
+            ev.prompt_tokens + ev.completion_tokens,
+            ev.created_at.strftime("%Y-%m-%d %H:%M:%S") if ev.created_at else "",
+            ev.error_message or ""
+        ])
+
+    return response
+
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def ai_metrics_chats_export(request):
+    """
+    Exporta el historial de chats de IA en CSV compatible con Excel.
+    """
+    user = get_request_user(request)
+    if not user or user.role not in ['SUPER_ADMIN', 'ADMIN_GESTION']:
+        return HttpResponse("No autorizado", status=403)
+
+    from .models import ChatSession
+    import datetime
+    import csv
+    from django.http import HttpResponse
+
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+
+    chat_qs = ChatSession.objects.all()
+    if start_date_str:
+        try:
+            dt_start = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+            chat_qs = chat_qs.filter(created_at__gte=dt_start)
+        except Exception:
+            pass
+    if end_date_str:
+        try:
+            dt_end = datetime.datetime.strptime(end_date_str, "%Y-%m-%d") + datetime.timedelta(days=1)
+            chat_qs = chat_qs.filter(created_at__lt=dt_end)
+        except Exception:
+            pass
+
+    chat_qs = chat_qs.select_related('user', 'agent').order_by('-created_at')
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="reporte_chats_ia.csv"'
+    
+    response.write('\ufeff'.encode('utf-8'))
+
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow([
+        "ID Sesion", "Usuario", "Correo Usuario", "Rol", 
+        "Agente Utilizado", "Titulo Sesion", "Cantidad Mensajes", "Fecha Creacion"
+    ])
+
+    for ch in chat_qs:
+        msg_count = ch.messages.count()
+        writer.writerow([
+            ch.id,
+            ch.user.full_name if ch.user else "N/A",
+            ch.user.email if ch.user else "N/A",
+            ch.user.role if ch.user else "N/A",
+            ch.agent.name if ch.agent else "Por Defecto",
+            ch.title,
+            msg_count,
+            ch.created_at.strftime("%Y-%m-%d %H:%M:%S") if ch.created_at else ""
+        ])
+
+    return response
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def ai_metrics_tokens_export(request):
+    """
+    Exporta el reporte del consumo de tokens agrupado por día/semana académica en CSV compatible con Excel.
+    """
+    user = get_request_user(request)
+    if not user or user.role not in ['SUPER_ADMIN', 'ADMIN_GESTION']:
+        return HttpResponse("No autorizado", status=403)
+
+    from .models import CoreAcademicPeriod, EvaluationResult
+    import datetime
+    import csv
+    from django.http import HttpResponse
+    from collections import defaultdict
+
+    eval_qs = EvaluationResult.objects.all()
+
+    active_period = CoreAcademicPeriod.objects.filter(is_active=True).first()
+    today = datetime.datetime.utcnow()
+    
+    if active_period and active_period.start_date:
+        start_date_dt = datetime.datetime.combine(active_period.start_date, datetime.time.min)
+        monday_offset = start_date_dt.weekday()
+        period_start = start_date_dt - datetime.timedelta(days=monday_offset)
+    else:
+        monday_offset = today.weekday()
+        period_start = today - datetime.timedelta(days=monday_offset + 91 - 7)
+        period_start = period_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+    period_end = period_start + datetime.timedelta(days=91)
+    
+    # Agrupar tokens por fecha
+    tokens_by_day = defaultdict(lambda: {"prompt_tokens": 0, "completion_tokens": 0})
+    evals_in_period = eval_qs.filter(created_at__gte=period_start, created_at__lt=period_end)
+    for ev in evals_in_period:
+        d = ev.created_at.date()
+        tokens_by_day[d]["prompt_tokens"] += ev.prompt_tokens
+        tokens_by_day[d]["completion_tokens"] += ev.completion_tokens
+        
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="reporte_consumo_tokens_ia.csv"'
+    response.write('\ufeff'.encode('utf-8'))
+
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow([
+        "Semana Academica", "Dia", "Fecha Calendario", "Tokens Entrada (Prompt)", "Tokens Salida (Completion)", "Tokens Totales"
+    ])
+
+    days_es = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    current_date = today.date()
+    
+    for w in range(13):
+        for d in range(7):
+            day_dt = period_start + datetime.timedelta(days=w*7 + d)
+            is_future = day_dt.date() > current_date
+            
+            day_data = tokens_by_day[day_dt.date()]
+            prompt_val = 0 if is_future else day_data["prompt_tokens"]
+            comp_val = 0 if is_future else day_data["completion_tokens"]
+            
+            writer.writerow([
+                f"Semana {w}",
+                days_es[d],
+                day_dt.strftime("%Y-%m-%d"),
+                prompt_val,
+                comp_val,
+                prompt_val + comp_val
+            ])
+
+    return response
+
+

@@ -262,8 +262,11 @@ class EvaluationResult(models.Model):
     status = models.CharField(max_length=50, default="PENDING") # PENDING, SUCCESS, ERROR
     result_data = models.JSONField(blank=True, null=True, help_text="Respuesta estructurada del LLM")
     error_message = models.TextField(blank=True, null=True)
+    prompt_tokens = models.IntegerField(default=0, help_text="Tokens de entrada del prompt")
+    completion_tokens = models.IntegerField(default=0, help_text="Tokens de salida de la respuesta")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
 
     class Meta:
         db_table = "ai_app_evaluation_result"

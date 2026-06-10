@@ -22,4 +22,9 @@ urlpatterns = [
     path('chat/sessions/<int:session_id>/messages/', views.get_chat_messages, name='get_chat_messages'),
     path('chat/sessions/<int:session_id>/', views.delete_chat_session, name='delete_chat_session'),
     path('chat/sessions/clear-all/', views.clear_all_chats, name='clear_all_chats'),
+    path('admin/metrics/summary/', views.ai_metrics_summary, name='ai_metrics_summary'),
+    path('admin/metrics/evaluations/export/', views.ai_metrics_evaluations_export, name='ai_metrics_evaluations_export'),
+    path('admin/metrics/chats/export/', views.ai_metrics_chats_export, name='ai_metrics_chats_export'),
+    path('admin/metrics/tokens/export/', views.ai_metrics_tokens_export, name='ai_metrics_tokens_export'),
 ]
+
