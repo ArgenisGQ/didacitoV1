@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit, Trash2, Cpu, Key, Database, Play, AlertTriangle, Zap, FileText, CheckCircle2, XCircle, Binary, MessageSquare, Layers } from 'lucide-react'
+import { Plus, Edit, Trash2, Cpu, Key, Database, Play, AlertTriangle, Zap, FileText, CheckCircle2, XCircle, Binary, MessageSquare, Layers, BarChart3, Download, Calendar, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Brush, ReferenceArea } from 'recharts'
+
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -22,7 +24,7 @@ import AIChat from './AIChat'
 
 export default function AISettings() {
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState<'providers' | 'templates' | 'rag' | 'chat' | 'assignments'>('providers')
+  const [activeTab, setActiveTab] = useState<'providers' | 'templates' | 'rag' | 'chat' | 'assignments' | 'metrics'>('providers')
   
   // States for Provider Modal
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
@@ -87,6 +89,121 @@ export default function AISettings() {
       toast.error("Error al eliminar asignación")
     }
   }
+
+  // States for Metrics Filters
+  const getWeekDates = () => {
+    const today = new Date();
+    const day = today.getDay(); // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
+    
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() - day);
+    
+    const saturday = new Date(today);
+    saturday.setDate(today.getDate() + (6 - day));
+    
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${d}`;
+    };
+    
+    return {
+      sunday: formatDate(sunday),
+      saturday: formatDate(saturday)
+    };
+  };
+
+  const weekDates = getWeekDates();
+  const [metricsStartDate, setMetricsStartDate] = useState(weekDates.sunday)
+  const [metricsEndDate, setMetricsEndDate] = useState(weekDates.saturday)
+
+
+  // Query for Metrics Summary
+  const { data: metricsSummary, isLoading: loadingMetrics, refetch: refetchMetrics } = useQuery({
+    queryKey: ['ai-metrics-summary', metricsStartDate, metricsEndDate],
+    queryFn: async () => {
+      const { data } = await api.get('/ai/admin/metrics/summary/', {
+        params: {
+          start_date: metricsStartDate || undefined,
+          end_date: metricsEndDate || undefined
+        }
+      })
+      return data
+    },
+    enabled: activeTab === 'metrics',
+    retry: false
+  })
+
+  const handleExportEvaluations = async () => {
+    try {
+      const { data } = await api.get('/ai/admin/metrics/evaluations/export/', {
+        params: {
+          start_date: metricsStartDate || undefined,
+          end_date: metricsEndDate || undefined
+        },
+        responseType: 'blob'
+      })
+      const blob = new Blob([data], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `reporte_evaluaciones_ia_${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      toast.error("Error al exportar evaluaciones")
+    }
+  }
+
+  const handleExportChats = async () => {
+    try {
+      const { data } = await api.get('/ai/admin/metrics/chats/export/', {
+        params: {
+          start_date: metricsStartDate || undefined,
+          end_date: metricsEndDate || undefined
+        },
+        responseType: 'blob'
+      })
+      const blob = new Blob([data], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `reporte_chats_ia_${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      toast.error("Error al exportar chats")
+    }
+  }
+
+  const handleExportTokens = async () => {
+    try {
+      const { data } = await api.get('/ai/admin/metrics/tokens/export/', {
+        params: {
+          start_date: metricsStartDate || undefined,
+          end_date: metricsEndDate || undefined
+        },
+        responseType: 'blob'
+      })
+      const blob = new Blob([data], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `reporte_consumo_tokens_ia_${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      toast.error("Error al exportar reporte de consumo de tokens")
+    }
+  }
+
   const openAssignmentModal = (a: any = null) => {
     setEditingAssignment(a)
     setIsAssignmentModalOpen(true)
@@ -352,6 +469,14 @@ export default function AISettings() {
         >
           <MessageSquare size={18} />
           Chat RAG
+        </Button>
+        <Button 
+          variant={activeTab === 'metrics' ? 'default' : 'ghost'} 
+          onClick={() => setActiveTab('metrics')}
+          className="gap-2"
+        >
+          <BarChart3 size={18} />
+          Métricas de Uso
         </Button>
       </div>
 
@@ -702,6 +827,389 @@ export default function AISettings() {
 
       {activeTab === 'chat' && (
         <AIChat />
+      )}
+
+      {activeTab === 'metrics' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Filters Card */}
+          <Card className="backdrop-blur-md bg-card/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <BarChart3 size={18} className="text-primary" />
+                Filtros y Descarga de Historial
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                    <Calendar size={12} />
+                    Fecha de Inicio
+                  </label>
+                  <Input
+                    type="date"
+                    className="h-10 text-sm"
+                    value={metricsStartDate}
+                    onChange={(e) => setMetricsStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                    <Calendar size={12} />
+                    Fecha de Fin
+                  </label>
+                  <Input
+                    type="date"
+                    className="h-10 text-sm"
+                    value={metricsEndDate}
+                    onChange={(e) => setMetricsEndDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex justify-between items-center border-t pt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="font-bold text-xs"
+                  onClick={() => {
+                    setMetricsStartDate('')
+                    setMetricsEndDate('')
+                  }}
+                >
+                  Limpiar Filtros
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="font-bold text-xs gap-1"
+                    onClick={() => refetchMetrics()}
+                    disabled={loadingMetrics}
+                  >
+                    <RefreshCw size={14} className={loadingMetrics ? 'animate-spin' : ''} />
+                    Actualizar
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="font-bold text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={handleExportEvaluations}
+                    disabled={loadingMetrics}
+                  >
+                    <Download size={14} />
+                    Exportar Evaluaciones (CSV)
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="font-bold text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleExportChats}
+                    disabled={loadingMetrics}
+                  >
+                    <Download size={14} />
+                    Exportar Chats (CSV)
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="font-bold text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={handleExportTokens}
+                    disabled={loadingMetrics}
+                  >
+                    <Download size={14} />
+                    Exportar Consumo de Tokens (CSV)
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {loadingMetrics ? (
+            <div className="py-16 text-center text-slate-400 flex flex-col justify-center items-center gap-3">
+              <Loader2 className="animate-spin text-primary" size={32} />
+              <span className="font-semibold text-sm">Cargando métricas de uso de IA de la base de datos...</span>
+            </div>
+          ) : metricsSummary ? (
+            <div className="space-y-6">
+              {/* KPIs Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card className="bg-gradient-to-br from-indigo-50/50 to-white border-indigo-100 shadow-sm">
+                  <CardContent className="pt-6">
+                    <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Evaluaciones Realizadas</span>
+                    <h3 className="text-3xl font-black tracking-tight mt-1">{metricsSummary.total_evaluations}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium font-sans">Planes de clase procesados</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-emerald-50/50 to-white border-emerald-100 shadow-sm">
+                  <CardContent className="pt-6">
+                    <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Evaluaciones Exitosas</span>
+                    <h3 className="text-3xl font-black tracking-tight mt-1 text-emerald-600">{metricsSummary.success_evaluations}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium font-sans">Cumplieron directrices</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-rose-50/50 to-white border-rose-100 shadow-sm">
+                  <CardContent className="pt-6">
+                    <span className="text-xs font-bold text-rose-600 uppercase tracking-wider">Tasa de Errores</span>
+                    <h3 className="text-3xl font-black tracking-tight mt-1 text-rose-600">{metricsSummary.failed_evaluations}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium font-sans">Fallas de API o proveedor</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-blue-50/50 to-white border-blue-100 shadow-sm">
+                  <CardContent className="pt-6">
+                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Mensajes de Chat</span>
+                    <h3 className="text-3xl font-black tracking-tight mt-1">{metricsSummary.total_messages}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium font-sans">En {metricsSummary.total_chats} sesiones activas</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Tokens Consumed Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="bg-gradient-to-br from-amber-50/40 to-white border-amber-100 shadow-sm">
+                  <CardContent className="pt-6">
+                    <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Tokens Totales Consumidos</span>
+                    <h3 className="text-3xl font-black tracking-tight mt-1 text-amber-800">{metricsSummary.total_tokens?.toLocaleString() || 0}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium font-sans">Suma de entrada y salida</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-slate-50/50 to-white border-slate-200 shadow-sm">
+                  <CardContent className="pt-6">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tokens de Entrada (Prompt)</span>
+                    <h3 className="text-3xl font-black tracking-tight mt-1">{metricsSummary.total_prompt_tokens?.toLocaleString() || 0}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium font-sans">Enviados en peticiones de análisis</p>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-slate-50/50 to-white border-slate-200 shadow-sm">
+                  <CardContent className="pt-6">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tokens de Salida (Completion)</span>
+                    <h3 className="text-3xl font-black tracking-tight mt-1">{metricsSummary.total_completion_tokens?.toLocaleString() || 0}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium font-sans">Generados por el modelo de IA</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Token Consumption Chart Card */}
+              {(() => {
+                const tokensSeries = metricsSummary.tokens_series || [];
+                const todayIndex = tokensSeries.findIndex((d: any) => d.is_today);
+                let chartStartIndex = 0;
+                let chartEndIndex = tokensSeries.length - 1;
+                if (todayIndex !== -1) {
+                  chartStartIndex = Math.max(0, todayIndex - 3);
+                  chartEndIndex = Math.min(tokensSeries.length - 1, todayIndex + 3);
+                }
+
+                return (
+                  <Card className="shadow-lg border-border bg-card">
+                    <CardHeader>
+                      <CardTitle className="text-md font-bold">Consumo Diario de Tokens (Prompt vs Completion)</CardTitle>
+                      <CardDescription>Visualiza el volumen histórico de tokens procesados por día en evaluaciones pedagógicas.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[300px] w-full mt-4">
+                        {tokensSeries.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={tokensSeries} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="colorPrompt" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                                </linearGradient>
+                                <linearGradient id="colorCompletion" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                              
+                              {/* Sombreado alterno por semanas para dar matices */}
+                              {[...Array(13)].map((_, i) => (
+                                <ReferenceArea 
+                                  key={`week-shade-${i}`} 
+                                  x1={`S${i}-Lun`} 
+                                  x2={`S${i}-Dom`} 
+                                  fill={i % 2 === 0 ? 'hsl(var(--muted))' : 'transparent'} 
+                                  fillOpacity={0.4} 
+                                />
+                              ))}
+
+                              <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} />
+                              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: 'hsl(var(--card))',
+                                  borderColor: 'hsl(var(--border))',
+                                  color: 'hsl(var(--card-foreground))',
+                                  borderRadius: '8px'
+                                }}
+                              />
+                              <Legend verticalAlign="top" height={36} />
+                              <Area 
+                                type="monotone" 
+                                name="Tokens Entrada (Prompt)" 
+                                dataKey="prompt_tokens" 
+                                stroke="#f59e0b" 
+                                fillOpacity={1} 
+                                fill="url(#colorPrompt)" 
+                                strokeWidth={2} 
+                              />
+                              <Area 
+                                type="monotone" 
+                                name="Tokens Salida (Completion)" 
+                                dataKey="completion_tokens" 
+                                stroke="#10b981" 
+                                fillOpacity={1} 
+                                fill="url(#colorCompletion)" 
+                                strokeWidth={2} 
+                              />
+                              <Brush 
+                                dataKey="name" 
+                                height={24} 
+                                stroke="hsl(var(--border))" 
+                                fill="hsl(var(--card))"
+                                travellerWidth={8}
+                                startIndex={chartStartIndex}
+                                endIndex={chartEndIndex}
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                            <BarChart3 className="h-10 w-10 mb-2 opacity-50" />
+                            <p className="text-sm">No hay suficientes datos de consumo diario en este rango de fechas.</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+              {/* Middle Section: Agent Evals & Top Chatters */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Agent Distribution */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-md font-bold">Uso por Agente de IA</CardTitle>
+                    <CardDescription>Distribución del volumen de evaluaciones por cada agente configurado.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {metricsSummary.agent_evaluations.length === 0 ? (
+                      <p className="text-center text-muted-foreground text-sm py-8">No hay datos para mostrar.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {metricsSummary.agent_evaluations.map((ae: any, i: number) => (
+                          <div key={i} className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs font-semibold">
+                              <span>{ae.name}</span>
+                              <span>{ae.count} ({Math.round((ae.count / (metricsSummary.total_evaluations || 1)) * 100)}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2">
+                              <div
+                                className="bg-indigo-600 h-2 rounded-full"
+                                style={{ width: `${(ae.count / (metricsSummary.total_evaluations || 1)) * 100}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Top Users in Chat */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-md font-bold">Top Usuarios en Chat</CardTitle>
+                    <CardDescription>Usuarios con mayor nivel de adopción e interacción con el Chat de IA.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {metricsSummary.top_chatters.length === 0 ? (
+                      <p className="text-center text-muted-foreground text-sm py-8 font-sans">No hay datos de chat registrados.</p>
+                    ) : (
+                      <div className="border border-border/40 rounded-xl overflow-hidden">
+                        <Table>
+                          <TableHeader className="bg-muted/40">
+                            <TableRow>
+                              <TableHead className="text-xs font-bold">Nombre</TableHead>
+                              <TableHead className="text-xs font-bold">Rol</TableHead>
+                              <TableHead className="text-xs font-bold text-right">Sesiones</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {metricsSummary.top_chatters.map((tc: any, i: number) => (
+                              <TableRow key={i} className="hover:bg-muted/20">
+                                <TableCell className="py-2.5">
+                                  <div className="text-xs font-bold">{tc.full_name}</div>
+                                  <div className="text-[10px] text-muted-foreground">{tc.email}</div>
+                                </TableCell>
+                                <TableCell className="py-2.5">
+                                  <Badge variant="outline" className="text-[9px] uppercase tracking-wider font-bold">{tc.role}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right py-2.5 text-xs font-extrabold">{tc.count}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Last 10 Evaluations */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-md font-bold">Últimas Evaluaciones Realizadas por la IA</CardTitle>
+                  <CardDescription>Auditoría rápida del estado y observaciones de los planes procesados.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0 sm:p-6">
+                  {metricsSummary.last_evaluations.length === 0 ? (
+                    <p className="text-center text-muted-foreground text-sm py-8 font-sans">No hay evaluaciones recientes registradas.</p>
+                  ) : (
+                    <div className="border border-border/60 rounded-xl overflow-hidden bg-background/50">
+                      <Table>
+                        <TableHeader className="bg-muted/40">
+                          <TableRow>
+                            <TableHead className="font-bold text-xs">Plan de Clase</TableHead>
+                            <TableHead className="font-bold text-xs">Asignatura</TableHead>
+                            <TableHead className="font-bold text-xs">Docente</TableHead>
+                            <TableHead className="font-bold text-xs">Agente</TableHead>
+                            <TableHead className="font-bold text-xs">Estado</TableHead>
+                            <TableHead className="font-bold text-xs text-center">Observaciones</TableHead>
+                            <TableHead className="font-bold text-xs text-center">Tokens (E/S)</TableHead>
+                            <TableHead className="font-bold text-xs">Fecha</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {metricsSummary.last_evaluations.map((ev: any) => (
+                            <TableRow key={ev.id} className="hover:bg-muted/20">
+                              <TableCell className="py-3 text-xs font-bold">{ev.lesson_plan_title}</TableCell>
+                              <TableCell className="py-3 text-xs font-mono">{ev.subject_code}</TableCell>
+                              <TableCell className="py-3 text-xs font-medium">{ev.author_name}</TableCell>
+                              <TableCell className="py-3 text-xs text-slate-500">{ev.agent_name}</TableCell>
+                              <TableCell className="py-3">
+                                <Badge variant={ev.status === 'SUCCESS' ? 'default' : ev.status === 'PROCESSING' ? 'secondary' : 'destructive'} className="text-[10px] font-bold">
+                                  {ev.status === 'SUCCESS' ? 'Completado' : ev.status === 'PROCESSING' ? 'Procesando' : 'Error'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="py-3 text-center text-xs font-extrabold">{ev.status === 'SUCCESS' ? ev.observations_count : '-'}</TableCell>
+                              <TableCell className="py-3 text-center text-xs font-mono text-slate-500">
+                                {ev.status === 'SUCCESS' ? `${ev.prompt_tokens} / ${ev.completion_tokens}` : '-'}
+                              </TableCell>
+                              <TableCell className="py-3 text-[11px] text-slate-400">
+                                {new Date(ev.created_at).toLocaleDateString()} {new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <p className="text-center py-8 text-red-500">Error al cargar métricas de la IA.</p>
+          )}
+        </div>
       )}
 
       {/* Provider Modal */}
