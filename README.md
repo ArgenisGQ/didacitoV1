@@ -345,4 +345,15 @@ La aplicación ha evolucionado significativamente hasta convertirse en un sistem
     * **Desacople de Datos Estáticos:** Se modificaron las tarjetas del docente ("Mis Planes en Progreso" y "Mis Planes Aprobados") para que filtren la información en tiempo real directamente desde el array reactivo de planes en vez de usar las propiedades de analíticas estáticas, asegurando que la información siempre esté visible y en su lugar.
 13. **Corrección de Bugs y Estabilización:**
     * **Fix de MissingGreenlet (ResponseValidationError):** Se solucionó un error interno `500` recurrente en FastAPI al guardar o actualizar planificaciones. El error era provocado por el serializador Pydantic al intentar resolver de manera síncrona la relación `author` (para el campo `author_name`) en una sesión asíncrona. Se solucionó añadiendo la carga explícita de la relación mediante `selectinload(LessonPlan.author)` en las consultas de retorno de los endpoints `update_plan` y `create_plan`.
+14. **Asignación Jerárquica y Configuración Avanzada de Agentes de IA:**
+    * **Filtrado por Secciones y Grupos de Secciones:** Se implementó soporte en el modelo `AgentAssignment` y en el frontend para asignar agentes evaluadores a asignaturas específicas con un filtro de secciones. El campo permite ingresar secciones individuales o múltiples secciones agrupadas mediante comas (ej. `MC01T0S, MC01T1S`).
+    * **Algoritmo de Resolución Jerárquica:** El backend (`tasks.py`) busca el agente de revisión ideal para cada plan de clase siguiendo un orden jerárquico estricto:
+      1. Coincidencia exacta de asignatura y sección (prioridad por sección o grupo de secciones).
+      2. Coincidencia de asignatura global (campo de sección vacío).
+      3. Asignación al Departamento Académico de la asignatura.
+      4. Asignación a la Facultad de la asignatura.
+      5. Agente activo por defecto en el sistema.
+    * **Formulario y Tabla de Asignación Completa:** Se rediseñó la sección de asignación en el panel de configuración de la IA (`AISettings.tsx`) para permitir crear, editar y visualizar las reglas con los nuevos parámetros de Facultad, Departamento, Carrera, Asignatura y Secciones.
+15. **Redirección de Notificaciones al Borrador:**
+    * Se actualizó el comportamiento de la interfaz de usuario para que, al hacer clic en notificaciones de planes corregidos u observados, redirija directamente al flujo de edición (borrador) del plan en lugar del visor de PDF estático, agilizando el ciclo de corrección de planificaciones.
 
