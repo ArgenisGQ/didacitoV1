@@ -59,7 +59,7 @@ export function WizardBasicInfo() {
       </CardHeader>
       <CardContent className="space-y-6">
         {state.subject_code && (
-          <div className="grid grid-cols-2 gap-4 bg-primary/5 p-4 rounded-2xl border border-primary/10">
+          <div className="grid grid-cols-3 gap-4 bg-primary/5 p-4 rounded-2xl border border-primary/10">
             <div>
               <Label className="text-xs text-muted-foreground uppercase font-extrabold">Materia / Curso</Label>
               <p className="font-black text-primary text-base mt-0.5">{state.subject_code}</p>
@@ -67,6 +67,10 @@ export function WizardBasicInfo() {
             <div>
               <Label className="text-xs text-muted-foreground uppercase font-extrabold">Sección Activa</Label>
               <p className="font-black text-primary text-base mt-0.5">{state.section}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase font-extrabold">Prelación</Label>
+              <p className="font-black text-primary text-base mt-0.5">{state.pre_requisite || subject?.prerequisite || 'Ninguna'}</p>
             </div>
           </div>
         )}
@@ -81,6 +85,28 @@ export function WizardBasicInfo() {
             onChange={(e) => updateField('title', e.target.value)}
           />
         </div>
+
+        {subject?.program && (
+          <div className="space-y-1.5 bg-muted/40 p-4 rounded-xl border border-border/50">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+              Programa de Formación
+            </span>
+            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line font-bold">
+              {subject.program}
+            </p>
+          </div>
+        )}
+
+        {subject?.purpose && (
+          <div className="space-y-1.5 bg-muted/40 p-4 rounded-xl border border-border/50">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+              Propósito de la Unidad Curricular
+            </span>
+            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
+              {subject.purpose}
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="base_score">Puntaje Máximo por Unidad</Label>

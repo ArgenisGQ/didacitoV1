@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { WizardProvider, useWizard } from '@/context/WizardContext'
 import { useAutosave } from '@/hooks/useAutosave'
 import api from '@/lib/api-client'
+import { useQuery } from '@tanstack/react-query'
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,17 @@ function WizardInner({
   const [showPreview, setShowPreview] = useState(false)
   const [showDraftPreview, setShowDraftPreview] = useState(false)
   const [activePlanId, setActivePlanId] = useState<number | null>(planId)
+
+  const { data: academicLoad } = useQuery({
+    queryKey: ['academicLoad'],
+    queryFn: async () => {
+      const { data } = await api.get('/users/me/academic-load')
+      return data
+    },
+  })
+
+  const subject = academicLoad?.subjects?.find((s: any) => s.code === state.subject_code)
+
 
   const payload = useMemo(
     () => ({
@@ -280,7 +292,20 @@ function WizardInner({
                 evaluation_plans: payload.evaluation_plans as any,
                 author_name: 'Autor Actual',
                 subject_code: payload.subject_code ?? undefined,
-                section: payload.section ?? undefined
+                section: payload.section ?? undefined,
+                subject_purpose: state.subject_purpose ?? undefined,
+                pre_requisite: state.pre_requisite ?? undefined,
+                program: state.program ?? undefined,
+                modality: payload.modality ?? undefined,
+                component_type: payload.component_type ?? undefined,
+                hd_t: payload.hd_t,
+                hd_lt: payload.hd_lt,
+                hd_iscp: payload.hd_iscp,
+                hiv_s: payload.hiv_s,
+                hiv_a: payload.hiv_a,
+                hde: payload.hde,
+                total_hours: subject?.academic_credits ? subject.academic_credits * 16 : undefined,
+                academic_period: academicLoad?.academic_period?.name ?? undefined
               }} />
             </div>
           </DialogContent>

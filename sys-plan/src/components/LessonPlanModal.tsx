@@ -97,7 +97,20 @@ export default function LessonPlanModal({
       subject_code: initialData?.subject_code || '---',
       section: initialData?.section || '---',
       weekly_contents: initialData?.weekly_contents || [],
-      evaluation_plans: initialData?.evaluation_plans || []
+      evaluation_plans: initialData?.evaluation_plans || [],
+      modality: initialData?.modality || undefined,
+      component_type: initialData?.component_type || undefined,
+      hd_t: initialData?.hd_t || 0,
+      hd_lt: initialData?.hd_lt || 0,
+      hd_iscp: initialData?.hd_iscp || 0,
+      hiv_s: initialData?.hiv_s || 0,
+      hiv_a: initialData?.hiv_a || 0,
+      hde: initialData?.hde || 0,
+      academic_period: initialData?.academic_period || undefined,
+      total_hours: initialData?.total_hours || undefined,
+      subject_purpose: initialData?.subject_purpose || undefined,
+      pre_requisite: initialData?.pre_requisite || undefined,
+      program: initialData?.program || undefined,
     }
   }
 

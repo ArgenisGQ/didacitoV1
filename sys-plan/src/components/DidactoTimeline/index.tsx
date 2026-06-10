@@ -134,7 +134,20 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
       e.strategy?.trim() || e.instrument?.trim() || e.evaluation_type?.trim() || 
       e.evidence?.trim() || e.feedback_method?.trim() || 
       e.weight || e.due_week || e.due_date?.trim()
-    ),
+    ).map((ep: any) => ({
+      unit: ep.unit ?? null,
+      title: ep.title || '',
+      competence: ep.competence || '',
+      performance_criterion: ep.performance_criterion || '',
+      strategy: ep.strategy || '',
+      instrument: ep.instrument || '',
+      evaluation_type: ep.evaluation_type || '',
+      evidence: ep.evidence || '',
+      feedback_method: ep.feedback_method || '',
+      weight: ep.weight === '' || ep.weight === null ? 0 : parseFloat(String(ep.weight)) || 0,
+      due_week: ep.due_week === '' || ep.due_week === null ? null : parseInt(String(ep.due_week)) || null,
+      due_date: ep.due_date || null,
+    })),
     weekly_contents: weeks
       .map(w => ({
         week_number: w.weekNumber,
@@ -159,33 +172,11 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
 
   const saveCurrentStateToDB = async () => {
     try {
-      // Sanitize payload before sending
-      const apiPayload = {
-        ...payload,
-        evaluation_plans: payload.evaluation_plans.map((ep: any) => {
-          const cleaned: any = {
-            unit: ep.unit ?? null,
-            title: ep.title || '',
-            competence: ep.competence || '',
-            performance_criterion: ep.performance_criterion || '',
-            strategy: ep.strategy || '',
-            instrument: ep.instrument || '',
-            evaluation_type: ep.evaluation_type || '',
-            evidence: ep.evidence || '',
-            feedback_method: ep.feedback_method || '',
-            weight: ep.weight === '' || ep.weight === null ? 0 : parseFloat(String(ep.weight)) || 0,
-            due_week: ep.due_week === '' || ep.due_week === null ? null : parseInt(String(ep.due_week)) || null,
-            due_date: ep.due_date || null,
-          };
-          return cleaned;
-        })
-      };
-
       if (activePlanId === null) {
-        const { data } = await api.post('/plans', apiPayload);
+        const { data } = await api.post('/plans', payload);
         setActivePlanId(data.id);
       } else {
-        await api.put(`/plans/${activePlanId}`, apiPayload);
+        await api.put(`/plans/${activePlanId}`, payload);
       }
     } catch (err) {
       console.error('Error auto-saving plan:', err);

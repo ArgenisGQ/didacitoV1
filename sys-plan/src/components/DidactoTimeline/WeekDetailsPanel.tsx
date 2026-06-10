@@ -163,7 +163,11 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
     if (selectedUnitIndex >= 0 && syllabusDetail.units && syllabusDetail.units.length > selectedUnitIndex) {
       const unit = syllabusDetail.units[selectedUnitIndex];
       if (unit.contents) setValue('contenido', unit.contents, { shouldDirty: true });
-      if (unit.performance_criteria) setValue('criteriosDesempeno', unit.performance_criteria, { shouldDirty: true });
+      
+      const criteria = unit.performance_criteria || '';
+      const criteriosMatch = criteria.match(/Criterios de Desempeño:\n([\s\S]*)$/);
+      const criteriosText = criteriosMatch ? criteriosMatch[1].trim() : criteria;
+      if (criteriosText) setValue('criteriosDesempeno', criteriosText, { shouldDirty: true });
     }
     
     if (syllabusDetail.teaching_strategies) {

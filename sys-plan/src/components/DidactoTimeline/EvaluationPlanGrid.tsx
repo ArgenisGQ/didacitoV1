@@ -61,14 +61,20 @@ export function EvaluationPlanGrid() {
          updateEvaluationItem(idx, 'title', unit.unit_title);
       }
 
-      // Llenar Competencia Específica con los contenidos
+      const criteria = unit.performance_criteria || '';
+      const competenciaMatch = criteria.match(/^Competencia:\n([\s\S]*?)(?=\n\nCriterios de Desempeño:|$)/);
+      const criteriosMatch = criteria.match(/Criterios de Desempeño:\n([\s\S]*)$/);
+      const competenciaText = competenciaMatch ? competenciaMatch[1].trim() : '';
+      const criteriosText = criteriosMatch ? criteriosMatch[1].trim() : criteria;
+
+      // Llenar Competencia Específica
       if (!state.evaluation_plans[idx].competence) {
-         updateEvaluationItem(idx, 'competence', unit.contents || unit.unit_title || "Contenidos no disponibles.");
+         updateEvaluationItem(idx, 'competence', competenciaText || unit.contents || unit.unit_title || "Contenidos no disponibles.");
       }
 
       // Llenar Criterios de Desempeño
       if (!state.evaluation_plans[idx].performance_criterion || state.evaluation_plans[idx].performance_criterion === 'No se encontraron criterios de desempeño específicos en el PDF.') {
-         updateEvaluationItem(idx, 'performance_criterion', unit.performance_criteria || "No se encontraron criterios de desempeño específicos en el PDF.");
+         updateEvaluationItem(idx, 'performance_criterion', criteriosText || "No se encontraron criterios de desempeño específicos en el PDF.");
       }
     });
   };
@@ -228,50 +234,49 @@ export function EvaluationPlanGrid() {
                   </div>
                   
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-bold text-muted-foreground">Tipo de Evaluación</Label>
-                        <div className="flex gap-2 h-10">
-                          {['Formativa', 'Sumativa'].map((type) => {
-                            const isActive = (unit.evaluation_type || '').includes(type);
-                            return (
-                              <button
-                                key={type}
-                                type="button"
-                                onClick={() => {
-                                  let types = (unit.evaluation_type || '').split(' y ').filter(t => t.trim() !== '');
-                                  if (types.includes(type)) {
-                                    types = types.filter(t => t !== type);
-                                  } else {
-                                    types.push(type);
-                                  }
-                                  updateEvaluationItem(idx, 'evaluation_type', types.join(' y '));
-                                }}
-                                className={`flex-1 flex items-center justify-center text-xs font-semibold rounded-md border transition-colors ${
-                                  isActive 
-                                    ? 'bg-primary text-primary-foreground border-primary shadow-sm' 
-                                    : 'bg-background text-muted-foreground border-border hover:bg-muted/50'
-                                }`}
-                              >
-                                {type}
-                              </button>
-                            );
-                          })}
-                        </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-muted-foreground">Tipo de Evaluación</Label>
+                      <div className="flex gap-2 h-10">
+                        {['Diagnóstica', 'Formativa', 'Sumativa'].map((type) => {
+                          const isActive = (unit.evaluation_type || '').includes(type);
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => {
+                                let types = (unit.evaluation_type || '').split(' y ').filter(t => t.trim() !== '');
+                                if (types.includes(type)) {
+                                  types = types.filter(t => t !== type);
+                                } else {
+                                  types.push(type);
+                                }
+                                updateEvaluationItem(idx, 'evaluation_type', types.join(' y '));
+                              }}
+                              className={`flex-1 flex items-center justify-center text-[10px] sm:text-xs font-semibold rounded-md border transition-colors ${
+                                isActive 
+                                  ? 'bg-primary text-primary-foreground border-primary shadow-sm' 
+                                  : 'bg-background text-muted-foreground border-border hover:bg-muted/50'
+                              }`}
+                            >
+                              {type}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-bold text-muted-foreground">Evidencia</Label>
-                        <Input
-                          list="evidences-list"
-                          value={unit.evidence}
-                          onChange={(e) => updateEvaluationItem(idx, 'evidence', e.target.value)}
-                          placeholder="Seleccionar o escribir..."
-                          className="h-10 bg-background text-sm"
-                        />
-                        <datalist id="evidences-list">
-                          {taxonomy?.evidences?.map((opt: string) => <option key={opt} value={opt} />)}
-                        </datalist>
-                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-muted-foreground">Evidencia</Label>
+                      <Input
+                        list="evidences-list"
+                        value={unit.evidence}
+                        onChange={(e) => updateEvaluationItem(idx, 'evidence', e.target.value)}
+                        placeholder="Seleccionar o escribir..."
+                        className="h-10 bg-background text-sm"
+                      />
+                      <datalist id="evidences-list">
+                        {taxonomy?.evidences?.map((opt: string) => <option key={opt} value={opt} />)}
+                      </datalist>
                     </div>
                     
                     <div className="space-y-1.5">

@@ -47,6 +47,7 @@ export interface LessonPlan {
   subject_purpose?: string;
   pre_requisite?: string;
   total_hours?: number;
+  program?: string;
   
   // Override hours
   hd_t?: number;

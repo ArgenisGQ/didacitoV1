@@ -48,6 +48,9 @@ export interface WizardState {
   hiv_s: number
   hiv_a: number
   hde: number
+  subject_purpose: string | null
+  pre_requisite: string | null
+  program: string | null
 }
 
 const createEmptyEvaluation = (unitNum: number): EvaluationItem => ({
@@ -121,6 +124,9 @@ const initialState: WizardState = {
   hiv_s: 0,
   hiv_a: 0,
   hde: 0,
+  subject_purpose: null,
+  pre_requisite: null,
+  program: null,
 }
 
 export function WizardProvider({ children }: { children: ReactNode }) {
@@ -225,26 +231,42 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       hiv_s: plan.hiv_s || 0,
       hiv_a: plan.hiv_a || 0,
       hde: plan.hde || 0,
+      subject_purpose: plan.subject_purpose || null,
+      pre_requisite: plan.pre_requisite || null,
+      program: plan.program || null,
       objectives: plan.objectives?.length ? plan.objectives : [''],
       strategies: plan.strategies?.length ? plan.strategies : [''],
-      evaluation_plans: plan.evaluation_plans?.length
-        ? [...plan.evaluation_plans]
-            .sort((a: any, b: any) => (a.unit || 0) - (b.unit || 0))
-            .map((ep: any, idx: number) => ({
-                unit: ep.unit ?? (idx + 1),
-                title: ep.title || '',
-                competence: ep.competence || '',
-                performance_criterion: ep.performance_criteria || ep.performance_criterion || '',
-                strategy: ep.strategy || '',
-                instrument: ep.instrument || '',
-                evaluation_type: ep.evaluation_type || '',
-                evidence: ep.evidence || '',
-                feedback_method: ep.feedback_method || '',
-                weight: ep.weight || '',
-                due_week: ep.due_week || '',
-                due_date: ep.due_date || '',
-              }))
-        : [1, 2, 3, 4].map(createEmptyEvaluation),
+      evaluation_plans: (() => {
+        const loadedPlans = plan.evaluation_plans || [];
+        const plansMap = new Map<number, any>();
+        loadedPlans.forEach((ep: any) => {
+          if (ep.unit !== null && ep.unit !== undefined) {
+            plansMap.set(ep.unit, ep);
+          }
+        });
+        
+        return [1, 2, 3, 4].map((unitNum) => {
+          const ep = plansMap.get(unitNum);
+          if (ep) {
+            return {
+              unit: unitNum,
+              title: ep.title || '',
+              competence: ep.competence || '',
+              performance_criterion: ep.performance_criteria || ep.performance_criterion || '',
+              strategy: ep.strategy || '',
+              instrument: ep.instrument || '',
+              evaluation_type: ep.evaluation_type || '',
+              evidence: ep.evidence || '',
+              feedback_method: ep.feedback_method || '',
+              weight: ep.weight || '',
+              due_week: ep.due_week || '',
+              due_date: ep.due_date || '',
+            };
+          } else {
+            return createEmptyEvaluation(unitNum);
+          }
+        });
+      })(),
       weekly_contents: plan.weekly_contents?.length
         ? plan.weekly_contents.map((wc: any) => ({
             week_number: wc.week_number,

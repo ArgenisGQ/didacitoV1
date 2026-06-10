@@ -88,7 +88,7 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
             <th className={`${thClass} text-left`}>Facultad/Decanato</th>
             <td className={`${tdClass} text-left`}>Postgrado</td>
             <th className={thClass}>Carrera – Programa / Programa</th>
-            <td className={tdClass}>MFN</td>
+            <td className={tdClass}>{plan.program || ''}</td>
           </tr>
         </tbody>
       </table>
