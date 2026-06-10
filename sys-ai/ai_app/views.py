@@ -442,6 +442,118 @@ def admin_templates_detail(request, template_id):
         return JsonResponse({"error": str(e)}, status=400)
 
 
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def admin_assignments(request):
+    """
+    Endpoint para listar y crear asignaciones de agentes.
+    """
+    from .models import AgentAssignment, AgentTemplate
+    import json
+    
+    if request.method == "GET":
+        assignments_qs = AgentAssignment.objects.select_related('agent').all()
+        assignments_list = []
+        
+        # Cargar nombres de facultades/deptos/carreras para enriquecer la respuesta
+        from .models import CoreFaculty, CoreDepartment, CoreCareer
+        faculties = {f.id: f.name for f in CoreFaculty.objects.all()}
+        departments = {d.id: d.name for d in CoreDepartment.objects.all()}
+        careers = {c.id: c.name for c in CoreCareer.objects.all()}
+        
+        for a in assignments_qs:
+            assignments_list.append({
+                "id": a.id,
+                "agent_id": a.agent_id,
+                "agent_name": a.agent.name,
+                "faculty_id": a.faculty_id,
+                "faculty_name": faculties.get(a.faculty_id) if a.faculty_id else None,
+                "department_id": a.department_id,
+                "department_name": departments.get(a.department_id) if a.department_id else None,
+                "career_id": a.career_id,
+                "career_name": careers.get(a.career_id) if a.career_id else None,
+                "subject_code": a.subject_code,
+                "section": a.section,
+                "is_active": a.is_active,
+                "created_at": a.created_at.isoformat()
+            })
+        return JsonResponse(assignments_list, safe=False)
+        
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            agent_id = data.get('agent_id')
+            if not agent_id:
+                return JsonResponse({"error": "Debe especificar un agente."}, status=400)
+            
+            fac_id = data.get('faculty_id')
+            dep_id = data.get('department_id')
+            car_id = data.get('career_id')
+            sub_code = data.get('subject_code')
+            sect = data.get('section')
+            
+            if not any([fac_id, dep_id, car_id, sub_code]):
+                return JsonResponse({"error": "Debe especificar al menos un criterio de asignación (Facultad, Departamento, Carrera o Asignatura)."}, status=400)
+                
+            a = AgentAssignment.objects.create(
+                agent_id=int(agent_id),
+                faculty_id=int(fac_id) if (fac_id and fac_id != 'none') else None,
+                department_id=int(dep_id) if (dep_id and dep_id != 'none') else None,
+                career_id=int(car_id) if (car_id and car_id != 'none') else None,
+                subject_code=sub_code.strip() if (sub_code and sub_code.strip() and sub_code.strip() != 'none') else None,
+                section=sect.strip() if (sect and sect.strip() and sect.strip() != 'none') else None,
+                is_active=True
+            )
+            return JsonResponse({"id": a.id, "status": "success"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE", "PUT"])
+def admin_assignments_detail(request, assignment_id):
+    """
+    Endpoint para eliminar o actualizar una asignación de agente específica.
+    """
+    from .models import AgentAssignment
+    import json
+    try:
+        a = AgentAssignment.objects.get(id=assignment_id)
+        if request.method == "DELETE":
+            a.delete()
+            return JsonResponse({"status": "success"})
+        elif request.method == "PUT":
+            data = json.loads(request.body)
+            if 'is_active' in data and len(data) == 1:
+                a.is_active = data['is_active']
+                a.save()
+                return JsonResponse({"status": "success", "is_active": a.is_active})
+            else:
+                if 'agent_id' in data:
+                    a.agent_id = int(data['agent_id'])
+                if 'faculty_id' in data:
+                    fac_id = data['faculty_id']
+                    a.faculty_id = int(fac_id) if (fac_id and fac_id != 'none') else None
+                if 'department_id' in data:
+                    dep_id = data['department_id']
+                    a.department_id = int(dep_id) if (dep_id and dep_id != 'none') else None
+                if 'career_id' in data:
+                    car_id = data['career_id']
+                    a.career_id = int(car_id) if (car_id and car_id != 'none') else None
+                if 'subject_code' in data:
+                    sub_code = data['subject_code']
+                    a.subject_code = sub_code.strip() if (sub_code and sub_code.strip() and sub_code.strip() != 'none') else None
+                if 'section' in data:
+                    sect = data['section']
+                    a.section = sect.strip() if (sect and sect.strip() and sect.strip() != 'none') else None
+                a.save()
+                return JsonResponse({"status": "success"})
+    except AgentAssignment.DoesNotExist:
+        return JsonResponse({"error": "Asignación no encontrada"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
 def get_request_user(request):
     """
     Obtiene el usuario basándose en los headers enviados por el core gateway API.
@@ -490,6 +602,14 @@ def chat_rag(request):
             session = ChatSession.objects.filter(id=session_id, user=user).first()
             if not session:
                 return JsonResponse({"error": "Sesión de chat no encontrada o inaccesible."}, status=404)
+            
+            # Sincronizar el agente seleccionado para la sesión actual si se envía en el request
+            if 'agent_id' in data:
+                req_agent_id = data.get('agent_id')
+                new_agent_id = req_agent_id if (req_agent_id and req_agent_id != 'none') else None
+                if session.agent_id != new_agent_id:
+                    session.agent_id = new_agent_id
+                    session.save(update_fields=['agent_id'])
         else:
             # Nueva sesión
             title = user_message[:50] + ("..." if len(user_message) > 50 else "")
@@ -516,8 +636,8 @@ def chat_rag(request):
         llm = get_llm_model(provider)
 
         agent_template = None
-        current_agent_id = agent_id or session.agent_id
-        if current_agent_id and current_agent_id != 'none':
+        current_agent_id = session.agent_id
+        if current_agent_id:
             from .models import AgentTemplate
             agent_template = AgentTemplate.objects.filter(id=current_agent_id).first()
 

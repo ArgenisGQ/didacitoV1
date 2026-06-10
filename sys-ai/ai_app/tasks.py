@@ -272,10 +272,50 @@ def evaluate_plan_task(plan_id: int):
             status="PROCESSING"
         )
         
-        # 2. Buscar el agente activo
-        agent = AgentTemplate.objects.filter(is_active=True).first()
+        # 2. Buscar el agente asignado de forma jerárquica
+        from .models import AgentAssignment, CoreDepartment
+        agent = None
+        
+        # 2.1 Buscar asignación directa por asignatura y sección
+        from django.db.models import Q
+        assignment = None
+        if plan.section:
+            # Buscar asignaciones para esta asignatura y filtrar en base a la lista de secciones (con soporte para comas)
+            subj_assignments = AgentAssignment.objects.filter(subject_code=plan.subject_code, is_active=True).exclude(Q(section__isnull=True) | Q(section=''))
+            for sa in subj_assignments:
+                if sa.section:
+                    sections_list = [s.strip() for s in sa.section.split(",") if s.strip()]
+                    if plan.section.strip() in sections_list:
+                        assignment = sa
+                        break
+        if not assignment:
+            # Buscar asignación por asignatura de forma global (sección vacía/nula)
+            assignment = AgentAssignment.objects.filter(subject_code=plan.subject_code, is_active=True).filter(Q(section__isnull=True) | Q(section='')).first()
+            
+        if assignment:
+            agent = assignment.agent
+            
+        if not agent:
+            # 2.2 Buscar departamento por subject_code
+            dept = CoreDepartment.objects.filter(subject_codes__contains=plan.subject_code).first()
+            if dept:
+                # Buscar asignación por departamento
+                assignment = AgentAssignment.objects.filter(department_id=dept.id, is_active=True).first()
+                if assignment:
+                    agent = assignment.agent
+                
+                # 2.3 Si no hay, buscar asignación por facultad del departamento
+                if not agent and dept.faculty_id:
+                    assignment = AgentAssignment.objects.filter(faculty_id=dept.faculty_id, is_active=True).first()
+                    if assignment:
+                        agent = assignment.agent
+
+        # 2.4 Si sigue sin haber, usar el primer agente activo por defecto
+        if not agent:
+            agent = AgentTemplate.objects.filter(is_active=True).first()
+            
         if not agent or not agent.provider:
-            raise ValueError("No hay Agente o Proveedor activo configurado.")
+            raise ValueError("No hay un Agente o Proveedor activo configurado aplicable para este plan.")
             
         eval_result.agent = agent
         eval_result.save()
@@ -289,11 +329,9 @@ def evaluate_plan_task(plan_id: int):
             plan_text += f"Semana {wc.week_number}: {wc.content_description}\n"
             
         # 4. Recuperar contexto del sinóptico usando RAG
-        # Creamos vector de búsqueda de las primeras líneas del plan para traer el contexto general
         embeddings_model = get_embeddings_model()
         query_vector = embeddings_model.embed_query(plan_text[:1000])
         
-        # Búsqueda en pgvector (K=5)
         chunks = SyllabusChunk.objects.filter(
             syllabus__subject__code=plan.subject_code
         ).order_by(L2Distance('embedding', query_vector))[:5]
@@ -305,7 +343,7 @@ def evaluate_plan_task(plan_id: int):
             
         # 5. Armar el prompt
         prompt = f"""
-Has sido asignado para evaluar un plan de clase contra el programa sinóptico oficial.
+Has sido asignado para realizar un análisis pedagógico y curricular exhaustivo y detallado de un plan de clase comparándolo contra el programa sinóptico oficial.
 
 === CONTEXTO DEL PROGRAMA SINÓPTICO ===
 {context_text}
@@ -313,12 +351,20 @@ Has sido asignado para evaluar un plan de clase contra el programa sinóptico of
 === PLAN DE CLASE DEL DOCENTE ===
 {plan_text}
 
-Por favor, evalúa si el plan de clase cubre los objetivos del programa sinóptico, identifica desviaciones e indica sugerencias.
+Por favor, realiza una comparación minuciosa. Evalúa si el plan de clase cubre cabalmente los objetivos del programa sinóptico, la alineación de las competencias, la pertinencia de las estrategias didácticas propuestas por semana, la dosificación de contenidos y la coherencia del plan de evaluación. 
+Identifica claramente cualquier desviación, inconsistencia, omisión o aspecto débil, explicando de manera detallada el motivo pedagógico o técnico. Formula recomendaciones constructivas y específicas que indiquen de forma práctica cómo corregir o mejorar dichos puntos.
+
 Responde en formato JSON estrictamente, con esta estructura:
 {{
   "cumple_objetivos": true/false,
-  "observaciones": ["obs1", "obs2"],
-  "recomendaciones": ["rec1"]
+  "observaciones": [
+    "Descripción detallada y fundamentada de la observación 1...",
+    "Descripción detallada y fundamentada de la observación 2..."
+  ],
+  "recomendaciones": [
+    "Recomendación específica y accionable 1 para solventar la observación...",
+    "Recomendación específica y accionable 2..."
+  ]
 }}
 """
         # 6. Llamar al LLM
@@ -331,20 +377,67 @@ Responde en formato JSON estrictamente, con esta estructura:
         response = llm.invoke(messages)
         
         # Parsear respuesta JSON
+        cumple = False
+        observaciones_y_recos = ""
         try:
-            # Eliminar backticks si el LLM los pone
             clean_json = response.content.strip().strip('```json').strip('```').strip()
             result_data = json.loads(clean_json)
+            cumple = result_data.get('cumple_objetivos', False)
+            obs = result_data.get('observaciones', [])
+            recs = result_data.get('recomendaciones', [])
+            observaciones_y_recos = "Observaciones:\n" + "\n".join([f"- {o}" for o in obs]) + "\n\nRecomendaciones:\n" + "\n".join([f"- {r}" for r in recs])
         except json.JSONDecodeError:
-            # Fallback si no retorna JSON puro
             result_data = {"raw_response": response.content}
+            content_lower = response.content.lower()
+            if '"cumple_objetivos": true' in content_lower or 'cumple_objetivos: true' in content_lower or '"cumple_objetivos":true' in content_lower:
+                cumple = True
+            observaciones_y_recos = response.content
             
         # 7. Guardar resultado exitoso
         eval_result.result_data = result_data
         eval_result.status = "SUCCESS"
         eval_result.save()
+
+        # 8. Transicionar estado del plan en CoreLessonPlan y guardar feedback
+        if cumple:
+            plan.status = "APPROVED"
+        else:
+            plan.status = "IN_REVIEW"
+            
+        plan.feedback = observaciones_y_recos
+        plan.save(update_fields=['status', 'feedback'])
+
+        # 9. Crear notificación para el Docente y Coordinador
+        from .models import CoreNotification, CoreUser
         
-        logger.info(f"Evaluación exitosa para el plan {plan_id}")
+        # Alerta al Docente
+        docente_title = f"Planificación '{plan.title}' Aprobada" if cumple else f"Planificación '{plan.title}' en revisión (con observaciones de IA)"
+        docente_msg = "La evaluación automática determinó que tu planificación cumple con los criterios pedagógicos." if cumple else "La evaluación automática detectó observaciones en tu planificación y ha sido turnada al coordinador para su revisión."
+        
+        CoreNotification.objects.create(
+            user_id=plan.author_id,
+            title=docente_title,
+            message=docente_msg,
+            lesson_plan_id=plan.id
+        )
+
+        # Alerta al Coordinador
+        coordinators = CoreUser.objects.filter(role="COORDINADOR")
+        if plan.coordinator_id:
+            coordinators = coordinators.filter(id=plan.coordinator_id)
+        
+        coord_title = f"AI Aprobación: Plan de {plan.author_name}" if cumple else f"Alerta IA: Planificación '{plan.title}' Observada"
+        coord_msg = f"El plan de clase '{plan.title}' ha sido aprobado automáticamente." if cumple else f"El docente {plan.author_name} ha cargado un plan con observaciones.\n\nFeedback:\n{observaciones_y_recos}"
+
+        for coord in coordinators:
+            CoreNotification.objects.create(
+                user_id=coord.id,
+                title=coord_title,
+                message=coord_msg,
+                lesson_plan_id=plan.id
+            )
+        
+        logger.info(f"Evaluación exitosa para el plan {plan_id}. Cumple: {cumple}")
 
     except Exception as e:
         logger.exception(f"Error en la evaluación del plan {plan_id}: {str(e)}")

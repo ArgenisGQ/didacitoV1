@@ -56,6 +56,14 @@ class CoreLessonPlan(models.Model):
     subject_code = models.CharField(max_length=50, blank=True, null=True)
     section = models.CharField(max_length=50, blank=True, null=True)
     academic_period = models.ForeignKey(CoreAcademicPeriod, on_delete=models.DO_NOTHING, blank=True, null=True)
+    coordinator = models.ForeignKey(CoreUser, on_delete=models.DO_NOTHING, related_name="coordinated_plans", null=True, blank=True)
+    feedback = models.TextField(blank=True, null=True)
+
+    @property
+    def author_name(self):
+        if self.author:
+            return self.author.full_name
+        return "Docente"
 
     class Meta:
         managed = False
@@ -97,6 +105,53 @@ class CoreSyllabusVersion(models.Model):
     class Meta:
         managed = False
         db_table = "plan_app_syllabusversion"
+
+
+class CoreFaculty(models.Model):
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=50, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = "plan_app_faculty"
+
+
+class CoreDepartment(models.Model):
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=50, unique=True)
+    faculty = models.ForeignKey(CoreFaculty, on_delete=models.DO_NOTHING)
+    subject_codes = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = "plan_app_department"
+
+
+class CoreCareer(models.Model):
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=50, unique=True)
+    faculty = models.ForeignKey(CoreFaculty, on_delete=models.DO_NOTHING)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = "plan_app_career"
+
+
+class CoreNotification(models.Model):
+    user = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="notifications")
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    lesson_plan_id = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = "plan_app_notification"
+
 
 # --- Modelos Propios de sys-ai ---
 
@@ -144,6 +199,32 @@ class AgentTemplate(models.Model):
 
     def __str__(self):
         return f"{self.name} - Provider: {self.provider.name if self.provider else 'None'}"
+
+
+class AgentAssignment(models.Model):
+    agent = models.ForeignKey(AgentTemplate, on_delete=models.CASCADE, related_name="assignments")
+    faculty_id = models.IntegerField(null=True, blank=True, help_text="Facultad a la que aplica")
+    department_id = models.IntegerField(null=True, blank=True, help_text="Departamento al que aplica")
+    career_id = models.IntegerField(null=True, blank=True, help_text="Carrera a la que aplica")
+    subject_code = models.CharField(max_length=50, blank=True, null=True, help_text="Código de asignatura específica")
+    section = models.CharField(max_length=50, blank=True, null=True, help_text="Sección específica de la asignatura")
+    is_active = models.BooleanField(default=True, help_text="Indica si la asignación está activa")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ai_app_agent_assignment"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        target = f"Subject: {self.subject_code}"
+        if self.section:
+            target += f" Section: {self.section}"
+        if not self.subject_code:
+            target = f"Career: {self.career_id}" if self.career_id else \
+                     f"Dept: {self.department_id}" if self.department_id else \
+                     f"Faculty: {self.faculty_id}" if self.faculty_id else "Global/Ninguno"
+        return f"Assignment of {self.agent.name} to {target}"
+
 
 class SyllabusChunk(models.Model):
     syllabus = models.ForeignKey(CoreSyllabusVersion, on_delete=models.CASCADE, related_name="chunks")
