@@ -159,6 +159,7 @@ class LessonPlanUpdate(BaseModel):
 
     objectives: Optional[List[str]] = None
     strategies: Optional[List[str]] = None
+    feedback: Optional[str] = None
 
 
 class LessonPlanResponse(BaseModel):
@@ -194,6 +195,7 @@ class LessonPlanResponse(BaseModel):
     pre_requisite: Optional[str] = None
     total_hours: Optional[int] = None
     program: Optional[str] = None
+    feedback: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -199,6 +199,7 @@ class LessonPlan(Base):
 
     objectives = Column(JSON, nullable=True)
     strategies = Column(JSON, nullable=True)
+    feedback = Column(Text, nullable=True)
 
     created_at = Column(
         DateTime(timezone=True),

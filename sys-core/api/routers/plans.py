@@ -100,8 +100,10 @@ async def create_plan(
     
     from sqlalchemy.orm import selectinload
     query = select(LessonPlan).options(
+        selectinload(LessonPlan.author),
         selectinload(LessonPlan.evaluation_plans),
-        selectinload(LessonPlan.weekly_contents)
+        selectinload(LessonPlan.weekly_contents),
+        selectinload(LessonPlan.subject)
     ).where(LessonPlan.id == new_plan.id)
     result = await db.execute(query)
     
@@ -281,6 +283,8 @@ async def update_plan(
         plan.objectives = plan_in.objectives
     if plan_in.strategies is not None:
         plan.strategies = plan_in.strategies
+    if plan_in.feedback is not None:
+        plan.feedback = plan_in.feedback
 
     # Replace evaluation plans
     if plan_in.evaluation_plans is not None:
@@ -304,6 +308,7 @@ async def update_plan(
     
     result = await db.execute(
         select(LessonPlan).options(
+            selectinload(LessonPlan.author),
             selectinload(LessonPlan.evaluation_plans),
             selectinload(LessonPlan.weekly_contents),
             selectinload(LessonPlan.subject)
@@ -337,6 +342,12 @@ async def delete_plan(
 
     await db.delete(plan)
     await db.commit()
+
+    # Trigger real-time dashboard update (fire and forget)
+    from api.routers.dashboard import trigger_dashboard_update
+    import asyncio
+    asyncio.create_task(trigger_dashboard_update())
+
     return {"message": "Plan deleted"}
 
 def to_roman(val):
@@ -437,6 +448,71 @@ def get_unit_for_week(week_num, evaluation_plans):
 
 
 
+def get_competence_for_week(week_num, specific_competence, evaluation_plans):
+    if specific_competence and specific_competence.strip():
+        return specific_competence
+
+    valid_evs = [ev for ev in evaluation_plans if ev.unit is not None]
+    
+    def get_unit_int(ev):
+        val = getattr(ev, 'unit', None)
+        if val is None:
+            return 999
+        val_str = str(val).strip().upper()
+        roman_to_int = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10}
+        if val_str in roman_to_int:
+            return roman_to_int[val_str]
+        if val_str.isdigit():
+            return int(val_str)
+        return 999
+
+    sorted_ev = sorted(valid_evs, key=get_unit_int)
+    
+    w1 = 4
+    w2 = 8
+    w3 = 12
+    
+    def get_due_week(ev):
+        dw = getattr(ev, 'due_week', None)
+        if dw is None:
+            return None
+        try:
+            return int(dw)
+        except ValueError:
+            return None
+
+    if len(sorted_ev) > 0 and get_due_week(sorted_ev[0]) is not None:
+        w1 = get_due_week(sorted_ev[0])
+    if len(sorted_ev) > 1 and get_due_week(sorted_ev[1]) is not None:
+        w2 = max(w1 + 1, get_due_week(sorted_ev[1]))
+    else:
+        w2 = max(w1 + 1, 8)
+    if len(sorted_ev) > 2 and get_due_week(sorted_ev[2]) is not None:
+        w3 = max(w2 + 1, get_due_week(sorted_ev[2]))
+    else:
+        w3 = max(w2 + 1, 12)
+        
+    if week_num <= w1:
+        unit_idx = 0
+    elif week_num <= w2:
+        unit_idx = 1
+    elif week_num <= w3:
+        unit_idx = 2
+    else:
+        unit_idx = 3
+        
+    if unit_idx < len(sorted_ev):
+        ep = sorted_ev[unit_idx]
+        comp = getattr(ep, 'competence', '')
+        if comp:
+            return comp
+    return ""
+
+
+
+
+
+
 @router.get("/{plan_id}/pdf")
 async def generate_plan_pdf(
     plan_id: int,
@@ -490,7 +566,7 @@ async def generate_plan_pdf(
     for w in plan.weekly_contents:
         w.unit_content = get_unit_for_week(w.week_number, plan.evaluation_plans)
         w.content_description = format_periods(w.content_description)
-        w.specific_competence = format_periods(w.specific_competence)
+        w.specific_competence = format_periods(get_competence_for_week(w.week_number, w.specific_competence, plan.evaluation_plans))
         w.performance_criteria = format_periods(w.performance_criteria)
         w.teaching_strategy = format_periods(w.teaching_strategy)
         w.evaluation_feedback = format_periods(w.evaluation_feedback)
@@ -619,7 +695,7 @@ async def preview_plan_pdf(
     for w in (payload.weekly_contents or []):
         w.unit_content = get_unit_for_week(w.week_number, payload.evaluation_plans or [])
         w.content_description = format_periods(w.content_description)
-        w.specific_competence = format_periods(w.specific_competence)
+        w.specific_competence = format_periods(get_competence_for_week(w.week_number, w.specific_competence, payload.evaluation_plans or []))
         w.performance_criteria = format_periods(w.performance_criteria)
         w.teaching_strategy = format_periods(w.teaching_strategy)
         w.evaluation_feedback = format_periods(w.evaluation_feedback)
