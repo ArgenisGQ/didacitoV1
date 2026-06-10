@@ -187,6 +187,35 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     },
   })
 
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+
+  const { data: notifications = [], refetch: refetchNotifications } = useQuery<any[]>({
+    queryKey: ['notifications'],
+    queryFn: async () => {
+      const { data } = await api.get('/notifications')
+      return data
+    },
+    refetchInterval: 10000
+  })
+
+  const markAsRead = async (id: number) => {
+    try {
+      await api.post(`/notifications/${id}/read`)
+      refetchNotifications()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const markAllAsRead = async () => {
+    try {
+      await api.post('/notifications/read-all')
+      refetchNotifications()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const { data: profileConfig } = useQuery({
     queryKey: ['profileConfig'],
     queryFn: async () => {
@@ -705,10 +734,68 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           </div>
 
           <div className="flex items-center gap-4 ml-6">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell size={20} />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-destructive rounded-full" />
-            </Button>
+            <div className="relative">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative"
+                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              >
+                <Bell size={20} />
+                {notifications.some(n => !n.is_read) && (
+                  <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-destructive rounded-full animate-pulse" />
+                )}
+              </Button>
+              
+              {isNotificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 bg-card border rounded-2xl shadow-xl z-50 p-4 space-y-4 max-h-96 overflow-y-auto">
+                  <div className="flex justify-between items-center pb-2 border-b">
+                    <span className="font-bold text-sm">Notificaciones</span>
+                    <button 
+                      onClick={markAllAsRead} 
+                      className="text-xs text-primary hover:underline font-semibold"
+                    >
+                      Marcar todo leído
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {notifications.length === 0 ? (
+                      <p className="text-center text-xs text-muted-foreground py-4">No tienes notificaciones</p>
+                    ) : (
+                      notifications.map((n: any) => (
+                        <div 
+                          key={n.id} 
+                          className={`p-2.5 rounded-xl text-xs space-y-1 transition-colors cursor-pointer ${n.is_read ? 'bg-background/40 opacity-70' : 'bg-primary/5 border-l-2 border-primary'}`}
+                          onClick={() => {
+                            markAsRead(n.id);
+                            if (n.lesson_plan_id) {
+                              const found = plans.find(p => p.id === n.lesson_plan_id);
+                              if (found) {
+                                setWebPreviewPlan(found);
+                              } else {
+                                // Buscar los detalles del plan del backend en caso de no estar en caché local
+                                api.get(`/plans/${n.lesson_plan_id}`).then(({ data }) => {
+                                  setWebPreviewPlan(data);
+                                }).catch(() => {
+                                  console.error("No se pudo cargar el plan");
+                                });
+                              }
+                            }
+                            setIsNotificationsOpen(false);
+                          }}
+                        >
+                          <div className="flex justify-between items-start">
+                            <span className="font-bold">{n.title}</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">{new Date(n.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                          </div>
+                          <p className="text-muted-foreground whitespace-pre-line">{n.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <Separator orientation="vertical" className="h-8" />
             <div className="flex items-center gap-3">
               <Avatar>

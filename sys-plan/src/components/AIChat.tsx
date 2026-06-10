@@ -18,7 +18,7 @@ export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<string>('');
+  const [selectedAgent, setSelectedAgent] = useState<string>('none');
   const [activeSessionId, setActiveSessionId] = useState<string | number>('new');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +60,8 @@ export default function AIChat() {
           const sessionObj = findSessionById(activeSessionId);
           if (sessionObj?.agent_id) {
             setSelectedAgent(sessionObj.agent_id.toString());
+          } else {
+            setSelectedAgent('none');
           }
         })
         .catch(err => {
@@ -70,7 +72,7 @@ export default function AIChat() {
         });
     } else {
       setMessages([]);
-      setSelectedAgent('');
+      setSelectedAgent('none');
     }
   }, [activeSessionId]);
 
@@ -110,8 +112,8 @@ export default function AIChat() {
         // Si fue una sesión nueva creada, actualizar el activeSessionId
         if (activeSessionId === 'new') {
           setActiveSessionId(response.data.session_id);
-          refetchSessions();
         }
+        refetchSessions();
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: "Hubo un error: " + (response.data.error || "Desconocido") }]);
       }

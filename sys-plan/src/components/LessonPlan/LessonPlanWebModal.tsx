@@ -73,10 +73,37 @@ export function LessonPlanWebModal({ plan, onClose, userRole, onApprove, onObser
                     <p className="text-sm font-semibold">Generando evaluación de IA...</p>
                   </div>
                 ) : !aiEvaluation ? (
-                  <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-3">
-                    <AlertCircle className="text-amber-500" size={32} />
-                    <p className="text-sm font-semibold text-center">No hay evaluación disponible para este plan.</p>
-                  </div>
+                  plan.feedback ? (
+                    <div className="space-y-4">
+                      <div className={`p-4 rounded-xl border flex items-start gap-3 ${plan.status === 'APPROVED' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                        {plan.status === 'APPROVED' ? (
+                          <CheckCircle className="text-emerald-600 shrink-0 mt-0.5" size={20} />
+                        ) : (
+                          <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+                        )}
+                        <div>
+                          <h4 className="font-bold text-sm">
+                            {plan.status === 'APPROVED' ? 'Cumple con el Programa Sinóptico' : 'Presenta observaciones pedagógicas'}
+                          </h4>
+                          <p className="text-xs opacity-80 mt-1">
+                            Análisis guardado en el Plan
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-muted/40 p-4 rounded-xl border space-y-2">
+                        <h4 className="font-bold text-xs text-muted-foreground uppercase tracking-wider">Feedback y Directrices de la IA</h4>
+                        <div className="text-sm whitespace-pre-wrap text-foreground leading-relaxed">
+                          {plan.feedback}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-3">
+                      <AlertCircle className="text-amber-500" size={32} />
+                      <p className="text-sm font-semibold text-center">No hay evaluación disponible para este plan.</p>
+                    </div>
+                  )
                 ) : aiEvaluation.status === 'PROCESSING' ? (
                   <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-3">
                     <Loader2 className="animate-spin text-blue-500" size={32} />

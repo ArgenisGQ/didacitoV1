@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit, Trash2, Cpu, Key, Database, Play, AlertTriangle, Zap, FileText, CheckCircle2, XCircle, Binary, MessageSquare } from 'lucide-react'
+import { Plus, Edit, Trash2, Cpu, Key, Database, Play, AlertTriangle, Zap, FileText, CheckCircle2, XCircle, Binary, MessageSquare, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -22,7 +22,7 @@ import AIChat from './AIChat'
 
 export default function AISettings() {
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState<'providers' | 'templates' | 'rag' | 'chat'>('providers')
+  const [activeTab, setActiveTab] = useState<'providers' | 'templates' | 'rag' | 'chat' | 'assignments'>('providers')
   
   // States for Provider Modal
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
@@ -31,6 +31,85 @@ export default function AISettings() {
   // States for Template Modal
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<any>(null)
+
+  // States for Assignment Modal
+  const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false)
+  const [editingAssignment, setEditingAssignment] = useState<any>(null)
+
+  // Queries for Assignments
+  const { data: assignments = [], refetch: refetchAssignments } = useQuery({
+    queryKey: ['ai-assignments'],
+    queryFn: async () => {
+      const { data } = await api.get('/ai/admin/assignments')
+      return data
+    },
+    enabled: activeTab === 'assignments',
+    retry: false
+  })
+
+  const { data: allFaculties = [] } = useQuery({
+    queryKey: ['dist-faculties'],
+    queryFn: async () => {
+      const { data } = await api.get('/distribution/faculties')
+      return data
+    },
+    enabled: activeTab === 'assignments',
+    retry: false
+  })
+
+  const { data: allDepartments = [] } = useQuery({
+    queryKey: ['dist-departments'],
+    queryFn: async () => {
+      const { data } = await api.get('/distribution/departments')
+      return data
+    },
+    enabled: activeTab === 'assignments',
+    retry: false
+  })
+
+  const { data: allCareers = [] } = useQuery({
+    queryKey: ['dist-careers'],
+    queryFn: async () => {
+      const { data } = await api.get('/distribution/careers')
+      return data
+    },
+    enabled: activeTab === 'assignments',
+    retry: false
+  })
+
+  const deleteAssignment = async (id: number) => {
+    if (!window.confirm("¿Seguro que deseas eliminar esta asignación de agente?")) return
+    try {
+      await api.delete(`/ai/admin/assignments/${id}`)
+      toast.success("Asignación eliminada")
+      refetchAssignments()
+    } catch (e) {
+      toast.error("Error al eliminar asignación")
+    }
+  }
+  const openAssignmentModal = (a: any = null) => {
+    setEditingAssignment(a)
+    setIsAssignmentModalOpen(true)
+  }
+
+  const saveAssignment = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+    const payload = Object.fromEntries(formData.entries())
+    try {
+      if (editingAssignment?.id) {
+        await api.put(`/ai/admin/assignments/${editingAssignment.id}`, payload)
+        toast.success('Asignación actualizada')
+      } else {
+        await api.post('/ai/admin/assignments', payload)
+        toast.success('Asignación creada')
+      }
+      refetchAssignments()
+      setIsAssignmentModalOpen(false)
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Error al guardar asignación')
+    }
+  }
 
   // States for Logs
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false)
@@ -248,6 +327,14 @@ export default function AISettings() {
         >
           <Cpu size={18} />
           Agentes IA (RAG)
+        </Button>
+        <Button 
+          variant={activeTab === 'assignments' ? 'default' : 'ghost'} 
+          onClick={() => setActiveTab('assignments')}
+          className="gap-2"
+        >
+          <Layers size={18} />
+          Asignación de Agentes
         </Button>
         <Button 
           variant={activeTab === 'rag' ? 'default' : 'ghost'} 
@@ -509,6 +596,110 @@ export default function AISettings() {
         </Card>
       )}
 
+      {activeTab === 'assignments' && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Asignaciones de Agentes</CardTitle>
+              <CardDescription>Asigna agentes de IA específicos a determinadas áreas, carreras, asignaturas o facultades.</CardDescription>
+            </div>
+            <Button onClick={() => openAssignmentModal(null)} className="gap-2">
+              <Plus size={16} /> Nueva Asignación
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Agente IA</TableHead>
+                  <TableHead>Nivel de Asignación</TableHead>
+                  <TableHead>Detalle de Asignación</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Fecha Creación</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {assignments.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      No hay asignaciones registradas. El sistema utilizará el agente activo por defecto.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  assignments.map((a: any) => {
+                    let level = "Global"
+                    let detail = "-"
+                    if (a.subject_code) {
+                      level = "Asignatura"
+                      detail = `Código: ${a.subject_code}`
+                      if (a.section) {
+                        detail += ` | Secc: ${a.section}`
+                      }
+                    } else if (a.career_id) {
+                      level = "Carrera"
+                      detail = a.career_name || `ID: ${a.career_id}`
+                    } else if (a.department_id) {
+                      level = "Departamento"
+                      detail = a.department_name || `ID: ${a.department_id}`
+                    } else if (a.faculty_id) {
+                      level = "Facultad"
+                      detail = a.faculty_name || `ID: ${a.faculty_id}`
+                    }
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-bold">{a.agent_name}</TableCell>
+                        <TableCell><Badge variant="outline">{level}</Badge></TableCell>
+                        <TableCell>{detail}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={a.is_active ? 'default' : 'secondary'}
+                            className={`cursor-pointer select-none transition-colors ${!hasActiveProvider ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            onClick={async () => {
+                              if (!hasActiveProvider) {
+                                toast.error("El sistema de IA no está activo. Active un proveedor primero.")
+                                return
+                              }
+                              try {
+                                await api.put(`/ai/admin/assignments/${a.id}`, { is_active: !a.is_active })
+                                toast.success(!a.is_active ? "Asignación activada" : "Asignación desactivada")
+                                refetchAssignments()
+                              } catch (err) {
+                                toast.error("Error al actualizar estado")
+                              }
+                            }}
+                          >
+                            {a.is_active ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          {(() => {
+                            const date = new Date(a.created_at)
+                            if (isNaN(date.getTime())) return "-"
+                            const day = String(date.getDate()).padStart(2, '0')
+                            const month = String(date.getMonth() + 1).padStart(2, '0')
+                            const year = date.getFullYear()
+                            return `${day}/${month}/${year}`
+                          })()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => openAssignmentModal(a)} title="Editar Asignación" className="mr-1">
+                            <Edit size={16} />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => deleteAssignment(a.id)} title="Eliminar Asignación">
+                            <Trash2 size={16} />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       {activeTab === 'chat' && (
         <AIChat />
       )}
@@ -686,7 +877,86 @@ export default function AISettings() {
         </DialogContent>
       </Dialog>
 
-      {/* Logs Modal */}
+      {/* Assignment Modal */}
+      <Dialog open={isAssignmentModalOpen} onOpenChange={setIsAssignmentModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingAssignment ? 'Editar Asignación de Agente' : 'Nueva Asignación de Agente'}</DialogTitle>
+            <DialogDescription>Define qué agente de IA evaluará qué área académica.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={saveAssignment} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Agente IA a Asignar</label>
+              <Select name="agent_id" required key={editingAssignment ? `agent-${editingAssignment.id}` : 'new'} defaultValue={editingAssignment?.agent_id?.toString()}>
+                <SelectTrigger><SelectValue placeholder="Seleccione un agente" /></SelectTrigger>
+                <SelectContent>
+                  {templates.filter((t: any) => t.is_active).map((t: any) => (
+                    <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="border-t pt-4 space-y-4">
+              <p className="text-xs text-muted-foreground font-semibold">ASIGNAR A UNO DE LOS SIGUIENTES CRITERIOS (ASIGNACIÓN ÚNICA O JERÁRQUICA):</p>
+              
+              <div>
+                <label className="text-sm font-medium">Asignar a Facultad</label>
+                <Select name="faculty_id" key={editingAssignment ? `faculty-${editingAssignment.id}` : 'new'} defaultValue={editingAssignment?.faculty_id?.toString() || 'none'}>
+                  <SelectTrigger><SelectValue placeholder="Opcional" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ninguna</SelectItem>
+                    {allFaculties.map((f: any) => (
+                      <SelectItem key={f.id} value={f.id.toString()}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Asignar a Departamento</label>
+                <Select name="department_id" key={editingAssignment ? `dept-${editingAssignment.id}` : 'new'} defaultValue={editingAssignment?.department_id?.toString() || 'none'}>
+                  <SelectTrigger><SelectValue placeholder="Opcional" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ninguno</SelectItem>
+                    {allDepartments.map((d: any) => (
+                      <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Asignar a Carrera</label>
+                <Select name="career_id" key={editingAssignment ? `career-${editingAssignment.id}` : 'new'} defaultValue={editingAssignment?.career_id?.toString() || 'none'}>
+                  <SelectTrigger><SelectValue placeholder="Opcional" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ninguna</SelectItem>
+                    {allCareers.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Asignar a Asignatura (Código)</label>
+                <Input name="subject_code" key={editingAssignment ? `subj-${editingAssignment.id}` : 'new'} defaultValue={editingAssignment?.subject_code || ''} placeholder="Ej: MAT-101 (Dejar vacío para no usar)" />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Asignar a Sección (Opcional)</label>
+                <Input name="section" key={editingAssignment ? `sect-${editingAssignment.id}` : 'new'} defaultValue={editingAssignment?.section || ''} placeholder="Ej: MC01T0S, MC01T1S (Puedes separar varias por comas)" />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAssignmentModalOpen(false)}>Cancelar</Button>
+              <Button type="submit">{editingAssignment ? 'Guardar Cambios' : 'Crear Asignación'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <Dialog open={isLogsModalOpen} onOpenChange={setIsLogsModalOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
