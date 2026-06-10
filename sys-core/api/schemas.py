@@ -477,3 +477,19 @@ class SubjectBase(BaseModel):
 class SubjectResponse(SubjectBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------------------------------------------------------------------
+# Notification Schemas
+# ---------------------------------------------------------------------------
+class NotificationResponse(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    message: str
+    is_read: bool
+    lesson_plan_id: Optional[int] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+

@@ -528,3 +528,23 @@ class Department(Base):
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
 
     faculty = relationship("Faculty", back_populates="departments")
+
+
+class Notification(Base):
+    __tablename__ = "plan_app_notification"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("plan_app_user.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False, nullable=False)
+    lesson_plan_id = Column(Integer, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    user = relationship("User", backref="notifications")
+
