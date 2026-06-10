@@ -162,14 +162,26 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
     
     # --- Program (Carrera) ---
     program = ""
-    prog_match = re.search(r'LICENCIATURA EN\s+([^\n]+)', full_text, re.IGNORECASE)
-    if prog_match:
-        program = f"LICENCIATURA EN {prog_match.group(1).strip()}"
-    else:
-        # Fallback to lines below Programas de Formación
-        pf_match = re.search(r'PROGRAMAS DE FORMACION\s*\n+([^\n]+)', full_text, re.IGNORECASE)
-        if pf_match:
-            program = pf_match.group(1).strip()
+    # Extract everything between PROGRAMAS DE FORMACION and IDENTIFICACION
+    pf_match = re.search(r'PROGRAMAS\s+DE\s+FORMACION\s*\n+(.*?)\n+IDENTIFICACION', full_text, re.IGNORECASE | re.DOTALL)
+    if pf_match:
+        lines = [line.strip() for line in pf_match.group(1).split('\n') if line.strip()]
+        program_lines = []
+        for line in lines:
+            line_upper = line.upper()
+            if line_upper in ("PREGRADO", "POSTGRADO", "X", "✓"):
+                continue
+            if len(line.strip()) <= 2:
+                continue
+            program_lines.append(line)
+        if program_lines:
+            program = " ".join(program_lines)
+    
+    if not program:
+        # Fallback to direct search of LICENCIATURA EN
+        prog_match = re.search(r'LICENCIATURA\s+EN\s+([^\n]+)', full_text, re.IGNORECASE)
+        if prog_match:
+            program = prog_match.group(0).strip()
 
     # --- Level (PREGRADO / POSTGRADO) ---
     level = "PREGRADO"
@@ -223,9 +235,15 @@ def parse_syllabus_pdf(file_bytes: bytes, filename: str = "") -> dict:
     prerequisite = ""
     prel_match = re.search(r'PRELACION\s*\n+([^\n]+)', full_text, re.IGNORECASE)
     if prel_match:
-        prerequisite = prel_match.group(1).strip()
-        if prerequisite.upper().startswith("CORRESPONDENCIAS"):
+        prel_val = prel_match.group(1).strip()
+        if prel_val.upper().startswith("CORRESPONDENCIAS") or prel_val.upper().startswith("NINGUNA") or prel_val.upper().startswith("NINGUNO"):
             prerequisite = ""
+        else:
+            code_match = re.search(r'\b([A-Z]{3,4}-\d{3,5})\b', prel_val)
+            if code_match:
+                prerequisite = code_match.group(1).strip()
+            else:
+                prerequisite = prel_val
 
     # --- Presentation, Purpose, Competencies ---
     def extract_between(start_pat, end_pat, text_source):

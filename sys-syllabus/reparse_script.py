@@ -23,6 +23,20 @@ async def reparse():
             with open(pdf_path, 'rb') as f:
                 data = parse_syllabus_pdf(f.read(), os.path.basename(pdf_path))
             
+            # Update subject attributes
+            if v.subject:
+                v.subject.program = data.get('program')
+                v.subject.purpose = data.get('purpose')
+                v.subject.presentation = data.get('presentation')
+                v.subject.previous_competencies = data.get('previous_competencies')
+                v.subject.generic_competencies = data.get('generic_competencies')
+                v.subject.relation_other_subjects = data.get('relation_other_subjects')
+                v.subject.teaching_strategies = data.get('teaching_strategies')
+                v.subject.eval_diagnostica = data.get('eval_diagnostica')
+                v.subject.eval_formativa = data.get('eval_formativa')
+                v.subject.eval_sumativa = data.get('eval_sumativa')
+                v.subject.bibliographic_references = data.get('bibliographic_references')
+
             # Delete old units
             await db.execute(delete(SubjectUnit).where(SubjectUnit.subject_id == v.subject_id))
             
