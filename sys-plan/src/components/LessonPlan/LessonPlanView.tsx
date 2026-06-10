@@ -13,7 +13,7 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
   const bgColor = 'bg-[#dde6f0]'
   const thClass = `border ${borderColor} ${bgColor} px-1.5 py-0.5 text-center font-bold text-[9px]`
   const tdClass = `border ${borderColor} px-1.5 py-0.5 text-center text-[9px]`
-  const tdLeftClass = `border ${borderColor} px-2 py-1 text-left align-middle text-[10px] sm:text-xs`;
+  const tdLeftClass = `border ${borderColor} px-2 py-1 text-left align-middle text-[10px] sm:text-xs whitespace-pre-line`;
 
   const formatDueDate = (dateStr?: string) => {
     if (!dateStr) return '';
@@ -33,6 +33,12 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
   const formatWeight = (w?: number) => {
     if (w === undefined || w === null) return '0';
     return Number.isInteger(w) ? w.toString() : w.toFixed(1);
+  };
+
+  const formatPeriods = (text?: string, doubleNewline: boolean = true) => {
+    if (!text) return '';
+    const rep = doubleNewline ? '.\n\n' : '.\n';
+    return text.toString().trim().replace(/\.(?!\d)(?!\s*$)\s*/g, rep);
   };
 
   // Provide fallbacks for UI
@@ -250,14 +256,14 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
           )}
           {plan.evaluation_plans?.map((evalPlan, idx) => (
             <tr key={idx}>
-              <td className={`${tdClass} h-[35px]`}>{evalPlan.unit || ''}</td>
-              <td className={tdLeftClass}>{evalPlan.competence}</td>
-              <td className={tdLeftClass}>{evalPlan.performance_criterion}</td>
-              <td className={tdLeftClass}>{evalPlan.strategy}</td>
-              <td className={tdLeftClass}>{evalPlan.instrument}</td>
+              <td className={`${tdClass} ${bgColor} h-[35px]`}>{evalPlan.unit || ''}</td>
+              <td className={tdLeftClass}>{formatPeriods(evalPlan.competence)}</td>
+              <td className={tdLeftClass}>{formatPeriods(evalPlan.performance_criterion)}</td>
+              <td className={tdLeftClass}>{formatPeriods(evalPlan.strategy)}</td>
+              <td className={tdLeftClass}>{formatPeriods(evalPlan.instrument)}</td>
               <td className={tdClass}>{evalPlan.evaluation_type}</td>
-              <td className={tdLeftClass}>{evalPlan.evidence}</td>
-              <td className={tdLeftClass}>{evalPlan.feedback_method}</td>
+              <td className={tdLeftClass}>{formatPeriods(evalPlan.evidence)}</td>
+              <td className={tdLeftClass}>{formatPeriods(evalPlan.feedback_method)}</td>
               <td className={tdClass}>
                 {evalPlan.due_week ? `Semana ${evalPlan.due_week} /` : ''}
                 {evalPlan.due_date && <><br/>{formatDueDate(evalPlan.due_date)}</>}
@@ -303,19 +309,19 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
           </thead>
           <tbody>
             <tr>
-              <td className={`${tdLeftClass} h-[40px]`}>{week.content_description}</td>
-              <td className={tdLeftClass}>{week.specific_competence}</td>
-              <td className={tdLeftClass}>{week.performance_criteria}</td>
-              <td className={tdLeftClass}>{week.teaching_strategy}</td>
-              <td className={tdLeftClass}>{week.evaluation_feedback}</td>
+              <td className={`${tdLeftClass} h-[40px]`}>{formatPeriods(week.content_description)}</td>
+              <td className={tdLeftClass}>{formatPeriods(week.specific_competence)}</td>
+              <td className={tdLeftClass}>{formatPeriods(week.performance_criteria)}</td>
+              <td className={tdLeftClass}>{formatPeriods(week.teaching_strategy)}</td>
+              <td className={tdLeftClass}>{formatPeriods(week.evaluation_feedback)}</td>
             </tr>
             <tr>
-              <th className={`${thClass} text-left`}>Recursos de Aprendizaje<br/>/ Bibliografía</th>
-              <td colSpan={4} className={tdLeftClass}>
-                {week.resources}
-                {week.resources && week.bibliography && <br/>}
-                {week.bibliography}
-              </td>
+              <th className={`${thClass} text-left`}>Recursos de Aprendizaje</th>
+              <td colSpan={4} className={tdLeftClass}>{formatPeriods(week.resources, false)}</td>
+            </tr>
+            <tr>
+              <th className={`${thClass} text-left`}>Bibliografía</th>
+              <td colSpan={4} className={tdLeftClass}>{week.bibliography}</td>
             </tr>
           </tbody>
         </table>

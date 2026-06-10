@@ -479,13 +479,33 @@ async def generate_plan_pdf(
         subj_res = await db.execute(select(Subject).where(Subject.code == plan.subject_code))
         subject = subj_res.scalars().first()
 
+    import re
+    def format_periods(text, double_newline=True):
+        if not text:
+            return ""
+        rep = '.\n\n' if double_newline else '.\n'
+        return re.sub(r'\.(?!\d)(?!\s*$)\s*', rep, str(text).strip())
+
     # Map weeks to units dynamically
     for w in plan.weekly_contents:
         w.unit_content = get_unit_for_week(w.week_number, plan.evaluation_plans)
+        w.content_description = format_periods(w.content_description)
+        w.specific_competence = format_periods(w.specific_competence)
+        w.performance_criteria = format_periods(w.performance_criteria)
+        w.teaching_strategy = format_periods(w.teaching_strategy)
+        w.evaluation_feedback = format_periods(w.evaluation_feedback)
+        w.resources = format_periods(w.resources, double_newline=False)
+        w.bibliography = w.bibliography or ""
 
     # Convert units to Roman numerals and format evaluation plan fields
     for ev in plan.evaluation_plans:
         ev.unit = to_roman(ev.unit)
+        ev.competence = format_periods(ev.competence)
+        ev.performance_criterion = format_periods(ev.performance_criterion)
+        ev.strategy = format_periods(ev.strategy)
+        ev.instrument = format_periods(ev.instrument)
+        ev.evidence = format_periods(ev.evidence)
+        ev.feedback_method = format_periods(ev.feedback_method)
         
         # Format Lapso/Entrega
         week_part = f"Semana {ev.due_week} /" if ev.due_week else ""
@@ -588,14 +608,34 @@ async def preview_plan_pdf(
     static_dir = os.path.join(os.path.dirname(__file__), "../../static")
     logo_path = "file://" + os.path.abspath(os.path.join(static_dir, "img", "university_logo.png")).replace("\\", "/")
     
+    import re
+    def format_periods(text, double_newline=True):
+        if not text:
+            return ""
+        rep = '.\n\n' if double_newline else '.\n'
+        return re.sub(r'\.(?!\d)(?!\s*$)\s*', rep, str(text).strip())
+
     # Map weeks to units dynamically
     for w in (payload.weekly_contents or []):
         w.unit_content = get_unit_for_week(w.week_number, payload.evaluation_plans or [])
+        w.content_description = format_periods(w.content_description)
+        w.specific_competence = format_periods(w.specific_competence)
+        w.performance_criteria = format_periods(w.performance_criteria)
+        w.teaching_strategy = format_periods(w.teaching_strategy)
+        w.evaluation_feedback = format_periods(w.evaluation_feedback)
+        w.resources = format_periods(w.resources, double_newline=False)
+        w.bibliography = w.bibliography or ""
 
     # Convert units to Roman numerals and format evaluation plan fields
     eval_plans = payload.evaluation_plans or []
     for ev in eval_plans:
         ev.unit = to_roman(ev.unit)
+        ev.competence = format_periods(ev.competence)
+        ev.performance_criterion = format_periods(ev.performance_criterion)
+        ev.strategy = format_periods(ev.strategy)
+        ev.instrument = format_periods(ev.instrument)
+        ev.evidence = format_periods(ev.evidence)
+        ev.feedback_method = format_periods(ev.feedback_method)
         
         # Format Lapso/Entrega
         week_part = f"Semana {ev.due_week} /" if ev.due_week else ""

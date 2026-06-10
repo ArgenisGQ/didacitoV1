@@ -74,7 +74,7 @@
             margin-top: 8px;
             margin-bottom: 2px;
         }
-        .text-left { text-align: left; }
+        .text-left { text-align: left; white-space: pre-line; }
         .text-center { text-align: center; }
         .text-right { text-align: right; }
         .bg-blue { background-color: #dde6f0 !important; }
@@ -327,7 +327,7 @@
         </tr>
         {% for eval in evaluation_plans %}
         <tr>
-            <td>{{ eval.unit or '' }}</td>
+            <td class="bg-blue">{{ eval.unit or '' }}</td>
             <td class="text-left">{{ eval.competence }}</td>
             <td class="text-left">{{ eval.performance_criterion }}</td>
             <td class="text-left">{{ eval.strategy }}</td>
@@ -372,8 +372,12 @@
                     <td class="text-left">{{ week.evaluation_feedback }}</td>
                 </tr>
                 <tr>
-                    <th class="text-left">Recursos de Aprendizaje<br>/ Bibliografía</th>
-                    <td colspan="4" class="text-left">{{ week.resources }}<br>{{ week.bibliography }}</td>
+                    <th class="text-left">Recursos de Aprendizaje</th>
+                    <td colspan="4" class="text-left">{{ week.resources }}</td>
+                </tr>
+                <tr>
+                    <th class="text-left">Bibliografía</th>
+                    <td colspan="4" class="text-left">{{ week.bibliography }}</td>
                 </tr>
             </tbody>
         </table>
