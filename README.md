@@ -114,7 +114,27 @@ Para dar soporte a la evolución organizativa de la institución, se diseñó e 
 
 4. **Experiencia de Usuario Premium e Interfaces Interactivas**
    * **Filtros e Integraciones en Servidor:** El selector de periodo en el panel de control de usuarios (`UserManagement.tsx`) realiza consultas asíncronas optimizadas enviando el parámetro `period_id` directamente al backend (incluyendo la opción `0` para docentes sin periodo), acelerando la velocidad de visualización.
-   * **Tarjeta de Auditoría en Modal Curricular:** Diseño ultra-premium de un bloque de auditoría integrado en la vista rápida del modal de carga académica del docente. Muestra detalladamente los metadatos de quién registró al profesor, cuándo, bajo qué método y su estado exacto en ese trimestre.
+    *   **Tarjeta de Auditoría en Modal Curricular:** Diseño ultra-premium de un bloque de auditoría integrado en la vista rápida del modal de carga académica del docente. Muestra detalladamente los metadatos de quién registró al profesor, cuándo, bajo qué método y su estado exacto en ese trimestre.
+
+### 🤖 Categoría E: Métricas de Uso de IA, Observabilidad y Reportabilidad de Consumo
+Se diseñó e implementó un sistema completo de auditoría y análisis de consumo del modelo de IA, dotando a los Super Administradores de herramientas para monitorear el gasto de tokens y exportar historiales de uso.
+
+1. **Auditoría y Registro de Consumo Criptográfico (Tokens)**
+   * **Persistencia Atómica de Consumo:** Campos `prompt_tokens` (entrada) y `completion_tokens` (salida) agregados al modelo `EvaluationResult`.
+   * **Extracción Automatizada de Uso:** Integración de interceptores en la tarea de evaluación de planes de clase para extraer y persistir los tokens consumidos por LangChain directamente de los metadatos del proveedor de IA.
+   * **Trazabilidad en Auditoría:** Vista rápida de tokens consumidos (Entrada / Salida) añadida a la tabla de últimas evaluaciones realizadas en tiempo real.
+
+2. **Panel Visual de Métricas Premium (Glassmorphism & Recharts)**
+   * **KPIs de Gasto e Interacción:** Tarjetas con sombreado de cristal mostrando métricas consolidadas de: evaluaciones totales, exitosas, tasa de error de API, mensajes del chat e indicador de tokens totales consumidos (entrada + salida).
+   * **Gráfico de Consumo Semanal (Dashboard Académico):**
+     * Agrupación de datos en series cronológicas de 13 semanas (91 días) con etiquetas asociadas al inicio de periodo (ej. `S5-Dom`, `S6-Lun`, `S6-Sáb`).
+     * Sombreado alternativo mediante áreas de referencia (`ReferenceArea`) para delimitar visualmente cada semana.
+     * Zoom interactivo y preselección automática del control deslizante (`Brush`) centrado en la semana actual (desviación de +/- 3 días de hoy) replicando con precisión el comportamiento del Dashboard de Superadmin.
+
+3. **Reportabilidad de Auditoría y Exportación Avanzada (CSV/Excel)**
+   * **Reporte de Evaluaciones:** Incorporación de las columnas "Tokens Entrada", "Tokens Salida" y "Tokens Totales" en el archivo exportable CSV de historial de evaluaciones.
+   * **Reporte de Consumo de Tokens:** Botón dinámico premium para descargar en formato CSV compatible con Excel el histórico estructurado día por día de tokens consumidos, alineado al formato de la gráfica académica.
+   * **Filtros de Rango Temporal:** Todos los resúmenes y reportes respetan los selectores de fecha de inicio y fin aplicados en caliente.
 
 ## 🏗️ Arquitectura y Tecnologías (Stack Detallado)
 
