@@ -188,6 +188,7 @@ def admin_providers(request):
                 base_url=data.get('base_url', ''),
                 embedding_model=data.get('embedding_model', ''),
                 llm_model=data.get('llm_model', ''),
+                context_limit=int(data.get('context_limit', 2000)) if data.get('context_limit') else 2000,
                 is_active=data.get('is_active', True) == 'on' or data.get('is_active') is True
             )
             p.api_key = data.get('api_key', '***')
@@ -400,6 +401,11 @@ def admin_providers_detail(request, provider_id):
             p.base_url = data.get('base_url', p.base_url)
             p.embedding_model = data.get('embedding_model', p.embedding_model)
             p.llm_model = data.get('llm_model', p.llm_model)
+            if 'context_limit' in data and data.get('context_limit') is not None:
+                try:
+                    p.context_limit = int(data.get('context_limit'))
+                except (ValueError, TypeError):
+                    pass
             new_key = data.get('api_key', '')
             if new_key and new_key != '***':
                 p.api_key = new_key

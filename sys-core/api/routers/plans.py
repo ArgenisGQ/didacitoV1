@@ -201,7 +201,7 @@ async def update_plan(
                     import os
                     ai_service_url = os.getenv("AI_SERVICE_URL", "http://sys-ai:8003")
                     async with httpx.AsyncClient() as client:
-                        await client.post(f"{ai_service_url}/api/ai/evaluate/{plan_id}/", timeout=5.0)
+                        await client.post(f"{ai_service_url}/evaluate/{plan_id}/", timeout=5.0)
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).error(f"Failed to trigger AI eval for plan {plan_id}: {e}")
@@ -248,7 +248,7 @@ async def update_plan(
                     import os
                     ai_service_url = os.getenv("AI_SERVICE_URL", "http://sys-ai:8003")
                     async with httpx.AsyncClient() as client:
-                        await client.post(f"{ai_service_url}/api/ai/admin/sync-plan/{plan_id}/", timeout=5.0)
+                        await client.post(f"{ai_service_url}/admin/sync-plan/{plan_id}/", timeout=5.0)
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).error(f"Failed to trigger AI sync for plan {plan_id}: {e}")

@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
 from pgvector.django import VectorField
 
 
@@ -162,6 +163,11 @@ class AIProvider(models.Model):
     api_key_encrypted = models.TextField(help_text="Clave de API cifrada")
     embedding_model = models.CharField(max_length=255, blank=True, null=True, help_text="Modelo para embeddings")
     llm_model = models.CharField(max_length=255, blank=True, null=True, help_text="Modelo LLM")
+    context_limit = models.IntegerField(
+        default=2000,
+        validators=[MinValueValidator(1000), MaxValueValidator(10000)],
+        help_text="Límite de contexto en caracteres (Min 1000, Max 10000)"
+    )
     is_active = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

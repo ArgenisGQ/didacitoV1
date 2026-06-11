@@ -498,6 +498,7 @@ export default function AISettings() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Tipo / Modelo</TableHead>
                   <TableHead>Base URL</TableHead>
+                  <TableHead>Límite Contexto</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -505,7 +506,7 @@ export default function AISettings() {
               <TableBody>
                 {providers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                       No hay proveedores configurados.
                     </TableCell>
                   </TableRow>
@@ -515,6 +516,7 @@ export default function AISettings() {
                       <TableCell className="font-bold">{p.name}</TableCell>
                       <TableCell>{p.provider_type}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{p.base_url || 'N/A'}</TableCell>
+                      <TableCell className="text-xs font-semibold">{p.context_limit ? `${p.context_limit.toLocaleString()} carac.` : '2,000 carac.'}</TableCell>
                       <TableCell>
                         <Badge variant={p.is_active ? 'default' : 'secondary'}>
                           {p.is_active ? 'Activo' : 'Inactivo'}
@@ -1247,6 +1249,21 @@ export default function AISettings() {
                 <Input name="api_key" type="password" className="pl-10" placeholder={editingProvider ? '*** Dejar en blanco para no cambiar ***' : 'sk-...'} required={!editingProvider} />
               </div>
               <p className="text-xs text-muted-foreground mt-1">La llave se almacenará cifrada en la base de datos.</p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Límite de Contexto (caracteres)</label>
+              <Input 
+                name="context_limit" 
+                type="number" 
+                min={1000} 
+                max={10000} 
+                defaultValue={editingProvider?.context_limit ?? 2000} 
+                required 
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Límite de caracteres para el análisis de planes y contexto del programa sinóptico (mínimo 1,000, máximo 10,000, por defecto 2,000).
+              </p>
             </div>
 
             <div className="pt-2">

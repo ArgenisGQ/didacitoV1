@@ -130,11 +130,11 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        error_msg = str(e)
+        import logging
+        logging.error(f"Error de autenticación: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Error en el servidor al autenticar: {error_msg} \n{traceback.format_exc()}"
+            detail="Error de Autenticación"
         )
 
     # 3. Successful primary auth: reset failed attempts

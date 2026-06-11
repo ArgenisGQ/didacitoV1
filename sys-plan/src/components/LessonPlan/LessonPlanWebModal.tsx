@@ -25,10 +25,22 @@ export function LessonPlanWebModal({ plan, onClose, userRole, onApprove, onObser
   const { data: aiEvaluation, isLoading: isLoadingAI } = useQuery({
     queryKey: ['ai-evaluation', plan.id],
     queryFn: async () => {
-      const { data } = await api.get(`/ai/evaluation/${plan.id}`);
-      return data;
+      try {
+        const { data } = await api.get(`/ai/evaluation/${plan.id}/`);
+        return data;
+      } catch (err: any) {
+        return {
+          status: 'FETCH_ERROR',
+          statusCode: err.response?.status,
+          message: err.response?.data?.detail || err.response?.data?.error || err.message
+        };
+      }
     },
     enabled: plan.status === 'IN_REVIEW' || plan.status === 'APPROVED' || plan.status === 'OBSERVED',
+    refetchInterval: (query) => {
+      const data = query?.state?.data as any;
+      return data?.status === 'PROCESSING' ? 3000 : false;
+    },
     retry: false
   });
 
@@ -65,6 +77,62 @@ export function LessonPlanWebModal({ plan, onClose, userRole, onApprove, onObser
                   <p className="text-xs text-muted-foreground">Revisión Automática del Sinóptico</p>
                 </div>
               </div>
+
+              {/* Progress Bar Component */}
+              {(() => {
+                let width = '0%';
+                let colorClass = 'bg-muted';
+                let label = 'Desconectado';
+                let description = 'Servicio no disponible';
+
+                if (isLoadingAI) {
+                  width = '30%';
+                  colorClass = 'bg-blue-500 animate-pulse';
+                  label = 'Conectando...';
+                  description = 'Estableciendo comunicación';
+                } else if (aiEvaluation) {
+                  if (aiEvaluation.status === 'PROCESSING') {
+                    width = '65%';
+                    colorClass = 'bg-gradient-to-r from-blue-500 to-indigo-500 animate-pulse';
+                    label = 'IA Analizando...';
+                    description = 'Evaluando coherencia pedagógica';
+                  } else if (aiEvaluation.status === 'SUCCESS') {
+                    width = '100%';
+                    colorClass = 'bg-emerald-500';
+                    label = 'Análisis Completado';
+                    description = 'Revisión finalizada con éxito';
+                  } else if (aiEvaluation.status === 'ERROR') {
+                    width = '100%';
+                    colorClass = 'bg-rose-500';
+                    label = 'Error en el Análisis';
+                    description = aiEvaluation.error_message || 'Fallo durante el procesamiento';
+                  } else if (aiEvaluation.status === 'FETCH_ERROR') {
+                    if (aiEvaluation.statusCode === 400) {
+                      width = '100%';
+                      colorClass = 'bg-amber-500';
+                      label = 'IA no activa para análisis';
+                      description = 'El proveedor de IA no está activo';
+                    } else {
+                      width = '100%';
+                      colorClass = 'bg-rose-500';
+                      label = 'IA no activa en el servidor';
+                      description = 'No se pudo conectar con el servidor de IA';
+                    }
+                  }
+                }
+
+                return (
+                  <div className="px-4 py-2.5 border-b bg-muted/5 space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-semibold text-foreground">{label}</span>
+                      <span className="text-muted-foreground text-[10px] truncate max-w-[200px]" title={description}>{description}</span>
+                    </div>
+                    <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-500 ${colorClass}`} style={{ width }} />
+                    </div>
+                  </div>
+                );
+              })()}
               
               <div className="p-4 overflow-y-auto flex-1 space-y-4">
                 {isLoadingAI ? (
@@ -116,6 +184,14 @@ export function LessonPlanWebModal({ plan, onClose, userRole, onApprove, onObser
                       <p>Error en la evaluación</p>
                     </div>
                     <p className="text-sm text-red-800">{aiEvaluation.error_message}</p>
+                  </div>
+                ) : aiEvaluation.status === 'FETCH_ERROR' ? (
+                  <div className={`p-4 rounded-xl border flex flex-col gap-2 ${aiEvaluation.statusCode === 400 ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <AlertTriangle className={aiEvaluation.statusCode === 400 ? 'text-amber-600' : 'text-red-600'} size={18} />
+                      <p>{aiEvaluation.statusCode === 400 ? 'IA no activa para análisis' : 'IA no activa en el servidor'}</p>
+                    </div>
+                    <p className="text-xs opacity-90">{aiEvaluation.message || 'Por favor contacte al administrador del sistema.'}</p>
                   </div>
                 ) : (
                   <div className="space-y-6">

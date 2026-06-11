@@ -280,12 +280,14 @@ def evaluate_plan_task(plan_id: int):
         from django.db.models import Q
         assignment = None
         if plan.section:
+            plan_sections = [s.strip() for s in plan.section.split(",") if s.strip()]
             # Buscar asignaciones para esta asignatura y filtrar en base a la lista de secciones (con soporte para comas)
             subj_assignments = AgentAssignment.objects.filter(subject_code=plan.subject_code, is_active=True).exclude(Q(section__isnull=True) | Q(section=''))
             for sa in subj_assignments:
                 if sa.section:
-                    sections_list = [s.strip() for s in sa.section.split(",") if s.strip()]
-                    if plan.section.strip() in sections_list:
+                    sa_sections = [s.strip() for s in sa.section.split(",") if s.strip()]
+                    # Si hay alguna coincidencia de sección entre el plan y la asignación
+                    if any(sec in sa_sections for sec in plan_sections):
                         assignment = sa
                         break
         if not assignment:
@@ -330,13 +332,14 @@ def evaluate_plan_task(plan_id: int):
             
         # 4. Recuperar contexto del sinóptico usando RAG
         embeddings_model = get_embeddings_model()
-        query_vector = embeddings_model.embed_query(plan_text[:1000])
+        context_limit = agent.provider.context_limit if getattr(agent.provider, 'context_limit', None) is not None else 2000
+        query_vector = embeddings_model.embed_query(plan_text[:context_limit])
         
         chunks = SyllabusChunk.objects.filter(
             syllabus__subject__code=plan.subject_code
-        ).order_by(L2Distance('embedding', query_vector))[:5]
+        ).order_by(L2Distance('embedding', query_vector))[:1]
         
-        context_text = "\n\n".join([c.content for c in chunks])
+        context_text = "\n\n".join([c.content for c in chunks])[:context_limit]
         
         if not context_text:
             context_text = "No se encontraron fragmentos de programa sinóptico en la base de datos."
