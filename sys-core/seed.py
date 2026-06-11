@@ -113,41 +113,73 @@ def seed():
     
     print("Seeding initial users via Django ORM...")
 
-    if not User.objects.filter(email="superadmin@didactico.edu").exists():
-        superadmin = User.objects.create_user(
+    # Ensure SUPER_ADMIN
+    superadmin_role = Role.objects.get(name="SUPER_ADMIN")
+    superadmin = User.objects.filter(email="superadmin@didactico.edu").first()
+    if not superadmin:
+        superadmin = User.objects.create_superuser(
             email="superadmin@didactico.edu",
             password="superadmin123",
             full_name="Super Administrador",
-            role="SUPER_ADMIN",
         )
-        superadmin.roles.add(Role.objects.get(name="SUPER_ADMIN"))
+    superadmin.role = "SUPER_ADMIN"
+    superadmin.is_staff = True
+    superadmin.is_superuser = True
+    superadmin.save()
+    if superadmin_role not in superadmin.roles.all():
+        superadmin.roles.add(superadmin_role)
+    print("  Ensured superadmin@didactico.edu has SUPER_ADMIN role.")
 
-    if not User.objects.filter(email="gestion@didactico.edu").exists():
-        admin = User.objects.create_user(
+    # Ensure ADMIN_GESTION
+    gestion_role = Role.objects.get(name="ADMIN_GESTION")
+    gestion = User.objects.filter(email="gestion@didactico.edu").first()
+    if not gestion:
+        gestion = User.objects.create_user(
             email="gestion@didactico.edu",
             password="gestion123",
             full_name="Admin de Gestion Academica",
             role="ADMIN_GESTION",
         )
-        admin.roles.add(Role.objects.get(name="ADMIN_GESTION"))
+    else:
+        gestion.role = "ADMIN_GESTION"
+        gestion.save()
+    if gestion_role not in gestion.roles.all():
+        gestion.roles.add(gestion_role)
+    print("  Ensured gestion@didactico.edu has ADMIN_GESTION role.")
 
-    if not User.objects.filter(email="coordinador@didactico.edu").exists():
+    # Ensure COORDINADOR
+    coordinador_role = Role.objects.get(name="COORDINADOR")
+    coord = User.objects.filter(email="coordinador@didactico.edu").first()
+    if not coord:
         coord = User.objects.create_user(
             email="coordinador@didactico.edu",
             password="coord2024",
             full_name="Coordinador de Area",
             role="COORDINADOR",
         )
-        coord.roles.add(Role.objects.get(name="COORDINADOR"))
+    else:
+        coord.role = "COORDINADOR"
+        coord.save()
+    if coordinador_role not in coord.roles.all():
+        coord.roles.add(coordinador_role)
+    print("  Ensured coordinador@didactico.edu has COORDINADOR role.")
 
-    if not User.objects.filter(email="docente@didactico.edu").exists():
+    # Ensure DOCENTE
+    docente_role = Role.objects.get(name="DOCENTE")
+    docente = User.objects.filter(email="docente@didactico.edu").first()
+    if not docente:
         docente = User.objects.create_user(
             email="docente@didactico.edu",
             password="docente123",
             full_name="Docente de Ejemplo",
             role="DOCENTE",
         )
-        docente.roles.add(Role.objects.get(name="DOCENTE"))
+    else:
+        docente.role = "DOCENTE"
+        docente.save()
+    if docente_role not in docente.roles.all():
+        docente.roles.add(docente_role)
+    print("  Ensured docente@didactico.edu has DOCENTE role.")
 
     print("Seed data created successfully.")
 

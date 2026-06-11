@@ -29,29 +29,12 @@ python migrate_careers.py || true
 echo ">>> [Django] Collecting static files..."
 python manage.py collectstatic --noinput || true
 
-echo ">>> [Django] Creating superuser if not exists..."
-python manage.py shell -c "
-from plan_app.models import User
-if not User.objects.filter(email='superadmin@didactico.edu').exists():
-    User.objects.create_superuser(
-        email='superadmin@didactico.edu',
-        password='admin',
-        full_name='IT System Admin'
-    )
-    print('Superuser created.')
-else:
-    print('Superuser already exists.')
-"
+echo ">>> [Django] Running main database seed (roles, permissions, widgets, users)..."
+python /app/seed.py
 
-echo ">>> [Django] Seeding initial data..."
+echo ">>> [Django] Seeding system settings..."
 python manage.py shell -c "
-from plan_app.models import User, SystemSetting
-if not User.objects.filter(email='gestion@didactico.edu').exists():
-    User.objects.create_user(email='gestion@didactico.edu', password='gestion123', full_name='Admin de Gestion Academica', role='ADMIN_GESTION')
-    User.objects.create_user(email='coordinador@didactico.edu', password='coord2024', full_name='Coordinador de Area', role='COORDINADOR')
-    print('Seed data created.')
-else:
-    print('Seed data already exists.')
+from plan_app.models import SystemSetting
 
 # Seed system settings
 settings_to_seed = {
