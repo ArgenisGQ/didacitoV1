@@ -383,6 +383,20 @@ export default function AISettings() {
     }
   })
 
+  const { mutate: cancelSync, isPending: isCancelling } = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post('/ai/admin/cancel-sync/')
+      return data
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || 'Sincronización detenida')
+      refetchRag()
+    },
+    onError: () => {
+      toast.error('Error al intentar detener la sincronización')
+    }
+  })
+
   // Mutations would go here (omitted for brevity, will implement if backend is ready)
   const saveProvider = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -687,6 +701,12 @@ export default function AISettings() {
               }} className="gap-2" disabled={!hasActiveProvider || isSyncing || isSyncingPlans || loadingRag || (ragStatus?.is_fully_synced && ragStatus?.is_plans_fully_synced)}>
                 <Database size={16} /> Sincronizar Todos
               </Button>
+
+              {ragStatus && (!ragStatus.is_fully_synced || !ragStatus.is_plans_fully_synced) && (
+                <Button onClick={() => cancelSync()} variant="destructive" className="gap-2" disabled={isCancelling}>
+                  <XCircle size={16} /> Detener Sincronización
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>

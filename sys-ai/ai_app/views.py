@@ -168,6 +168,26 @@ def sync_all_plans(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def cancel_sync(request):
+    """
+    Endpoint para cancelar la sincronización actual vaciando la cola de Django Q y marcando logs como cancelados.
+    """
+    from django_q.models import OrmQ
+    from .models import AILog
+    
+    deleted_count, _ = OrmQ.objects.all().delete()
+    updated_count = AILog.objects.filter(status='started').update(
+        status='failed',
+        details='Cancelado por el usuario.'
+    )
+    
+    return JsonResponse({
+        "status": "success",
+        "message": f"Sincronización cancelada. Se eliminaron {deleted_count} tareas de la cola y {updated_count} logs en ejecución fueron cancelados."
+    })
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def sync_single_plan(request, plan_id):
     """
     Endpoint invocado automáticamente cuando se aprueba un plan.

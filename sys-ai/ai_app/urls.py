@@ -8,6 +8,7 @@ urlpatterns = [
     path('admin/rag-status/', views.rag_status, name='rag_status'),
     path('admin/sync-all/', views.sync_all_syllabuses, name='sync_all_syllabuses'),
     path('admin/sync-all-plans/', views.sync_all_plans, name='sync_all_plans'),
+    path('admin/cancel-sync/', views.cancel_sync, name='cancel_sync'),
     path('admin/sync-plan/<int:plan_id>/', views.sync_single_plan, name='sync_single_plan'),
     path('admin/providers', views.admin_providers, name='admin_providers'),
     path('admin/providers/<int:provider_id>', views.admin_providers_detail, name='admin_providers_detail'),
