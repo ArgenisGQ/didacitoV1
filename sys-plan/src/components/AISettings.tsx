@@ -403,6 +403,17 @@ export default function AISettings() {
     }
   }
 
+  const deleteProvider = async (id: number) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar este proveedor?')) return
+    try {
+      await api.delete(`/ai/admin/providers/${id}`)
+      toast.success('Proveedor eliminado')
+      queryClient.invalidateQueries({ queryKey: ['ai-providers'] })
+    } catch (error) {
+      toast.error('Error al eliminar proveedor')
+    }
+  }
+
   const saveTemplate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
@@ -574,6 +585,9 @@ export default function AISettings() {
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => openProviderModal(p)} title="Editar Proveedor">
                           <Edit size={16} />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteProvider(p.id)} title="Eliminar Proveedor" className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                          <Trash2 size={16} />
                         </Button>
                       </TableCell>
                     </TableRow>
