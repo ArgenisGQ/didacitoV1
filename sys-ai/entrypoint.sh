@@ -3,6 +3,8 @@ echo "Waiting for PostgreSQL to start..."
 sleep 5
 echo "Applying database migrations..."
 python manage.py migrate
+echo "Seeding reference agents..."
+python seed_agents.py
 if [ "$#" -eq 0 ]; then
     echo "Starting Django server..."
     exec python manage.py runserver 0.0.0.0:8003
