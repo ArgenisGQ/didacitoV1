@@ -5,13 +5,19 @@ from .models import CoreSyllabusVersion, SyllabusChunk, AIProvider
 
 logger = logging.getLogger(__name__)
 
-def get_embeddings_model():
+def get_embeddings_model(provider_id: int = None):
     """
     Obtiene el modelo de embeddings configurado. Por defecto usa OpenAI, 
     pero soporta configuración desde AIProvider si está definido.
     """
-    # Buscamos proveedor por defecto para embeddings, o el primer openai-compatible activo
-    provider = AIProvider.objects.filter(is_active=True).first()
+    # Buscamos proveedor específico por ID, o por defecto el primero activo
+    if provider_id:
+        try:
+            provider = AIProvider.objects.get(id=provider_id, is_active=True)
+        except AIProvider.DoesNotExist:
+            provider = AIProvider.objects.filter(is_active=True).first()
+    else:
+        provider = AIProvider.objects.filter(is_active=True).first()
     
     # Para embeddings, si no hay proveedor configurado, podríamos lanzar error
     if not provider or not provider.api_key:
@@ -60,7 +66,7 @@ def get_embeddings_model():
         max_retries=0
     )
 
-def ingest_syllabus_task(syllabus_id: int):
+def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
     """
     Tarea de Django-Q2. Lee un SyllabusVersion, hace el chunking, 
     obtiene los embeddings y los guarda en SyllabusChunk con pgvector.
@@ -104,7 +110,7 @@ def ingest_syllabus_task(syllabus_id: int):
             return
 
         # 4. Obtener embeddings usando el proveedor configurado y procesar en lotes
-        embeddings_model = get_embeddings_model()
+        embeddings_model = get_embeddings_model(provider_id=provider_id)
         
         total_chunks = len(texts)
         batch_size = 10
@@ -153,7 +159,7 @@ def ingest_syllabus_task(syllabus_id: int):
         log_entry.save()
         raise
 
-def ingest_lesson_plan_task(plan_id: int):
+def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
     """
     Extrae, fragmenta y vectoriza el contenido de un CoreLessonPlan.
     """
@@ -215,7 +221,7 @@ def ingest_lesson_plan_task(plan_id: int):
         texts = text_splitter.split_text(full_text)
         
         # 4. Generar embeddings
-        embeddings_model = get_embeddings_model()
+        embeddings_model = get_embeddings_model(provider_id=provider_id)
         
         # Crear en lotes
         batch_size = 5

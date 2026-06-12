@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit, Trash2, Cpu, Key, Database, Play, AlertTriangle, Zap, FileText, CheckCircle2, XCircle, Binary, MessageSquare, Layers, BarChart3, Download, Calendar, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -250,6 +250,25 @@ export default function AISettings() {
   }
 
   const [testResults, setTestResults] = useState<Record<string, 'success' | 'error' | null>>({})
+  const { data: providers = [], isLoading: loadingProviders } = useQuery({
+    queryKey: ['ai-providers'],
+    queryFn: async () => {
+      // Proxy route /ai/admin/providers to sys-ai
+      const { data } = await api.get('/ai/admin/providers')
+      return data
+    },
+    // We don't have the backend ready yet, so catch error and return empty array
+    retry: false
+  })
+
+  const [selectedSyncProviderId, setSelectedSyncProviderId] = useState<string>('')
+
+  useEffect(() => {
+    const active = providers.filter((p: any) => p.is_active)
+    if (active.length > 0 && !selectedSyncProviderId) {
+      setSelectedSyncProviderId(active[0].id.toString())
+    }
+  }, [providers, selectedSyncProviderId])
 
   const { mutate: testConnection, isPending: isTesting, variables: testVariables } = useMutation({
     mutationFn: async (payload: any) => {
@@ -294,17 +313,6 @@ export default function AISettings() {
     setIsProviderModalOpen(true)
   }
 
-  const { data: providers = [], isLoading: loadingProviders } = useQuery({
-    queryKey: ['ai-providers'],
-    queryFn: async () => {
-      // Proxy route /ai/admin/providers to sys-ai
-      const { data } = await api.get('/ai/admin/providers')
-      return data
-    },
-    // We don't have the backend ready yet, so catch error and return empty array
-    retry: false
-  })
-
   const { data: templates = [], isLoading: loadingTemplates } = useQuery({
     queryKey: ['ai-templates'],
     queryFn: async () => {
@@ -333,8 +341,8 @@ export default function AISettings() {
   })
 
   const { mutate: syncAll, isPending: isSyncing } = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post('/ai/admin/sync-all/')
+    mutationFn: async (providerId?: number) => {
+      const { data } = await api.post('/ai/admin/sync-all/', providerId ? { provider_id: providerId } : {})
       return data
     },
     onSuccess: (data) => {
@@ -348,8 +356,8 @@ export default function AISettings() {
   })
 
   const { mutate: syncAllPlans, isPending: isSyncingPlans } = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post('/ai/admin/sync-all-plans/')
+    mutationFn: async (providerId?: number) => {
+      const { data } = await api.post('/ai/admin/sync-all-plans/', providerId ? { provider_id: providerId } : {})
       return data
     },
     onSuccess: (data) => {
@@ -624,14 +632,31 @@ export default function AISettings() {
               <CardTitle>Estado de Sincronización RAG</CardTitle>
               <CardDescription>Verifica la sincronización de los programas sinópticos con la base de datos vectorial.</CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <Button onClick={() => { setIsLogsModalOpen(true); fetchLogs(); }} variant="outline" className="gap-2">
                 <FileText size={16} /> Ver Logs
               </Button>
               <Button onClick={() => refetchRag()} variant="outline" className="gap-2" disabled={loadingRag || isSyncing}>
                 <Play size={16} /> Actualizar
               </Button>
-              <Button onClick={() => { syncAll(); syncAllPlans(); }} className="gap-2" disabled={!hasActiveProvider || isSyncing || isSyncingPlans || loadingRag || (ragStatus?.is_fully_synced && ragStatus?.is_plans_fully_synced)}>
+              
+              <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-background">
+                <label className="text-xs font-bold text-muted-foreground whitespace-nowrap">Proveedor:</label>
+                <Select value={selectedSyncProviderId} onValueChange={setSelectedSyncProviderId}>
+                  <SelectTrigger className="w-[140px] h-7 text-xs"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                  <SelectContent>
+                    {providers.filter((p: any) => p.is_active).map((p: any) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button onClick={() => { 
+                const pid = selectedSyncProviderId ? Number(selectedSyncProviderId) : undefined;
+                syncAll(pid); 
+                syncAllPlans(pid); 
+              }} className="gap-2" disabled={!hasActiveProvider || isSyncing || isSyncingPlans || loadingRag || (ragStatus?.is_fully_synced && ragStatus?.is_plans_fully_synced)}>
                 <Database size={16} /> Sincronizar Todos
               </Button>
             </div>

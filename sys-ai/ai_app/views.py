@@ -112,6 +112,13 @@ def sync_all_syllabuses(request):
     if not AIProvider.objects.filter(is_active=True).exists():
         return JsonResponse({"error": "El sistema no tiene un modelo de IA configurado o activo. Por favor configure uno en la sección de Proveedores."}, status=400)
 
+    # Obtener provider_id opcional de los parámetros POST
+    provider_id = None
+    try:
+        data = json.loads(request.body)
+        provider_id = data.get('provider_id')
+    except:
+        pass
     
     # Obtenemos los activos
     active_syllabuses = CoreSyllabusVersion.objects.filter(is_active=True)
@@ -120,7 +127,7 @@ def sync_all_syllabuses(request):
     for syllabus in active_syllabuses:
         # Podríamos sincronizar solo los que faltan o forzar todos. 
         # Aquí forzamos todos para estar seguros, la tarea ya borra los chunks viejos.
-        async_task('ai_app.tasks.ingest_syllabus_task', syllabus.id)
+        async_task('ai_app.tasks.ingest_syllabus_task', syllabus.id, provider_id=provider_id)
         tasks_queued += 1
         
     return JsonResponse({
@@ -140,10 +147,18 @@ def sync_all_plans(request):
     if not AIProvider.objects.filter(is_active=True).exists():
         return JsonResponse({"error": "El sistema no tiene un modelo de IA configurado o activo."}, status=400)
     
+    # Obtener provider_id opcional de los parámetros POST
+    provider_id = None
+    try:
+        data = json.loads(request.body)
+        provider_id = data.get('provider_id')
+    except:
+        pass
+
     approved_plans = CoreLessonPlan.objects.filter(status='APPROVED')
     tasks_queued = 0
     for plan in approved_plans:
-        async_task('ai_app.tasks.ingest_lesson_plan_task', plan.id)
+        async_task('ai_app.tasks.ingest_lesson_plan_task', plan.id, provider_id=provider_id)
         tasks_queued += 1
         
     return JsonResponse({
