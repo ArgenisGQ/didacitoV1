@@ -908,8 +908,9 @@ def ai_metrics_summary(request):
 
     from django.db.models import Count, Sum
     from django.utils.dateparse import parse_datetime
-    from .models import EvaluationResult, ChatSession, ChatMessage
+    from .models import EvaluationResult, ChatSession, ChatMessage, AILog
     import datetime
+    from collections import defaultdict
 
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
@@ -917,6 +918,7 @@ def ai_metrics_summary(request):
     eval_qs = EvaluationResult.objects.all()
     chat_qs = ChatSession.objects.all()
     msg_qs = ChatMessage.objects.all()
+    log_qs = AILog.objects.all()
 
     if start_date_str:
         try:
@@ -924,6 +926,7 @@ def ai_metrics_summary(request):
             eval_qs = eval_qs.filter(created_at__gte=dt_start)
             chat_qs = chat_qs.filter(created_at__gte=dt_start)
             msg_qs = msg_qs.filter(session__created_at__gte=dt_start)
+            log_qs = log_qs.filter(created_at__gte=dt_start)
         except Exception:
             pass
     if end_date_str:
@@ -932,6 +935,7 @@ def ai_metrics_summary(request):
             eval_qs = eval_qs.filter(created_at__lt=dt_end)
             chat_qs = chat_qs.filter(created_at__lt=dt_end)
             msg_qs = msg_qs.filter(session__created_at__lt=dt_end)
+            log_qs = log_qs.filter(created_at__lt=dt_end)
         except Exception:
             pass
 
@@ -941,8 +945,8 @@ def ai_metrics_summary(request):
     total_chats = chat_qs.count()
     total_messages = msg_qs.count()
 
-    # Suma de tokens
-    tokens_agg = eval_qs.aggregate(
+    # Suma de tokens desde AILog para cubrir vectorización y evaluaciones
+    tokens_agg = log_qs.aggregate(
         total_prompt=Sum('prompt_tokens'),
         total_completion=Sum('completion_tokens')
     )
@@ -992,8 +996,6 @@ def ai_metrics_summary(request):
 
     # Historial diario de tokens para el gráfico estructurado por semanas académicas (S0-S12)
     from .models import CoreAcademicPeriod
-    from collections import defaultdict
-    import datetime
     
     active_period = CoreAcademicPeriod.objects.filter(is_active=True).first()
     today = datetime.datetime.utcnow()
@@ -1009,18 +1011,41 @@ def ai_metrics_summary(request):
         
     period_end = period_start + datetime.timedelta(days=91)
     
-    # Agrupar tokens por fecha
+    # Obtener lista de proveedores y modelos que tienen consumo registrado en los logs
+    available_providers = list(log_qs.exclude(provider_name__isnull=True).exclude(provider_name='').values_list('provider_name', flat=True).distinct())
+    available_models = list(log_qs.exclude(model_name__isnull=True).exclude(model_name='').values_list('model_name', flat=True).distinct())
+
+    # Agrupar logs del periodo
+    logs_in_period = list(log_qs.filter(created_at__gte=period_start, created_at__lt=period_end))
+
+    # Agrupar tokens por fecha total
     tokens_by_day = defaultdict(lambda: {"prompt_tokens": 0, "completion_tokens": 0})
-    evals_in_period = eval_qs.filter(created_at__gte=period_start, created_at__lt=period_end)
-    for ev in evals_in_period:
-        d = ev.created_at.date()
-        tokens_by_day[d]["prompt_tokens"] += ev.prompt_tokens
-        tokens_by_day[d]["completion_tokens"] += ev.completion_tokens
+    for log in logs_in_period:
+        d = log.created_at.date()
+        tokens_by_day[d]["prompt_tokens"] += log.prompt_tokens
+        tokens_by_day[d]["completion_tokens"] += log.completion_tokens
+
+    # Agrupar tokens por fecha y proveedor
+    tokens_by_day_provider = defaultdict(lambda: defaultdict(lambda: {"prompt_tokens": 0, "completion_tokens": 0}))
+    for log in logs_in_period:
+        if log.provider_name:
+            d = log.created_at.date()
+            tokens_by_day_provider[log.provider_name][d]["prompt_tokens"] += log.prompt_tokens
+            tokens_by_day_provider[log.provider_name][d]["completion_tokens"] += log.completion_tokens
+
+    # Agrupar tokens por fecha y modelo
+    tokens_by_day_model = defaultdict(lambda: defaultdict(lambda: {"prompt_tokens": 0, "completion_tokens": 0}))
+    for log in logs_in_period:
+        if log.model_name:
+            d = log.created_at.date()
+            tokens_by_day_model[log.model_name][d]["prompt_tokens"] += log.prompt_tokens
+            tokens_by_day_model[log.model_name][d]["completion_tokens"] += log.completion_tokens
         
-    tokens_series = []
     days_es = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
     current_date = today.date()
     
+    # 1. Serie Total
+    tokens_series = []
     for w in range(13):
         for d in range(7):
             day_dt = period_start + datetime.timedelta(days=w*7 + d)
@@ -1039,6 +1064,52 @@ def ai_metrics_summary(request):
                 "is_today": day_dt.date() == current_date
             })
 
+    # 2. Series por Proveedor
+    tokens_series_by_provider = {}
+    for prov in available_providers:
+        prov_series = []
+        for w in range(13):
+            for d in range(7):
+                day_dt = period_start + datetime.timedelta(days=w*7 + d)
+                is_future = day_dt.date() > current_date
+                
+                day_data = tokens_by_day_provider[prov][day_dt.date()]
+                prompt_val = 0 if is_future else day_data["prompt_tokens"]
+                comp_val = 0 if is_future else day_data["completion_tokens"]
+                
+                prov_series.append({
+                    "name": f"S{w}-{days_es[d]}",
+                    "prompt_tokens": prompt_val,
+                    "completion_tokens": comp_val,
+                    "total_tokens": prompt_val + comp_val,
+                    "weekIndex": w,
+                    "is_today": day_dt.date() == current_date
+                })
+        tokens_series_by_provider[prov] = prov_series
+
+    # 3. Series por Modelo
+    tokens_series_by_model = {}
+    for mod in available_models:
+        mod_series = []
+        for w in range(13):
+            for d in range(7):
+                day_dt = period_start + datetime.timedelta(days=w*7 + d)
+                is_future = day_dt.date() > current_date
+                
+                day_data = tokens_by_day_model[mod][day_dt.date()]
+                prompt_val = 0 if is_future else day_data["prompt_tokens"]
+                comp_val = 0 if is_future else day_data["completion_tokens"]
+                
+                mod_series.append({
+                    "name": f"S{w}-{days_es[d]}",
+                    "prompt_tokens": prompt_val,
+                    "completion_tokens": comp_val,
+                    "total_tokens": prompt_val + comp_val,
+                    "weekIndex": w,
+                    "is_today": day_dt.date() == current_date
+                })
+        tokens_series_by_model[mod] = mod_series
+
     return JsonResponse({
         "total_evaluations": total_evals,
         "success_evaluations": success_evals,
@@ -1051,7 +1122,11 @@ def ai_metrics_summary(request):
         "agent_evaluations": agent_evals,
         "top_chatters": top_chatters,
         "last_evaluations": last_evaluations,
-        "tokens_series": tokens_series
+        "tokens_series": tokens_series,
+        "available_providers": available_providers,
+        "available_models": available_models,
+        "tokens_series_by_provider": tokens_series_by_provider,
+        "tokens_series_by_model": tokens_series_by_model
     })
 
 

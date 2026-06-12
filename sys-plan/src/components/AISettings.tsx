@@ -118,6 +118,9 @@ export default function AISettings() {
   const [metricsStartDate, setMetricsStartDate] = useState(weekDates.sunday)
   const [metricsEndDate, setMetricsEndDate] = useState(weekDates.saturday)
 
+  const [metricsViewMode, setMetricsViewMode] = useState<'total' | 'provider' | 'model'>('total')
+  const [selectedMetricsProvider, setSelectedMetricsProvider] = useState<string>('')
+  const [selectedMetricsModel, setSelectedMetricsModel] = useState<string>('')
 
   // Query for Metrics Summary
   const { data: metricsSummary, isLoading: loadingMetrics, refetch: refetchMetrics } = useQuery({
@@ -134,6 +137,17 @@ export default function AISettings() {
     enabled: activeTab === 'metrics',
     retry: false
   })
+
+  useEffect(() => {
+    if (metricsSummary) {
+      if (metricsSummary.available_providers && metricsSummary.available_providers.length > 0 && !selectedMetricsProvider) {
+        setSelectedMetricsProvider(metricsSummary.available_providers[0])
+      }
+      if (metricsSummary.available_models && metricsSummary.available_models.length > 0 && !selectedMetricsModel) {
+        setSelectedMetricsModel(metricsSummary.available_models[0])
+      }
+    }
+  }, [metricsSummary, selectedMetricsProvider, selectedMetricsModel])
 
   const handleExportEvaluations = async () => {
     try {
@@ -1012,9 +1026,14 @@ export default function AISettings() {
                 </Card>
               </div>
 
-              {/* Token Consumption Chart Card */}
               {(() => {
-                const tokensSeries = metricsSummary.tokens_series || [];
+                let tokensSeries = metricsSummary.tokens_series || [];
+                if (metricsViewMode === 'provider' && selectedMetricsProvider) {
+                  tokensSeries = (metricsSummary.tokens_series_by_provider || {})[selectedMetricsProvider] || [];
+                } else if (metricsViewMode === 'model' && selectedMetricsModel) {
+                  tokensSeries = (metricsSummary.tokens_series_by_model || {})[selectedMetricsModel] || [];
+                }
+
                 const todayIndex = tokensSeries.findIndex((d: any) => d.is_today);
                 let chartStartIndex = 0;
                 let chartEndIndex = tokensSeries.length - 1;
@@ -1026,8 +1045,45 @@ export default function AISettings() {
                 return (
                   <Card className="shadow-lg border-border bg-card">
                     <CardHeader>
-                      <CardTitle className="text-md font-bold">Consumo Diario de Tokens (Prompt vs Completion)</CardTitle>
-                      <CardDescription>Visualiza el volumen histórico de tokens procesados por día en evaluaciones pedagógicas.</CardDescription>
+                      <CardTitle className="text-md font-bold flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <span>Consumo Diario de Tokens (Prompt vs Completion)</span>
+                        <div className="flex items-center gap-3">
+                          {/* Selector de Modo */}
+                          <Select value={metricsViewMode} onValueChange={(val: any) => setMetricsViewMode(val)}>
+                            <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue placeholder="Ver por" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="total">Consumo Total</SelectItem>
+                              <SelectItem value="provider">Por Proveedor</SelectItem>
+                              <SelectItem value="model">Por Modelo</SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          {/* Selector de Proveedor */}
+                          {metricsViewMode === 'provider' && (
+                            <Select value={selectedMetricsProvider} onValueChange={setSelectedMetricsProvider}>
+                              <SelectTrigger className="w-[140px] h-8 text-xs"><SelectValue placeholder="Proveedor" /></SelectTrigger>
+                              <SelectContent>
+                                {(metricsSummary.available_providers || []).map((p: string) => (
+                                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+
+                          {/* Selector de Modelo */}
+                          {metricsViewMode === 'model' && (
+                            <Select value={selectedMetricsModel} onValueChange={setSelectedMetricsModel}>
+                              <SelectTrigger className="w-[180px] h-8 text-xs"><SelectValue placeholder="Modelo" /></SelectTrigger>
+                              <SelectContent>
+                                {(metricsSummary.available_models || []).map((m: string) => (
+                                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </CardTitle>
+                      <CardDescription>Visualiza el volumen histórico de tokens procesados por día en evaluaciones y vectorizaciones.</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="h-[300px] w-full mt-4">

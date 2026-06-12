@@ -285,6 +285,10 @@ class AILog(models.Model):
     action = models.CharField(max_length=150, help_text="Acción realizada (ej. Prueba de Conexión, Vectorización)")
     status = models.CharField(max_length=50, help_text="Estado (ej. success, failed, started)")
     details = models.TextField(blank=True, null=True, help_text="Detalles o traza del error")
+    prompt_tokens = models.IntegerField(default=0)
+    completion_tokens = models.IntegerField(default=0)
+    provider_name = models.CharField(max_length=100, blank=True, null=True)
+    model_name = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

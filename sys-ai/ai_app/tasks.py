@@ -137,6 +137,24 @@ def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
         # 4. Obtener embeddings usando el proveedor configurado y procesar en lotes
         embeddings_model = get_embeddings_model(provider_id=provider_id)
         
+        provider = None
+        if provider_id:
+            try:
+                provider = AIProvider.objects.get(id=provider_id, is_active=True)
+            except AIProvider.DoesNotExist:
+                provider = AIProvider.objects.filter(is_active=True).first()
+        else:
+            provider = AIProvider.objects.filter(is_active=True).first()
+
+        # Estimate embedding tokens
+        prompt_tokens = sum(len(t) for t in texts) // 4
+        log_entry.prompt_tokens = prompt_tokens
+        log_entry.completion_tokens = 0
+        if provider:
+            log_entry.provider_name = provider.name
+            log_entry.model_name = provider.embedding_model or "gemini-embedding-2"
+        log_entry.save()
+        
         total_chunks = len(texts)
         batch_size = 10
         chunks_created = 0
@@ -247,6 +265,24 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
         
         # 4. Generar embeddings
         embeddings_model = get_embeddings_model(provider_id=provider_id)
+        
+        provider = None
+        if provider_id:
+            try:
+                provider = AIProvider.objects.get(id=provider_id, is_active=True)
+            except AIProvider.DoesNotExist:
+                provider = AIProvider.objects.filter(is_active=True).first()
+        else:
+            provider = AIProvider.objects.filter(is_active=True).first()
+
+        # Estimate embedding tokens
+        prompt_tokens = sum(len(t) for t in texts) // 4
+        log_entry.prompt_tokens = prompt_tokens
+        log_entry.completion_tokens = 0
+        if provider:
+            log_entry.provider_name = provider.name
+            log_entry.model_name = provider.embedding_model or "gemini-embedding-2"
+        log_entry.save()
         
         # Crear en lotes
         batch_size = 5
@@ -485,6 +521,17 @@ Responde en formato JSON estrictamente, con esta estructura:
         eval_result.completion_tokens = completion_tokens
         eval_result.save()
 
+        # Log AI action with token consumption
+        AILog.objects.create(
+            action=f"Evaluación del Plan #{plan_id}",
+            status="success",
+            details=f"Evaluación exitosa. Respuesta: {'Aprobado' if cumple else 'Observado'}",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            provider_name=agent.provider.name if agent and agent.provider else "Desconocido",
+            model_name=agent.provider.llm_model if agent and agent.provider else "Desconocido"
+        )
+
 
         # 8. Transicionar estado del plan en CoreLessonPlan y guardar feedback
         if cumple:
@@ -533,6 +580,16 @@ Responde en formato JSON estrictamente, con esta estructura:
             eval_result.status = "ERROR"
             eval_result.error_message = str(e)
             eval_result.save()
+        # Log failure
+        AILog.objects.create(
+            action=f"Evaluación Fallida del Plan #{plan_id}",
+            status="failed",
+            details=str(e),
+            prompt_tokens=0,
+            completion_tokens=0,
+            provider_name=agent.provider.name if ('agent' in locals() and agent and agent.provider) else "Desconocido",
+            model_name=agent.provider.llm_model if ('agent' in locals() and agent and agent.provider) else "Desconocido"
+        )
         raise
 
 
