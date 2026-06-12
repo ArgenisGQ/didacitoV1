@@ -375,5 +375,48 @@ La aplicación ha evolucionado significativamente hasta convertirse en un sistem
       5. Agente activo por defecto en el sistema.
     * **Formulario y Tabla de Asignación Completa:** Se rediseñó la sección de asignación en el panel de configuración de la IA (`AISettings.tsx`) para permitir crear, editar y visualizar las reglas con los nuevos parámetros de Facultad, Departamento, Carrera, Asignatura y Secciones.
 15. **Redirección de Notificaciones al Borrador:**
-    * Se actualizó el comportamiento de la interfaz de usuario para que, al hacer clic en notificaciones de planes corregidos u observados, redirija directamente al flujo de edición (borrador) del plan en lugar del visor de PDF estático, agilizando el ciclo de corrección de planificaciones.
+    * Se actualizó el comportamiento de la interfaz de usuario para que, al hacer clic en notificaciones de planes corregidos u observados, redireccione al flujo de edición (borrador) del plan en lugar del visor de PDF estático, agilizando el ciclo de corrección de planificaciones.
 
+---
+
+## 🔄 Reinicio Completo del Sistema (Base de Datos y Documentos)
+
+Para facilitar las pruebas o restaurar la aplicación desde cero en entornos locales y de desarrollo, se ha agregado el script [wipe_db.py](file:///c:/WEBS/AI-PROYECTS/PROYECTO-MAESTRIA-PY/wipe_db.py) en la raíz del proyecto.
+
+### ¿Qué hace el script?
+1. **Limpia la base de datos de forma instantánea:** Se conecta al contenedor PostgreSQL (`planning_db`) y elimina y recrea el esquema `public`. Esto borra todas las tablas, vistas y registros de datos acumulados sin necesidad de reconstruir o apagar el contenedor físico de base de datos.
+2. **Borra todos los PDFs y documentos importados:** Elimina físicamente todos los archivos cargados dentro del volumen persistente del servicio de programas sinópticos (`planning_syllabus` en `/app/syllabus_pdfs/`), limpiando el almacenamiento.
+3. **Aplica migraciones y semillas (Seeds) actualizadas:** Reinicia los contenedores de `django-admin` y `fastapi-api` de manera automática. Al arrancar de nuevo, Django genera y aplica la migración para soportar los nuevos límites de longitud (`VARCHAR(512)` en títulos de unidad) y ejecuta la semilla completa del sistema asociando correctamente los roles y permisos de acceso para todos los usuarios.
+
+### Ejecución:
+
+#### Opción A: Usando el script de Python (Recomendado en local)
+Ejecuta el siguiente comando en la raíz del proyecto:
+```bash
+python wipe_db.py
+```
+
+#### Opción B: Mediante comando directo de Docker (Ideal para Producción / VPS sin dependencias)
+Si estás en un entorno de producción (como un VPS con Dokploy) o no tienes Python instalado en el host, puedes ejecutar este comando de una sola línea desde fuera de los contenedores:
+
+*   **En Linux / macOS / Bash:**
+    ```bash
+    docker exec -i planning_db psql -U user -d planning_db -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;" && docker exec -i planning_syllabus sh -c "rm -rf /app/syllabus_pdfs/*" && docker compose restart django-admin fastapi-api
+    ```
+
+*   **En Windows (PowerShell):**
+    ```powershell
+    docker exec -i planning_db psql -U user -d planning_db -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;"; docker exec -i planning_syllabus sh -c "rm -rf /app/syllabus_pdfs/*"; docker compose restart django-admin fastapi-api
+    ```
+
+---
+
+## 🔑 Restablecer Contraseña y Desbloquear Superadmin
+
+Si la cuenta del administrador (`superadmin@didactico.edu`) ha sido bloqueada debido a intentos fallidos (Account Lockout) o necesitas reasignar su contraseña directamente desde el host, ejecuta el siguiente comando:
+
+```bash
+docker exec -i planning_django python /app/django_project/manage.py shell -c "from plan_app.models import User; u = User.objects.get(email='superadmin@didactico.edu'); u.set_password('admin'); u.failed_login_attempts = 0; u.lockout_until = None; u.save(); print('Clave actualizada y usuario desbloqueado.')"
+```
+
+*(Puedes cambiar `'admin'` dentro del comando por la contraseña que prefieras).*

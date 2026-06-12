@@ -22,8 +22,7 @@ def main():
     sql_command = (
         'DROP SCHEMA public CASCADE; '
         'CREATE SCHEMA public; '
-        'GRANT ALL ON SCHEMA public TO public; '
-        'GRANT ALL ON SCHEMA public TO user;'
+        'GRANT ALL ON SCHEMA public TO public;'
     )
     
     db_cmd = f'docker exec -i planning_db psql -U user -d planning_db -c "{sql_command}"'

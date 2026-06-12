@@ -1232,6 +1232,7 @@ export default function AISettings() {
                 <SelectContent>
                   <SelectItem value="openai">OpenAI (Oficial)</SelectItem>
                   <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                  <SelectItem value="google">Google Gemini (Oficial)</SelectItem>
                   <SelectItem value="openai-compatible">Compatible con OpenAI (DeepSeek, Qwen)</SelectItem>
                   <SelectItem value="lmstudio">LMStudio (Local IA)</SelectItem>
                 </SelectContent>

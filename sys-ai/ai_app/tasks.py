@@ -17,6 +17,35 @@ def get_embeddings_model():
     if not provider or not provider.api_key:
         raise ValueError("No hay un proveedor de IA configurado o no tiene API Key")
     
+    if provider.provider_type == "google":
+        from langchain_core.embeddings import Embeddings
+        class GoogleGenAIEmbeddings(Embeddings):
+            def __init__(self, api_key: str, model_name: str):
+                self.api_key = api_key
+                self.model_name = model_name or "models/text-embedding-004"
+
+            def embed_documents(self, texts: list[str]) -> list[list[float]]:
+                import google.generativeai as genai
+                genai.configure(api_key=self.api_key)
+                response = genai.embed_content(
+                    model=self.model_name,
+                    content=texts,
+                    task_type="retrieval_document"
+                )
+                return response.get('embedding', [])
+
+            def embed_query(self, text: str) -> list[float]:
+                import google.generativeai as genai
+                genai.configure(api_key=self.api_key)
+                response = genai.embed_content(
+                    model=self.model_name,
+                    content=text,
+                    task_type="retrieval_query"
+                )
+                return response.get('embedding', [])
+                
+        return GoogleGenAIEmbeddings(provider.api_key, provider.embedding_model)
+
     # If it's LMStudio or a local server, we can pass a dummy model name
     # since the local server usually decides which model to use based on what's loaded.
     model_name = provider.embedding_model or "text-embedding-3-small"
@@ -241,14 +270,23 @@ def get_llm_model(provider: AIProvider):
     from langchain_openai import ChatOpenAI
     
     model_name = provider.llm_model or "gpt-4o"
-    if provider.provider_type == "lmstudio" and not provider.llm_model:
+    base_url = provider.base_url if provider.base_url else None
+    
+    if provider.provider_type == "google":
+        base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+        if not provider.llm_model:
+            model_name = "gemini-1.5-flash"
+        elif "models/" in model_name:
+            model_name = model_name.replace("models/", "")
+            
+    elif provider.provider_type == "lmstudio" and not provider.llm_model:
         model_name = "local-model"
     elif not provider.llm_model and ("deepseek" in provider.provider_type.lower() or "deepseek" in provider.name.lower()):
         model_name = "deepseek-chat"
         
     return ChatOpenAI(
         api_key=provider.api_key or "not-needed",
-        base_url=provider.base_url if provider.base_url else None,
+        base_url=base_url,
         model=model_name,
         temperature=0.2,
         max_retries=0,

@@ -279,19 +279,28 @@ def test_provider_connection(request):
             
         test_target = data.get('test_target', 'all')
         
-        # Obtener lista de modelos usando el cliente base de openai
+        # Obtener lista de modelos usando el cliente base de openai o google genai
         models_list = []
         if test_target == 'all':
-            from openai import OpenAI
-            client = OpenAI(
-                api_key=api_key or "dummy",
-                base_url=base_url if base_url else None
-            )
-            try:
-                models_response = client.models.list()
-                models_list = [m.id for m in models_response]
-            except Exception as e:
-                pass # Ignoramos si falla el listado pero el chat funciona
+            if provider_type == "google":
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                try:
+                    models_response = genai.list_models()
+                    models_list = [m.name for m in models_response]
+                except Exception as e:
+                    pass
+            else:
+                from openai import OpenAI
+                client = OpenAI(
+                    api_key=api_key or "dummy",
+                    base_url=base_url if base_url else None
+                )
+                try:
+                    models_response = client.models.list()
+                    models_list = [m.id for m in models_response]
+                except Exception as e:
+                    pass # Ignoramos si falla el listado pero el chat funciona
             
         # Instanciamos el modelo para la prueba usando LangChain
         from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -300,47 +309,77 @@ def test_provider_connection(request):
         
         if test_target == 'llm':
             model_name = data.get('llm_model') or "gpt-4o"
-            if provider_type == "lmstudio" and not data.get('llm_model'):
-                model_name = "local-model"
-            elif "deepseek" in provider_type.lower() and not data.get('llm_model'):
-                model_name = "deepseek-chat"
+            if provider_type == "google":
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                if not data.get('llm_model'):
+                    model_name = "gemini-1.5-flash"
+                elif "models/" in model_name:
+                    model_name = model_name.replace("models/", "")
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content("Responde solo con la palabra OK")
+                response_text = f"LLM OK: {response.text.strip()}"
+            else:
+                if provider_type == "lmstudio" and not data.get('llm_model'):
+                    model_name = "local-model"
+                elif "deepseek" in provider_type.lower() and not data.get('llm_model'):
+                    model_name = "deepseek-chat"
+                    
+                llm = ChatOpenAI(
+                    api_key=api_key or "dummy",
+                    base_url=base_url if base_url else None,
+                    model=model_name,
+                    temperature=0.2
+                )
                 
-            llm = ChatOpenAI(
-                api_key=api_key or "dummy",
-                base_url=base_url if base_url else None,
-                model=model_name,
-                temperature=0.2
-            )
-            
-            messages = [HumanMessage(content="Responde solo con la palabra OK")]
-            response = llm.invoke(messages)
-            response_text = f"LLM OK: {response.content.strip()}"
-                
+                messages = [HumanMessage(content="Responde solo con la palabra OK")]
+                response = llm.invoke(messages)
+                response_text = f"LLM OK: {response.content.strip()}"
+                    
         elif test_target == 'embedding':
             emb_model_name = data.get('embedding_model') or "text-embedding-3-small"
-            if provider_type == "lmstudio" and not data.get('embedding_model'):
-                emb_model_name = "local-model"
-                
-            from openai import OpenAI
-            client = OpenAI(
-                api_key=api_key or "dummy",
-                base_url=base_url if base_url else None
-            )
-            # Intenta hacer un embedding de prueba directo con el cliente OpenAI
-            try:
-                res = client.embeddings.create(input=["Prueba de conexion"], model=emb_model_name)
-                if len(res.data) > 0 and len(res.data[0].embedding) > 0:
-                    response_text = f"Embedding OK (Dim: {len(res.data[0].embedding)})"
-            except Exception as e:
-                error_str = str(e)
-                if "No models loaded" in error_str or "Model unloaded" in error_str:
-                    return JsonResponse({"error": "No hay un modelo de Embeddings cargado en LM Studio. Debes cargar un modelo especializado (ej. nomic-embed-text) para vectorización."}, status=400)
-                raise e
+            if provider_type == "google":
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                if not data.get('embedding_model'):
+                    emb_model_name = "models/text-embedding-004"
+                res = genai.embed_content(
+                    model=emb_model_name,
+                    content="Prueba de conexion",
+                    task_type="retrieval_document"
+                )
+                embedding_vector = res.get('embedding', [])
+                if len(embedding_vector) > 0:
+                    response_text = f"Embedding OK (Dim: {len(embedding_vector)})"
+            else:
+                if provider_type == "lmstudio" and not data.get('embedding_model'):
+                    emb_model_name = "local-model"
+                    
+                from openai import OpenAI
+                client = OpenAI(
+                    api_key=api_key or "dummy",
+                    base_url=base_url if base_url else None
+                )
+                # Intenta hacer un embedding de prueba directo con el cliente OpenAI
+                try:
+                    res = client.embeddings.create(input=["Prueba de conexion"], model=emb_model_name)
+                    if len(res.data) > 0 and len(res.data[0].embedding) > 0:
+                        response_text = f"Embedding OK (Dim: {len(res.data[0].embedding)})"
+                except Exception as e:
+                    error_str = str(e)
+                    if "No models loaded" in error_str or "Model unloaded" in error_str:
+                        return JsonResponse({"error": "No hay un modelo de Embeddings cargado en LM Studio. Debes cargar un modelo especializado (ej. nomic-embed-text) para vectorización."}, status=400)
+                    raise e
         
         elif test_target == 'all':
-            if not models_list:
-                # If we couldn't list models, we still want to verify connection works at all
-                client.models.list() # Let it throw exception so UI shows error
+            if provider_type == "google":
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                genai.list_models()
+            else:
+                if not models_list:
+                    # If we couldn't list models, we still want to verify connection works at all
+                    client.models.list() # Let it throw exception so UI shows error
             response_text = "Conexión a la API y listado de modelos OK"
         
         from .models import AILog
