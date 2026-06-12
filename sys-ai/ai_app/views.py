@@ -250,7 +250,7 @@ def rag_logs(request):
     """
     from .models import AILog
     
-    logs_qs = AILog.objects.all()[:30]
+    logs_qs = AILog.objects.all().order_by('-id')[:30]
     
     logs = []
     for t in logs_qs:
