@@ -69,7 +69,7 @@ class SubjectUnit(Base):
     id = Column(Integer, primary_key=True, index=True)
     subject_id = Column(Integer, ForeignKey("plan_app_subject.id", ondelete="CASCADE"), nullable=False)
     unit_number = Column(String(50), nullable=False)
-    unit_title = Column(String(255), nullable=True)
+    unit_title = Column(String(512), nullable=True)
     contents = Column(Text, nullable=True)
     performance_criteria = Column(Text, nullable=True)
 

@@ -443,7 +443,7 @@ class Subject(models.Model):
 class SubjectUnit(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="units")
     unit_number = models.CharField(max_length=50)
-    unit_title = models.CharField(max_length=255, blank=True, null=True)
+    unit_title = models.CharField(max_length=512, blank=True, null=True)
     contents = models.TextField(blank=True, null=True)
     performance_criteria = models.TextField(blank=True, null=True)
 
