@@ -1240,14 +1240,14 @@ export default function AISettings() {
             </div>
             <div>
               <label className="text-sm font-medium">Base URL (Requerido para LMStudio/Compatible)</label>
-              <Input name="base_url" defaultValue={editingProvider?.base_url} placeholder="Ej: http://host.docker.internal:1234/v1" />
+              <Input name="base_url" autoComplete="off" defaultValue={editingProvider?.base_url} placeholder="Ej: http://host.docker.internal:1234/v1" />
               <p className="text-xs text-muted-foreground mt-1">Si usas LMStudio local y Docker, coloca <b>http://host.docker.internal:1234/v1</b></p>
             </div>
             <div>
               <label className="text-sm font-medium">API Key</label>
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                <Input name="api_key" type="password" className="pl-10" placeholder={editingProvider ? '*** Dejar en blanco para no cambiar ***' : 'sk-...'} required={!editingProvider} />
+                <Input name="api_key" type="password" autoComplete="new-password" className="pl-10" placeholder={editingProvider ? '*** Dejar en blanco para no cambiar ***' : 'sk-...'} required={!editingProvider} />
               </div>
               <p className="text-xs text-muted-foreground mt-1">La llave se almacenará cifrada en la base de datos.</p>
             </div>

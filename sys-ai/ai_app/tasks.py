@@ -22,7 +22,7 @@ def get_embeddings_model():
         class GoogleGenAIEmbeddings(Embeddings):
             def __init__(self, api_key: str, model_name: str):
                 self.api_key = api_key
-                self.model_name = model_name or "models/text-embedding-004"
+                self.model_name = model_name or "models/gemini-embedding-2"
 
             def embed_documents(self, texts: list[str]) -> list[list[float]]:
                 import google.generativeai as genai
@@ -275,7 +275,7 @@ def get_llm_model(provider: AIProvider):
     if provider.provider_type == "google":
         base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
         if not provider.llm_model:
-            model_name = "gemini-1.5-flash"
+            model_name = "gemini-2.5-flash"
         elif "models/" in model_name:
             model_name = model_name.replace("models/", "")
             

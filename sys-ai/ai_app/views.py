@@ -313,7 +313,7 @@ def test_provider_connection(request):
                 import google.generativeai as genai
                 genai.configure(api_key=api_key)
                 if not data.get('llm_model'):
-                    model_name = "gemini-1.5-flash"
+                    model_name = "gemini-2.5-flash"
                 elif "models/" in model_name:
                     model_name = model_name.replace("models/", "")
                 model = genai.GenerativeModel(model_name)
@@ -342,7 +342,7 @@ def test_provider_connection(request):
                 import google.generativeai as genai
                 genai.configure(api_key=api_key)
                 if not data.get('embedding_model'):
-                    emb_model_name = "models/text-embedding-004"
+                    emb_model_name = "models/gemini-embedding-2"
                 res = genai.embed_content(
                     model=emb_model_name,
                     content="Prueba de conexion",
