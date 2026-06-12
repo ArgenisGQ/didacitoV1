@@ -50,21 +50,46 @@ def get_embeddings_model(provider_id: int = None):
                 )
                 return response.get('embedding', [])
                 
-        return GoogleGenAIEmbeddings(provider.api_key, provider.embedding_model)
+        emb_model = GoogleGenAIEmbeddings(provider.api_key, provider.embedding_model)
+    else:
+        # If it's LMStudio or a local server, we can pass a dummy model name
+        # since the local server usually decides which model to use based on what's loaded.
+        model_name = provider.embedding_model or "text-embedding-3-small"
+        if provider.provider_type == "lmstudio" and not provider.embedding_model:
+            model_name = "local-model"
 
-    # If it's LMStudio or a local server, we can pass a dummy model name
-    # since the local server usually decides which model to use based on what's loaded.
-    model_name = provider.embedding_model or "text-embedding-3-small"
-    if provider.provider_type == "lmstudio" and not provider.embedding_model:
-        model_name = "local-model"
+        emb_model = OpenAIEmbeddings(
+            openai_api_key=provider.api_key,
+            openai_api_base=provider.base_url if provider.base_url else None,
+            model=model_name,
+            check_embedding_ctx_length=False,
+            max_retries=0
+        )
 
-    return OpenAIEmbeddings(
-        openai_api_key=provider.api_key,
-        openai_api_base=provider.base_url if provider.base_url else None,
-        model=model_name,
-        check_embedding_ctx_length=False,
-        max_retries=0
-    )
+    # Wrap model to dynamically adjust output vectors to exactly 1536 dimensions
+    class DimensionAdjustedEmbeddings:
+        def __init__(self, base_embeddings, target_dim=1536):
+            self.base_embeddings = base_embeddings
+            self.target_dim = target_dim
+
+        def _adjust(self, vector: list[float]) -> list[float]:
+            if not vector:
+                return [0.0] * self.target_dim
+            if len(vector) < self.target_dim:
+                return vector + [0.0] * (self.target_dim - len(vector))
+            elif len(vector) > self.target_dim:
+                return vector[:self.target_dim]
+            return vector
+
+        def embed_documents(self, texts: list[str]) -> list[list[float]]:
+            vectors = self.base_embeddings.embed_documents(texts)
+            return [self._adjust(v) for v in vectors]
+
+        def embed_query(self, text: str) -> list[float]:
+            vector = self.base_embeddings.embed_query(text)
+            return self._adjust(vector)
+
+    return DimensionAdjustedEmbeddings(emb_model)
 
 def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
     """
