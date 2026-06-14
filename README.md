@@ -134,7 +134,33 @@ Se diseñó e implementó un sistema completo de auditoría y análisis de consu
 3. **Reportabilidad de Auditoría y Exportación Avanzada (CSV/Excel)**
    * **Reporte de Evaluaciones:** Incorporación de las columnas "Tokens Entrada", "Tokens Salida" y "Tokens Totales" en el archivo exportable CSV de historial de evaluaciones.
    * **Reporte de Consumo de Tokens:** Botón dinámico premium para descargar en formato CSV compatible con Excel el histórico estructurado día por día de tokens consumidos, alineado al formato de la gráfica académica.
-   * **Filtros de Rango Temporal:** Todos los resúmenes y reportes respetan los selectores de fecha de inicio y fin aplicados en caliente.
+    * **Filtros de Rango Temporal:** Todos los resúmenes y reportes respetan los selectores de fecha de inicio y fin aplicados en caliente.
+
+### 📅 Categoría F: Planificación Curricular Visual y Flexibilidad del Plan de Clase (Didacto Timeline)
+Módulo diseñado para la planificación didáctica semanal y la autogestión de planes de clase flexible con alineación al sinóptico.
+
+1. **Flexibilidad del Plan de Evaluación (Eliminación de Unidad IV)**
+   * **Remapeo Dinámico de Semanas:** Permite a los docentes eliminar manualmente la Unidad IV del Plan de Evaluación, reduciendo las unidades activas de 4 a 3 y reasignando dinámicamente las semanas correspondientes.
+   * **Robustez en Backend:** Ajuste en FastAPI para recalcular y mapear semanas a las unidades activas evitando desbordamientos de índices (`IndexError`) al operar con planes de 3 unidades en el servicio de PDFs y control de planes.
+
+2. **Reordenación Jerárquica Pedagógica**
+   * **Estructura Consistente:** Reorganización de campos para priorizar la jerarquía: Contenido, Competencia Específica, Criterios de Desempeño, Estrategias Didácticas, Recursos de Aprendizaje, Bibliografía.
+   * **Consistencia visual:** El mismo orden se aplica reactivamente en el tablero de columnas semanales, en el formulario lateral de edición y en el PDF exportado.
+
+3. **Checkboxes de Tipo de Evaluación e Integración con el Sinóptico**
+   * **Ubicación en Encabezado:** Los selectores de tipo de evaluación (Diagnóstica, Formativa, Sumativa) se integraron al lado de la etiqueta del campo "Estrategias Didácticas".
+   * **Filtro Dinámico:** Se muestran de forma dinámica únicamente los tipos de evaluación previamente definidos en la unidad correspondiente del Plan de Evaluación.
+   * **Autocompletado Selectivo:** Al marcar un tipo de evaluación, el botón "Sinóptico" o el check dinámico extrae y consolida exclusivamente el texto de la evaluación específica (`eval_diagnostica`, `eval_formativa`, `eval_sumativa`) desde el programa de la asignatura.
+
+4. **Formateo APA con Sangría Francesa (Bibliografía)**
+   * **Hanging Indent:** Se implementó una lógica de estilo APA con sangría francesa (`padding-left: 20px` y `text-indent: -20px`) para cada entrada de la bibliografía de forma automática.
+   * **Disposición Compacta:** Las referencias se muestran una debajo de la otra de forma compacta (sin espacios innecesarios), tanto en la previsualización del borrador como en la exportación a PDF por WeasyPrint.
+
+5. **Salto de Línea en Punto y Seguido**
+   * **Segmentación de Textos:** Para mejorar la legibilidad en los campos multilínea, el autocompletado desde el sinóptico detecta los puntos y seguidos e inserta automáticamente saltos de línea (`\n`), ordenando las sentencias de manera consecutiva.
+
+6. **Mensajes de Advertencia Simplificados**
+   * **Renombre de Alerta:** La advertencia de cuello de botella visual debido a la ausencia de hitos de evaluación en la semana fue renombrada a `"Falta asignar evaluación"`.
 
 ## 🏗️ Arquitectura y Tecnologías (Stack Detallado)
 

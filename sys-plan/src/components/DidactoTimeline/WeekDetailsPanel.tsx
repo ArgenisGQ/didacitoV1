@@ -183,6 +183,11 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
     }
   };
 
+  const formatPeriodsForTextarea = (text?: string) => {
+    if (!text) return '';
+    return text.toString().trim().replace(/\.(?!\d)(?!\s*$)\s*/g, '.\n');
+  };
+
   const handleAutoFill = () => {
     if (!syllabusDetail) return;
     
@@ -198,20 +203,32 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
 
     if (selectedUnitIndex >= 0 && syllabusDetail.units && syllabusDetail.units.length > selectedUnitIndex) {
       const unit = syllabusDetail.units[selectedUnitIndex];
-      if (unit.contents) setValue('contenido', unit.contents, { shouldDirty: true });
+      if (unit.contents) setValue('contenido', formatPeriodsForTextarea(unit.contents), { shouldDirty: true });
       
       const criteria = unit.performance_criteria || '';
       const criteriosMatch = criteria.match(/Criterios de Desempeño:\n([\s\S]*)$/);
       const criteriosText = criteriosMatch ? criteriosMatch[1].trim() : criteria;
-      if (criteriosText) setValue('criteriosDesempeno', criteriosText, { shouldDirty: true });
+      if (criteriosText) setValue('criteriosDesempeno', formatPeriodsForTextarea(criteriosText), { shouldDirty: true });
     }
     
-    if (syllabusDetail.teaching_strategies) {
-      setValue('estrategiasDidacticas', syllabusDetail.teaching_strategies, { shouldDirty: true });
+    if (syllabusDetail) {
+      const { types: activeTypes } = parseEvaluationFeedback(getValues('evaluationFeedback') || '');
+      const texts: string[] = [];
+      if (activeTypes.includes('Diagnóstica') && syllabusDetail.eval_diagnostica) {
+        texts.push(syllabusDetail.eval_diagnostica);
+      }
+      if (activeTypes.includes('Formativa') && syllabusDetail.eval_formativa) {
+        texts.push(syllabusDetail.eval_formativa);
+      }
+      if (activeTypes.includes('Sumativa') && syllabusDetail.eval_sumativa) {
+        texts.push(syllabusDetail.eval_sumativa);
+      }
+      const combined = texts.length > 0 ? texts.join(' ') : (syllabusDetail.teaching_strategies || '');
+      setValue('estrategiasDidacticas', formatPeriodsForTextarea(combined), { shouldDirty: true });
     }
-    
+
     if (syllabusDetail.bibliographic_references) {
-      setValue('bibliografia', syllabusDetail.bibliographic_references, { shouldDirty: true });
+      setValue('bibliografia', formatPeriodsForTextarea(syllabusDetail.bibliographic_references), { shouldDirty: true });
     }
   };
 
@@ -256,16 +273,6 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
                 <option key={u.id} value={u.id}>{u.title}</option>
               ))}
             </select>
-
-            <div className="space-y-1.5 mt-3">
-              <Label htmlFor="title" className="text-xs font-bold text-foreground">Unidad de Contenido</Label>
-              <Input
-                id="title"
-                {...register('title')}
-                className="bg-background border-border text-sm text-foreground placeholder:text-muted-foreground"
-                placeholder="Ej. Unidad I: Conceptos Básicos..."
-              />
-            </div>
 
             {selectedEvaluationPlan && (
               <div className="mt-2 p-3 bg-muted/30 border border-border rounded-md text-xs space-y-2">
@@ -355,7 +362,64 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="estrategiasDidacticas" className="text-xs font-bold text-foreground">Estrategias Didácticas</Label>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <Label htmlFor="estrategiasDidacticas" className="text-xs font-bold text-foreground">Estrategias Didácticas</Label>
+              <div className="flex gap-4">
+                {['Diagnóstica', 'Formativa', 'Sumativa']
+                  .filter((type) => {
+                    if (!selectedEvaluationPlan) return true;
+                    const unitEvalType = selectedEvaluationPlan.evaluation_type || '';
+                    return unitEvalType.toLowerCase().includes(type.toLowerCase());
+                  })
+                  .map((type) => {
+                    const { types: activeTypes } = parseEvaluationFeedback(evaluationFeedbackValue);
+                    const isChecked = activeTypes.includes(type);
+                    return (
+                      <label key={type} className="flex items-center gap-1.5 text-xs font-bold cursor-pointer select-none text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            let newTypes = [...activeTypes];
+                            if (isChecked) {
+                              if (!newTypes.includes(type)) newTypes.push(type);
+                            } else {
+                              newTypes = newTypes.filter(t => t !== type);
+                            }
+                            const rawText = getValues('evaluationFeedbackRaw') || '';
+                            const prefix = newTypes.map(t => `[${t}]`).join('');
+                            setValue('evaluationFeedback', prefix + (rawText ? ' ' + rawText : ''), { shouldDirty: true });
+
+                            // Dynamic update of estrategiasDidacticas based on selection
+                            if (syllabusDetail) {
+                              const texts: string[] = [];
+                              if (newTypes.includes('Diagnóstica') && syllabusDetail.eval_diagnostica) {
+                                texts.push(syllabusDetail.eval_diagnostica);
+                              }
+                              if (newTypes.includes('Formativa') && syllabusDetail.eval_formativa) {
+                                texts.push(syllabusDetail.eval_formativa);
+                              }
+                              if (newTypes.includes('Sumativa') && syllabusDetail.eval_sumativa) {
+                                texts.push(syllabusDetail.eval_sumativa);
+                              }
+                              const combined = texts.length > 0 ? texts.join(' ') : (syllabusDetail.teaching_strategies || '');
+                              setValue('estrategiasDidacticas', formatPeriodsForTextarea(combined), { shouldDirty: true });
+                            }
+                          }}
+                          className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4"
+                        />
+                        {type}
+                      </label>
+                    );
+                  })}
+                {selectedEvaluationPlan && !['Diagnóstica', 'Formativa', 'Sumativa'].some(type => (selectedEvaluationPlan.evaluation_type || '').toLowerCase().includes(type.toLowerCase())) && (
+                  <span className="text-xs text-muted-foreground italic">
+                    Sin tipo de evaluación en la unidad
+                  </span>
+                )}
+              </div>
+            </div>
             <Textarea
               id="estrategiasDidacticas"
               {...register('estrategiasDidacticas')}
@@ -385,39 +449,6 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
           </div>
 
           <div className="space-y-3 pt-4 border-t border-border">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <Label className="text-xs font-bold text-foreground uppercase tracking-wider block">
-                Evaluación de la Semana
-              </Label>
-              <div className="flex gap-4">
-                {['Diagnóstica', 'Formativa', 'Sumativa'].map((type) => {
-                  const { types: activeTypes } = parseEvaluationFeedback(evaluationFeedbackValue);
-                  const isChecked = activeTypes.includes(type);
-                  return (
-                    <label key={type} className="flex items-center gap-1.5 text-xs font-bold cursor-pointer select-none text-foreground">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => {
-                          const isChecked = e.target.checked;
-                          let newTypes = [...activeTypes];
-                          if (isChecked) {
-                            if (!newTypes.includes(type)) newTypes.push(type);
-                          } else {
-                            newTypes = newTypes.filter(t => t !== type);
-                          }
-                          const rawText = getValues('evaluationFeedbackRaw') || '';
-                          const prefix = newTypes.map(t => `[${t}]`).join('');
-                          setValue('evaluationFeedback', prefix + (rawText ? ' ' + rawText : ''), { shouldDirty: true });
-                        }}
-                        className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4"
-                      />
-                      {type}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
             
             {/* Fixed evaluations assigned to this week */}
             {weekEvaluations.length > 0 && (

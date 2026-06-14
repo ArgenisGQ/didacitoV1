@@ -90,7 +90,7 @@ export function WeekColumn({ week, onOpen, onDropCompetence, onRemoveCompetence 
               <TooltipTrigger asChild>
                 <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs p-2 rounded-md font-bold flex items-center gap-2 cursor-help transition-colors hover:bg-amber-500/20">
                   <AlertTriangle size={14} />
-                  Cuello de botella detectado
+                  Falta asignar evaluación
                 </div>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-[250px] p-3 shadow-lg border-amber-500/30">

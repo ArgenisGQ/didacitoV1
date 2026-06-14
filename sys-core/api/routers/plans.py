@@ -515,6 +515,22 @@ def get_competence_for_week(week_num, specific_competence, evaluation_plans):
     return ""
 
 
+def format_apa_bibliography(text: str) -> str:
+    import re
+    if not text:
+        return ""
+    lines = [line.strip() for line in re.split(r'\r?\n', str(text)) if line.strip()]
+    if not lines:
+        return ""
+    html_lines = []
+    for line in lines:
+        html_lines.append(
+            f'<div style="padding-left: 20px; text-indent: -20px; margin-bottom: 2px; text-align: left; line-height: 1.2;">{line}</div>'
+        )
+    return "".join(html_lines)
+
+
+
 
 
 
@@ -577,7 +593,7 @@ async def generate_plan_pdf(
         w.teaching_strategy = format_periods(w.teaching_strategy)
         w.evaluation_feedback = format_periods(w.evaluation_feedback)
         w.resources = format_periods(w.resources, double_newline=False)
-        w.bibliography = w.bibliography or ""
+        w.bibliography = format_apa_bibliography(w.bibliography)
 
     # Convert units to Roman numerals and format evaluation plan fields
     for ev in plan.evaluation_plans:
@@ -706,7 +722,7 @@ async def preview_plan_pdf(
         w.teaching_strategy = format_periods(w.teaching_strategy)
         w.evaluation_feedback = format_periods(w.evaluation_feedback)
         w.resources = format_periods(w.resources, double_newline=False)
-        w.bibliography = w.bibliography or ""
+        w.bibliography = format_apa_bibliography(w.bibliography)
 
     # Convert units to Roman numerals and format evaluation plan fields
     eval_plans = payload.evaluation_plans or []

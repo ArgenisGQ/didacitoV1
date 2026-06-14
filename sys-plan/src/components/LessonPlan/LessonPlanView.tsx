@@ -41,6 +41,21 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
     return text.toString().trim().replace(/\.(?!\d)(?!\s*$)\s*/g, rep);
   };
 
+  const formatBibliography = (text?: string) => {
+    if (!text) return '';
+    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length === 0) return '';
+    return (
+      <div className="space-y-0.5 text-left">
+        {lines.map((line, idx) => (
+          <div key={idx} className="pl-5 -indent-5 text-[10px] sm:text-xs leading-normal">
+            {line}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const getUnitForWeek = (weekNum: number, evaluationPlans: any[]) => {
     const validEvs = (evaluationPlans || []).filter(ev => ev.unit !== null && ev.unit !== undefined);
     
@@ -446,7 +461,7 @@ export default function LessonPlanView({ plan }: LessonPlanViewProps) {
             </tr>
             <tr>
               <th className={`${thClass} text-left`}>Bibliografía</th>
-              <td colSpan={4} className={tdLeftClass}>{week.bibliography}</td>
+              <td colSpan={4} className={tdLeftClass}>{formatBibliography(week.bibliography)}</td>
             </tr>
           </tbody>
         </table>
