@@ -232,6 +232,8 @@ class LessonPlan(models.Model):
     hde = models.IntegerField(default=0, blank=True, null=True)
     component_type = models.CharField(max_length=100, blank=True, null=True)
     feedback = models.TextField(blank=True, null=True)
+    objectives = models.JSONField(blank=True, null=True)
+    strategies = models.JSONField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
