@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api-client';
 import { useWizard } from '@/context/WizardContext';
-import { Layers, Target, ClipboardList, Settings, Clock, BookOpen, Wand2 } from 'lucide-react';
+import { Layers, Target, ClipboardList, Settings, Clock, BookOpen, Wand2, Trash2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV'];
 
 export function EvaluationPlanGrid() {
-  const { state, updateEvaluationItem, updateEvaluationPredictive } = useWizard();
+  const { state, updateEvaluationItem, updateEvaluationPredictive, removeEvaluationItem } = useWizard();
   
   const { data: taxonomy } = useQuery({
     queryKey: ['taxonomySettings'],
@@ -113,8 +113,8 @@ export function EvaluationPlanGrid() {
     return ((val / 100) * (state.base_score || 20)).toFixed(1);
   };
 
-  // Ensure we are only showing the first 4 evaluation plans (units)
-  const units = state.evaluation_plans.slice(0, 4);
+  // Use all evaluation plans in state (dynamically supports 3 or 4)
+  const units = state.evaluation_plans;
 
   return (
     <div className="w-full flex flex-col h-full bg-background">
@@ -125,7 +125,7 @@ export function EvaluationPlanGrid() {
             Unidades Temáticas y Plan de Evaluación
           </h2>
           <p className="text-muted-foreground mt-1">
-            Define el bloque de evaluación y competencias para las 4 unidades. Las tarjetas se adaptarán al contenido.
+            Define el bloque de evaluación y competencias para las unidades. Las tarjetas se adaptarán al contenido.
           </p>
         </div>
         
@@ -148,9 +148,21 @@ export function EvaluationPlanGrid() {
             <Card key={idx} className="w-[450px] shrink-0 border-border/50 shadow-md bg-card flex flex-col">
               <CardHeader className="bg-muted/20 border-b border-border/50 pb-4">
                 <CardTitle className="flex flex-col gap-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
-                    UNIDAD {ROMAN_NUMERALS[idx]}
-                  </span>
+                  <div className="flex justify-between items-center w-full">
+                    <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                      UNIDAD {ROMAN_NUMERALS[idx]}
+                    </span>
+                    {idx === 3 && state.evaluation_plans.length === 4 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => removeEvaluationItem(3)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                   <Input
                     value={unit.title || ''}
                     onChange={(e) => updateEvaluationItem(idx, 'title', e.target.value)}

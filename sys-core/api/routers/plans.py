@@ -436,6 +436,9 @@ def get_unit_for_week(week_num, evaluation_plans):
     else:
         unit_idx = 3
         
+    if len(sorted_ev) > 0:
+        unit_idx = min(unit_idx, len(sorted_ev) - 1)
+        
     roman = ["I", "II", "III", "IV"][min(unit_idx, 3)]
     
     if unit_idx < len(sorted_ev):
@@ -500,6 +503,9 @@ def get_competence_for_week(week_num, specific_competence, evaluation_plans):
         unit_idx = 2
     else:
         unit_idx = 3
+        
+    if len(sorted_ev) > 0:
+        unit_idx = min(unit_idx, len(sorted_ev) - 1)
         
     if unit_idx < len(sorted_ev):
         ep = sorted_ev[unit_idx]

@@ -123,6 +123,34 @@ const formatParagraphs = (text: string | null | undefined): string => {
     .join('\n\n')
 }
 
+const parsePerformanceCriteria = (text: string | null | undefined) => {
+  if (!text) return { competence: '', criteria: '' }
+  const lowerText = text.toLowerCase()
+  const compIndex = lowerText.indexOf('competencia:')
+  const critIndex = lowerText.indexOf('criterios de desempeño:')
+  
+  let competence = ''
+  let criteria = text
+
+  if (compIndex !== -1 && critIndex !== -1) {
+    if (compIndex < critIndex) {
+      competence = text.slice(compIndex + 12, critIndex).trim()
+      criteria = text.slice(critIndex + 23).trim()
+    } else {
+      criteria = text.slice(critIndex + 23, compIndex).trim()
+      competence = text.slice(compIndex + 12).trim()
+    }
+  } else if (compIndex !== -1) {
+    competence = text.slice(compIndex + 12).trim()
+    criteria = ''
+  } else if (critIndex !== -1) {
+    competence = ''
+    criteria = text.slice(critIndex + 23).trim()
+  }
+  
+  return { competence, criteria }
+}
+
 export function SubjectDetailModal({
   subjectId,
   onClose
@@ -336,38 +364,62 @@ export function SubjectDetailModal({
               {activeTab === 'units' && (
                 <div className="space-y-6">
                   {subject.units && subject.units.length > 0 ? (
-                    subject.units.map((unit, idx) => (
-                      <Card key={idx} className="border bg-card shadow-sm rounded-2xl overflow-hidden hover:shadow-md transition-shadow">
-                        <div className="bg-muted/35 px-6 py-4 border-b">
-                          <h4 className="font-black text-base text-foreground flex items-center gap-2.5">
-                            <Badge className="bg-primary hover:bg-primary text-primary-foreground font-black px-2 py-0.5 rounded-lg text-xs">
-                              U {unit.unit_number}
-                            </Badge>
-                            {unit.unit_title || 'Unidad de Aprendizaje'}
-                          </h4>
-                        </div>
-                        <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-3">
-                            <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                              <BookOpen size={14} className="text-primary" />
-                              Contenidos Temáticos
-                            </h5>
-                            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line bg-muted/10 p-4 rounded-xl font-medium min-h-[100px]">
-                              {unit.contents ? formatParagraphs(unit.contents) : 'No especificados.'}
-                            </p>
+                    subject.units.map((unit, idx) => {
+                      const { competence, criteria } = parsePerformanceCriteria(unit.performance_criteria)
+                      return (
+                        <Card key={idx} className="border bg-card shadow-sm rounded-2xl overflow-hidden hover:shadow-md transition-shadow">
+                          <div className="bg-muted/35 px-6 py-4 border-b">
+                            <h4 className="font-black text-base text-foreground flex items-center gap-2.5">
+                              <Badge className="bg-primary hover:bg-primary text-primary-foreground font-black px-2 py-0.5 rounded-lg text-xs">
+                                {unit.unit_number}
+                              </Badge>
+                              {unit.unit_title || 'Unidad de Aprendizaje'}
+                            </h4>
                           </div>
-                          <div className="space-y-3">
-                            <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                              <Sparkles size={14} className="text-amber-500" />
-                              Criterios de Desempeño
-                            </h5>
-                            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line bg-muted/10 p-4 rounded-xl font-medium min-h-[100px]">
-                              {unit.performance_criteria ? formatParagraphs(unit.performance_criteria) : 'No especificados.'}
-                            </p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
+                          <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-3 col-span-full">
+                              <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                <BookOpen size={14} className="text-primary" />
+                                Contenidos Temáticos
+                              </h5>
+                              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line bg-muted/10 p-4 rounded-xl font-medium min-h-[100px]">
+                                {unit.contents ? formatParagraphs(unit.contents) : 'No especificados.'}
+                              </p>
+                            </div>
+
+                            <div className="col-span-full flex flex-col items-center pt-4 border-t mt-2">
+                              <h5 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest text-center mb-2">
+                                DESARROLLO DE LAS UNIDADES DE APRENDIZAJE
+                              </h5>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 h-6">
+                                <Badge className="bg-primary hover:bg-primary text-primary-foreground font-black px-2 py-0.5 rounded-lg text-xs shrink-0">
+                                  {unit.unit_number}
+                                </Badge>
+                                <span className="text-sm font-bold text-foreground truncate">
+                                  {unit.unit_title || 'Unidad de Aprendizaje'}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line bg-muted/10 p-4 rounded-xl font-medium min-h-[100px]">
+                                {competence ? formatParagraphs(competence) : 'Competencia no especificada.'}
+                              </p>
+                            </div>
+
+                            <div className="space-y-3">
+                              <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 h-6">
+                                <Sparkles size={14} className="text-amber-500" />
+                                Criterios de Desempeño
+                              </h5>
+                              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line bg-muted/10 p-4 rounded-xl font-medium min-h-[100px]">
+                                {criteria ? formatParagraphs(criteria) : 'No especificados.'}
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })
                   ) : (
                     <div className="text-center py-12 text-muted-foreground">
                       <Layers size={36} className="mx-auto mb-2 text-muted-foreground/50" />

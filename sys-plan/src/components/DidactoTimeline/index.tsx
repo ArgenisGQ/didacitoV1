@@ -61,17 +61,17 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
   
   const [units, setUnits] = useState<UnitData[]>(() => {
     const evPlans = [...(initialData?.evaluation_plans || state.evaluation_plans)].sort((a: any, b: any) => (a.unit || 0) - (b.unit || 0));
-    return evPlans.slice(0, 4).map((ep: any, idx: number) => ({
+    return evPlans.map((ep: any, idx: number) => ({
       id: `unit-${ep.unit || (idx + 1)}`,
-      title: ep.title ? `Unidad ${ROMAN_NUMERALS[(ep.unit ? ep.unit - 1 : idx)]}: ${ep.title}` : `Unidad ${ROMAN_NUMERALS[(ep.unit ? ep.unit - 1 : idx)]}`
+      title: ep.title ? `Unidad ${ROMAN_NUMERALS[idx] || (idx + 1)}: ${ep.title}` : `Unidad ${ROMAN_NUMERALS[idx] || (idx + 1)}`
     }));
   });
 
   useEffect(() => {
     const evPlans = [...state.evaluation_plans].sort((a: any, b: any) => (a.unit || 0) - (b.unit || 0));
-    const mappedUnits = evPlans.slice(0, 4).map((ep: any, idx: number) => ({
+    const mappedUnits = evPlans.map((ep: any, idx: number) => ({
       id: `unit-${ep.unit || (idx + 1)}`,
-      title: ep.title ? `Unidad ${ROMAN_NUMERALS[(ep.unit ? ep.unit - 1 : idx)]}: ${ep.title}` : `Unidad ${ROMAN_NUMERALS[(ep.unit ? ep.unit - 1 : idx)]}`
+      title: ep.title ? `Unidad ${ROMAN_NUMERALS[idx] || (idx + 1)}: ${ep.title}` : `Unidad ${ROMAN_NUMERALS[idx] || (idx + 1)}`
     }));
     setUnits(mappedUnits);
   }, [state.evaluation_plans]);
@@ -133,7 +133,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
     hiv_s: state.hiv_s,
     hiv_a: state.hiv_a,
     hde: state.hde,
-    evaluation_plans: state.evaluation_plans.slice(0, 4).filter(e => 
+    evaluation_plans: state.evaluation_plans.filter(e => 
       e.title?.trim() || e.competence?.trim() || e.performance_criterion?.trim() || 
       e.strategy?.trim() || e.instrument?.trim() || e.evaluation_type?.trim() || 
       e.evidence?.trim() || e.feedback_method?.trim() || 
@@ -195,18 +195,20 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
   // Dynamically assign weeks to units based on the due weeks of evaluation plans
   useEffect(() => {
     const sortedEv = [...state.evaluation_plans].sort((a: any, b: any) => (a.unit || 0) - (b.unit || 0));
+    if (sortedEv.length === 0) return;
+    
     const w1 = parseInt(String(sortedEv[0]?.due_week)) || 4;
-    const w2 = Math.max(w1 + 1, parseInt(String(sortedEv[1]?.due_week)) || 8);
-    const w3 = Math.max(w2 + 1, parseInt(String(sortedEv[2]?.due_week)) || 12);
+    const w2 = sortedEv.length > 1 ? Math.max(w1 + 1, parseInt(String(sortedEv[1]?.due_week)) || 8) : 999;
+    const w3 = sortedEv.length > 2 ? Math.max(w2 + 1, parseInt(String(sortedEv[2]?.due_week)) || 12) : 999;
     
     let changed = false;
     const updatedWeeks = weeks.map(w => {
-      let targetUnitId = 'unit-4';
+      let targetUnitId = `unit-${sortedEv.length}`;
       if (w.weekNumber <= w1) {
         targetUnitId = 'unit-1';
-      } else if (w.weekNumber <= w2) {
+      } else if (w.weekNumber <= w2 && sortedEv.length > 1) {
         targetUnitId = 'unit-2';
-      } else if (w.weekNumber <= w3) {
+      } else if (w.weekNumber <= w3 && sortedEv.length > 2) {
         targetUnitId = 'unit-3';
       }
       
@@ -234,7 +236,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
     }] : [];
 
     const evaluations: Evaluation[] = [];
-    state.evaluation_plans.slice(0, 4).forEach((ep, idx) => {
+    state.evaluation_plans.forEach((ep, idx) => {
       if (ep && ep.due_week) {
         const dueStr = String(ep.due_week).toLowerCase();
         const dueWeekNum = parseInt(dueStr, 10);
