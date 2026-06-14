@@ -57,6 +57,10 @@ settings_to_seed = {
     'AUDIT_LOG_VIEWER_ROLES': ('SUPER_ADMIN', 'Roles autorizados a visualizar el panel de auditoria en el dashboard', 'SECURITY'),
     'INACTIVE_ACCOUNT_THRESHOLD_DAYS': ('90', 'Cantidad de dias sin iniciar sesion para marcar una cuenta como inactiva', 'SECURITY'),
     'AUTO_DEACTIVATE_INACTIVE_ACCOUNTS': ('false', 'Desactivacion automatica diaria de cuentas inactivas (true/false)', 'SECURITY'),
+    'PERIOD_NORMAL_MAX_WEEKS': ('16', 'Cantidad maxima de semanas permitidas para un periodo academico normal', 'ACADEMIC_PERIODS'),
+    'PERIOD_NORMAL_MAX_DAYS': ('112', 'Cantidad maxima de dias permitidos para un periodo academico normal', 'ACADEMIC_PERIODS'),
+    'PERIOD_INTENSIVE_MAX_WEEKS': ('6', 'Cantidad maxima de semanas permitidas para un periodo academico intensivo', 'ACADEMIC_PERIODS'),
+    'PERIOD_INTENSIVE_MAX_DAYS': ('42', 'Cantidad maxima de dias permitidos para un periodo academico intensivo', 'ACADEMIC_PERIODS'),
 }
 seeded_settings = 0
 for key, (val, desc, cat) in settings_to_seed.items():

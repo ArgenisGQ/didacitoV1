@@ -19,7 +19,7 @@ interface SettingItem {
 export default function AdminSettings() {
   const [settings, setSettings] = useState<SettingItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeSubTab, setActiveSubTab] = useState<'security' | 'import' | 'profile' | 'smtp' | 'system_time'>('security')
+  const [activeSubTab, setActiveSubTab] = useState<'security' | 'import' | 'profile' | 'smtp' | 'system_time' | 'academic_periods'>('security')
   
   // Clock state & helpers
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -89,7 +89,9 @@ export default function AdminSettings() {
 
   useEffect(() => {
     fetchSettings()
-    
+  }, [])
+
+  useEffect(() => {
     // Prevent accidentally leaving page with unsaved changes
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
@@ -136,7 +138,7 @@ export default function AdminSettings() {
       const res = await api.patch('/admin/settings', localValues)
       setSettings(res.data)
       setIsDirty(false)
-      setMsg({ type: 'success', text: 'Configuraciones de gobernanza actualizadas y cache recargado con exito.' })
+      setMsg({ type: 'success', text: 'Configuraciones del sistema actualizadas y caché recargado con éxito.' })
     } catch (err: any) {
       setMsg({
         type: 'error',
@@ -222,7 +224,7 @@ export default function AdminSettings() {
     return (
       <div className="py-12 flex justify-center items-center">
         <Loader2 className="animate-spin text-primary" size={32} />
-        <span className="ml-3 text-slate-400 font-medium">Cargando Panel de Gobernanza Administrativa...</span>
+        <span className="ml-3 text-slate-400 font-medium">Cargando Panel de Configuración Administrativa...</span>
       </div>
     )
   }
@@ -240,7 +242,7 @@ export default function AdminSettings() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
-          <h1 className="text-4xl lg:text-5xl font-black tracking-tighter">Gobernanza del Sistema</h1>
+          <h1 className="text-4xl lg:text-5xl font-black tracking-tighter">Configuración del Sistema</h1>
           <p className="text-lg text-muted-foreground font-medium">
             Panel de control exclusivo para administración de políticas institucionales globales.
           </p>
@@ -286,7 +288,8 @@ export default function AdminSettings() {
             { id: 'import', label: 'Carga Masiva (CSV)', icon: FileSpreadsheet },
             { id: 'profile', label: 'Campos Auto-Gestión', icon: User },
             { id: 'smtp', label: 'Servidor SMTP', icon: Mail },
-            { id: 'system_time', label: 'Hora del Sistema', icon: Clock }
+            { id: 'system_time', label: 'Hora del Sistema', icon: Clock },
+            { id: 'academic_periods', label: 'Duración de Periodos', icon: Clock }
           ].map((tab) => (
             <Button
               key={tab.id}
@@ -690,6 +693,59 @@ export default function AdminSettings() {
                     Sincroniza todas las planificaciones de clases, inicios de sesion y registros de auditoria a la zona horaria seleccionada. 
                     Asegurese de pulsar <strong>"Aplicar y Recargar Cache"</strong> en la parte superior para hacer persistentes los cambios.
                   </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSubTab === 'academic_periods' && (
+            <Card className="backdrop-blur-md bg-card/60">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="text-primary" size={22} />
+                  Configuración de Duración de Periodos Académicos
+                </CardTitle>
+                <CardDescription>
+                  Establece los límites y duraciones recomendadas para periodos normales e intensivos.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-sm leading-relaxed text-muted-foreground">
+                  <strong className="text-foreground">¿Para qué sirve esta área?</strong>
+                  <p className="mt-1">
+                    Esta sección permite configurar las duraciones de tiempo recomendadas para los distintos periodos académicos del sistema.
+                    Estas configuraciones definen los límites de semanas para la planificación curricular, sirviendo de base para la sugerencia de fechas y validaciones de calendarios académicos del sistema.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* NORMAL MAX WEEKS */}
+                  <div className="space-y-2">
+                    <Label className="font-extrabold text-sm">Duración Máxima del Periodo Normal (Semanas)</Label>
+                    <Input
+                      type="number"
+                      value={localValues['PERIOD_NORMAL_MAX_WEEKS'] || ''}
+                      onChange={(e) => handleChangeValue('PERIOD_NORMAL_MAX_WEEKS', e.target.value)}
+                      placeholder="Ej. 16"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Línea base de semanas para semestres o periodos normales (ej: 16 semanas).
+                    </p>
+                  </div>
+
+                  {/* INTENSIVE MAX WEEKS */}
+                  <div className="space-y-2">
+                    <Label className="font-extrabold text-sm">Duración Máxima del Periodo Intensivo (Semanas)</Label>
+                    <Input
+                      type="number"
+                      value={localValues['PERIOD_INTENSIVE_MAX_WEEKS'] || ''}
+                      onChange={(e) => handleChangeValue('PERIOD_INTENSIVE_MAX_WEEKS', e.target.value)}
+                      placeholder="Ej. 6"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Línea base de semanas para cursos vacacionales o intensivos (ej: 6 semanas).
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>

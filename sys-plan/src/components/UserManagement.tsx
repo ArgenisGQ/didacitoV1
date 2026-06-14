@@ -342,12 +342,17 @@ export default function UserManagement() {
           
           const subjects = subjectStr.split(',').map(s => s.trim()).filter(Boolean);
           const sections = sectionStr.split(',').map(s => s.trim()).filter(Boolean);
+
+          const missingSyllabusCount = subjects.filter(code => {
+            const resolved = allSubjects.find(s => s.code.toUpperCase() === code.toUpperCase());
+            return !resolved || !resolved.active_version;
+          }).length;
           
           return (
             <div className="flex flex-col gap-0.5">
               <button 
                 onClick={() => setSelectedAcademicLoadUser(row.original)}
-                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer group text-left"
+                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer group text-left flex-wrap"
                 title="Haga clic para ver detalles de la carga académica"
               >
                 <Badge className="font-extrabold text-[9px] bg-blue-500/10 text-blue-500 group-hover:bg-blue-500/20 border border-blue-500/25 transition-all duration-300">
@@ -356,6 +361,11 @@ export default function UserManagement() {
                 <Badge variant="outline" className="font-extrabold text-[9px] bg-orange-500/5 text-orange-500 border border-orange-500/30 group-hover:bg-orange-500/10 transition-all duration-300">
                   {sections.length} {sections.length === 1 ? 'sección' : 'secciones'}
                 </Badge>
+                {missingSyllabusCount > 0 && (
+                  <Badge className="font-extrabold text-[9px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 group-hover:bg-amber-500/20 transition-all duration-300">
+                    {missingSyllabusCount} sin sinóptico
+                  </Badge>
+                )}
               </button>
               {(subjects.length > 0 || sections.length > 0) && (
                 <p className="text-[10px] text-muted-foreground font-medium max-w-[180px] truncate" title={`${subjectStr} | ${sectionStr}`}>
@@ -889,6 +899,7 @@ export default function UserManagement() {
                       const resolvedSubject = allSubjects.find(s => s.code.toUpperCase() === code.toUpperCase());
                       const subjectName = resolvedSubject ? resolvedSubject.name : 'Unidad Curricular Sin Registrar';
                       const sectionName = sections[idx] || (sections[0] ? `${sections[0]}` : 'Sin Sección');
+                      const hasSyllabus = resolvedSubject && resolvedSubject.active_version;
                       
                       return (
                         <div 
@@ -910,10 +921,17 @@ export default function UserManagement() {
                             </div>
                             
                             <div className="flex flex-col items-end shrink-0 gap-2">
-                              <Badge variant="outline" className="font-extrabold text-[10px] bg-orange-500/5 text-orange-500 border border-orange-500/20 px-2 py-0.5 rounded-lg uppercase shrink-0">
-                                {sectionName}
-                              </Badge>
-                              {resolvedSubject && (
+                              <div className="flex items-center gap-1.5">
+                                {!hasSyllabus && (
+                                  <Badge className="font-extrabold text-[9px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded-lg uppercase">
+                                    Sin Sinóptico
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="font-extrabold text-[10px] bg-orange-500/5 text-orange-500 border border-orange-500/20 px-2 py-0.5 rounded-lg uppercase shrink-0">
+                                  {sectionName}
+                                </Badge>
+                              </div>
+                              {resolvedSubject && hasSyllabus && (
                                 <button
                                   onClick={() => {
                                     setExpandedSubjectCode(expandedSubjectCode === code ? null : code);
@@ -925,6 +943,13 @@ export default function UserManagement() {
                               )}
                             </div>
                           </div>
+
+                          {!hasSyllabus && (
+                            <div className="mx-4 mb-4 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-600 dark:text-amber-400 font-semibold animate-fadeIn flex items-center gap-2">
+                              <span>⚠️</span>
+                              <span>Esta unidad curricular no tiene un programa sinóptico cargado o activo en el sistema.</span>
+                            </div>
+                          )}
 
                           {/* Acordeón Expansible Inline (Opción A) */}
                           {resolvedSubject && expandedSubjectCode === code && (

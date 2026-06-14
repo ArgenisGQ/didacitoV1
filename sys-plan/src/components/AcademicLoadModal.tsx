@@ -112,7 +112,7 @@ export default function AcademicLoadModal({ isOpen, onClose, user }: AcademicLoa
               <Label htmlFor="section">Sección(es)</Label>
               <Input
                 id="section"
-                placeholder="Ej. A, B"
+                placeholder="Ej. ED22D0V, MA01M0S"
                 {...form.register('section')}
               />
             </div>

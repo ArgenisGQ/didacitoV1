@@ -125,7 +125,7 @@ async def update_settings(
                 raise HTTPException(status_code=400, detail=f"Zona horaria '{str_val}' invalida")
         if key in ("SUPPORT_EMAIL", "SMTP_USER") and not is_valid_email(str_val):
             raise HTTPException(status_code=400, detail=f"Email invalido para la configuracion '{key}'")
-        if key in ("DEFAULT_PAGINATION_LIMIT", "INVITATION_TOKEN_EXPIRE_HOURS", "MAX_CSV_FILE_SIZE_MB", "MAX_INVITATIONS_PER_DAY", "SMTP_PORT"):
+        if key in ("DEFAULT_PAGINATION_LIMIT", "INVITATION_TOKEN_EXPIRE_HOURS", "MAX_CSV_FILE_SIZE_MB", "MAX_INVITATIONS_PER_DAY", "SMTP_PORT", "PERIOD_NORMAL_MAX_WEEKS", "PERIOD_INTENSIVE_MAX_WEEKS"):
             try:
                 int(str_val)
             except ValueError:

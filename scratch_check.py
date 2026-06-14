@@ -1,24 +1,32 @@
-import asyncio
-from sqlalchemy import select
-from app.database import AsyncSessionLocal
-from app.models import Subject, SubjectUnit
+import requests
 
-async def verify_db_data():
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(SubjectUnit)
-            .join(Subject, Subject.id == SubjectUnit.subject_id)
-            .where(Subject.code == 'THS-1200')
-            .order_by(SubjectUnit.unit_number)
-        )
-        units = result.scalars().all()
-        print(f"Found {len(units)} units for THS-1200:")
-        for u in units:
-            print("=" * 60)
-            print(f"Unit Number: {u.unit_number}")
-            print(f"Unit Title: {u.unit_title}")
-            print(f"Contents:\n{u.contents}")
-            print(f"Performance Criteria:\n{u.performance_criteria}")
-            print("=" * 60)
+# Test login
+login_url = "http://fastapi-api:8001/auth/login"
+login_payload = {
+    "username": "superadmin@didactico.edu",
+    "password": "superadmin123"
+}
 
-asyncio.run(verify_db_data())
+try:
+    print("Testing login...")
+    r = requests.post(login_url, json=login_payload)
+    print("Login status:", r.status_code)
+    if r.status_code == 200:
+        token = r.json().get("access_token")
+        print("Token retrieved successfully.")
+        
+        # Test get settings
+        settings_url = "http://fastapi-api:8001/admin/settings"
+        headers = {"Authorization": f"Bearer {token}"}
+        r_settings = requests.get(settings_url, headers=headers)
+        print("Settings status:", r_settings.status_code)
+        if r_settings.status_code == 200:
+            print("Settings data:")
+            for item in r_settings.json():
+                print(f"- {item.get('key')}: {item.get('value')} (category: {item.get('category')})")
+        else:
+            print("Failed to get settings:", r_settings.text)
+    else:
+        print("Login failed:", r.text)
+except Exception as e:
+    print("Error:", e)

@@ -50,24 +50,67 @@ export default function AcademicPeriods() {
     setHistoryPage(1)
   }, [periods])
 
+  // Query to get the configured weeks for periods
+  const { data: settings = [] } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get('/admin/settings')
+        return data
+      } catch (e) {
+        return []
+      }
+    }
+  })
+
+  const normalMaxWeeks = useMemo(() => {
+    const s = settings.find((x: any) => x.key === 'PERIOD_NORMAL_MAX_WEEKS')
+    return s ? parseInt(s.value, 10) : 16
+  }, [settings])
+
+  const intensiveMaxWeeks = useMemo(() => {
+    const s = settings.find((x: any) => x.key === 'PERIOD_INTENSIVE_MAX_WEEKS')
+    return s ? parseInt(s.value, 10) : 6
+  }, [settings])
+
+  const calculateEndDate = (startDate: string, type: string) => {
+    if (!startDate) return ''
+    try {
+      const start = new Date(startDate + 'T00:00:00')
+      const weeks = type === 'NORMAL' ? normalMaxWeeks : intensiveMaxWeeks
+      const daysToAdd = weeks * 7 - 1
+      const end = new Date(start)
+      end.setDate(start.getDate() + daysToAdd)
+      
+      const yyyy = end.getFullYear()
+      const mm = String(end.getMonth() + 1).padStart(2, '0')
+      const dd = String(end.getDate()).padStart(2, '0')
+      return `${yyyy}-${mm}-${dd}`
+    } catch (e) {
+      return ''
+    }
+  }
+
   useEffect(() => {
     // Automatically load suggested dates on initial load
     const loadInitialDates = async () => {
       try {
         const { data } = await api.get('/academic-periods/suggest-dates?type=NORMAL')
-        if (data.start_date && data.end_date) {
+        if (data.start_date) {
           setFormData(prev => ({
             ...prev,
             start_date: data.start_date,
-            end_date: data.end_date
+            end_date: calculateEndDate(data.start_date, 'NORMAL')
           }))
         }
       } catch (e) {
         console.error('Error fetching initial suggested dates:', e)
       }
     }
-    loadInitialDates()
-  }, [])
+    if (settings.length > 0) {
+      loadInitialDates()
+    }
+  }, [settings])
 
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -117,11 +160,11 @@ export default function AcademicPeriods() {
   const handleSuggestDates = async () => {
     try {
       const { data } = await api.get(`/academic-periods/suggest-dates?type=${formData.type}`)
-      if (data.start_date && data.end_date) {
+      if (data.start_date) {
         setFormData(prev => ({
           ...prev,
           start_date: data.start_date,
-          end_date: data.end_date
+          end_date: calculateEndDate(data.start_date, prev.type)
         }))
         toast({ title: 'Fechas autocompletadas según historial' })
       }
@@ -133,6 +176,23 @@ export default function AcademicPeriods() {
   const handleSave = () => {
     if (!formData.name || !formData.start_date || !formData.end_date) {
       toast({ title: 'Complete todos los campos obligatorios', variant: 'destructive' })
+      return
+    }
+    const maxEnd = calculateEndDate(formData.start_date, formData.type)
+    if (maxEnd && formData.end_date > maxEnd) {
+      toast({
+        title: 'Error de validación',
+        description: `La fecha de fin no puede superar el límite permitido de ${maxEnd} para un periodo de tipo ${formData.type === 'NORMAL' ? 'Normal' : 'Intensivo'}.`,
+        variant: 'destructive'
+      })
+      return
+    }
+    if (formData.end_date < formData.start_date) {
+      toast({
+        title: 'Error de validación',
+        description: 'La fecha de fin no puede ser anterior a la fecha de inicio.',
+        variant: 'destructive'
+      })
       return
     }
     if (editingPeriod) {
@@ -210,15 +270,19 @@ export default function AcademicPeriods() {
                 <Select 
                   value={formData.type} 
                   onValueChange={async (val) => {
-                    setFormData(prev => ({ ...prev, type: val }))
+                    setFormData(prev => ({
+                      ...prev,
+                      type: val,
+                      end_date: calculateEndDate(prev.start_date, val)
+                    }))
                     try {
                       const { data } = await api.get(`/academic-periods/suggest-dates?type=${val}`)
-                      if (data.start_date && data.end_date) {
+                      if (data.start_date) {
                         setFormData(prev => ({
                           ...prev,
                           type: val,
                           start_date: data.start_date,
-                          end_date: data.end_date
+                          end_date: calculateEndDate(data.start_date, val)
                         }))
                         toast({ title: `Fechas sugeridas para periodo ${val === 'NORMAL' ? 'Normal' : 'Intensivo'}` })
                       }
@@ -250,15 +314,37 @@ export default function AcademicPeriods() {
                 <Input
                   type="date"
                   value={formData.start_date}
-                  onChange={e => setFormData({ ...formData, start_date: e.target.value })}
+                  onChange={e => {
+                    const newStart = e.target.value
+                    setFormData(prev => ({
+                      ...prev,
+                      start_date: newStart,
+                      end_date: calculateEndDate(newStart, prev.type)
+                    }))
+                  }}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Fecha de Fin</Label>
+                <Label>Fecha de Fin (Límite: máx. {formData.type === 'NORMAL' ? normalMaxWeeks : intensiveMaxWeeks} semanas)</Label>
                 <Input
                   type="date"
                   value={formData.end_date}
-                  onChange={e => setFormData({ ...formData, end_date: e.target.value })}
+                  onChange={e => {
+                    const newEnd = e.target.value
+                    const maxEnd = calculateEndDate(formData.start_date, formData.type)
+                    if (formData.start_date && maxEnd && newEnd > maxEnd) {
+                      setFormData(prev => ({ ...prev, end_date: maxEnd }))
+                      toast({
+                        title: 'Ajuste automático',
+                        description: `La fecha fue limitada al máximo permitido de ${maxEnd}.`,
+                        variant: 'destructive'
+                      })
+                    } else {
+                      setFormData(prev => ({ ...prev, end_date: newEnd }))
+                    }
+                  }}
+                  min={formData.start_date}
+                  max={calculateEndDate(formData.start_date, formData.type)}
                 />
               </div>
             </div>
