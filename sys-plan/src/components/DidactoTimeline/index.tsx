@@ -463,7 +463,7 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
             {selectedWeek && (() => {
               const currentWeek = augmentedWeeks.find(w => w.id === selectedWeek.id) || selectedWeek;
               return (
-                <div className="w-[420px] shrink-0 border-l border-border bg-card shadow-2xl z-20">
+                <div className="w-[840px] shrink-0 border-l border-border bg-card shadow-2xl z-20">
                   <WeekDetailsPanel 
                     week={currentWeek} 
                     units={units}

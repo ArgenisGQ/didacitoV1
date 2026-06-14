@@ -120,7 +120,7 @@ export function WeekColumn({ week, onOpen, onDropCompetence, onRemoveCompetence 
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1"><Target size={12}/> Competencias</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1"><Target size={12}/> Contenido</p>
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-accent/10">{weekCompetences.length}</Badge>
             </div>
             <div className="space-y-2 max-h-[180px] overflow-y-auto custom-scrollbar pr-1">
@@ -137,7 +137,7 @@ export function WeekColumn({ week, onOpen, onDropCompetence, onRemoveCompetence 
                         onRemoveCompetence(comp);
                       }}
                       className="text-muted-foreground hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
-                      title="Eliminar competencia"
+                      title="Eliminar contenido"
                     >
                       <X size={12} />
                     </button>
@@ -146,12 +146,31 @@ export function WeekColumn({ week, onOpen, onDropCompetence, onRemoveCompetence 
               ))}
               {weekCompetences.length === 0 && (
                 <div className="h-[40px] flex items-center justify-center p-2 text-[10px] font-medium text-muted-foreground text-center leading-normal">
-                  Arrastra competencias aquí
+                  Arrastra contenidos aquí
                 </div>
               )}
             </div>
           </div>
 
+          {/* Competencia Específica */}
+          {week.specificCompetence && (
+            <div className="border-l-2 border-primary/30 pl-2 py-0.5 space-y-0.5">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Competencia Específica</p>
+              <p className="text-xs font-semibold text-foreground/85 line-clamp-4 leading-relaxed">
+                {week.specificCompetence}
+              </p>
+            </div>
+          )}
+
+          {/* Criterios de Desempeño */}
+          {week.criteriosDesempeno && (
+            <div className="border-l-2 border-primary/30 pl-2 py-0.5 space-y-0.5">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Criterios de Desempeño</p>
+              <p className="text-xs font-semibold text-foreground/85 line-clamp-4 leading-relaxed">
+                {week.criteriosDesempeno}
+              </p>
+            </div>
+          )}
           {/* Estrategias Didácticas */}
           {week.estrategiasDidacticas && (
             <div className="border-l-2 border-primary/30 pl-2 py-0.5 space-y-0.5">
@@ -168,16 +187,6 @@ export function WeekColumn({ week, onOpen, onDropCompetence, onRemoveCompetence 
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Recursos de Aprendizaje</p>
               <p className="text-xs font-semibold text-foreground/85 line-clamp-4 leading-relaxed">
                 {week.recursosAprendizaje}
-              </p>
-            </div>
-          )}
-
-          {/* Criterios de Desempeño */}
-          {week.criteriosDesempeno && (
-            <div className="border-l-2 border-primary/30 pl-2 py-0.5 space-y-0.5">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Criterios de Desempeño</p>
-              <p className="text-xs font-semibold text-foreground/85 line-clamp-4 leading-relaxed">
-                {week.criteriosDesempeno}
               </p>
             </div>
           )}

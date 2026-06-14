@@ -24,8 +24,20 @@ interface Props {
   onDelete?: () => void;
 }
 
+const parseEvaluationFeedback = (val: string = '') => {
+  const types: string[] = [];
+  let rawText = val || '';
+  ['Diagnóstica', 'Formativa', 'Sumativa'].forEach(t => {
+    if (rawText.includes(`[${t}]`)) {
+      types.push(t);
+      rawText = rawText.replaceAll(`[${t}]`, '');
+    }
+  });
+  return { types, rawText: rawText.trim() };
+};
+
 export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Props) {
-  const { register, handleSubmit, reset, control, setValue, getValues, formState: { isDirty } } = useForm<WeekData>();
+  const { register, handleSubmit, reset, control, setValue, getValues, formState: { isDirty } } = useForm<WeekData & { evaluationFeedbackRaw?: string }>();
   const { state, updateEvaluationItem } = useWizard();
   
   const { data: academicLoad } = useQuery({
@@ -75,6 +87,7 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
   }, [state.evaluation_plans, week]);
 
   const contenidoValue = useWatch({ control, name: 'contenido' }) || '';
+  const evaluationFeedbackValue = useWatch({ control, name: 'evaluationFeedback' }) || '';
 
   const rawContents = selectedUnitIndex >= 0 && syllabusDetail?.units?.[selectedUnitIndex]?.contents;
   const availableCompetences = React.useMemo(() => {
@@ -152,16 +165,19 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
     if (week) {
       if (week.id !== prevWeekIdRef.current) {
         reset(week);
+        const { rawText } = parseEvaluationFeedback(week.evaluationFeedback);
+        setValue('evaluationFeedbackRaw', rawText);
         prevWeekIdRef.current = week.id;
       }
     } else {
       prevWeekIdRef.current = undefined;
     }
-  }, [week, reset]);
+  }, [week, reset, setValue]);
 
-  const onSubmit = (data: WeekData) => {
+  const onSubmit = (data: WeekData & { evaluationFeedbackRaw?: string }) => {
     if (week) {
-      onSave({ ...week, ...data });
+      const { evaluationFeedbackRaw, ...rest } = data;
+      onSave({ ...week, ...rest });
       reset(data); // reset dirty state
       onClose();
     }
@@ -251,16 +267,6 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
               />
             </div>
 
-            <div className="space-y-1.5 mt-3">
-              <Label htmlFor="specificCompetence" className="text-xs font-bold text-foreground">Competencia Específica</Label>
-              <Textarea
-                id="specificCompetence"
-                {...register('specificCompetence')}
-                className="bg-background border-border text-sm min-h-[60px] resize-none text-foreground placeholder:text-muted-foreground"
-                placeholder="Describa la competencia específica..."
-              />
-            </div>
-
             {selectedEvaluationPlan && (
               <div className="mt-2 p-3 bg-muted/30 border border-border rounded-md text-xs space-y-2">
                 <div>
@@ -288,15 +294,13 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
             )}
           </div>
 
-
-
           <div className="space-y-1.5">
-            <Label htmlFor="contenido" className="text-xs font-bold text-foreground">Competencias</Label>
+            <Label htmlFor="contenido" className="text-xs font-bold text-foreground">Contenido</Label>
             
             {availableCompetences.length > 0 && (
               <div className="p-3 bg-muted/20 border border-border rounded-md space-y-2">
                 <span className="text-xs font-bold text-muted-foreground block">
-                  Competencias del Sinóptico (Haz clic o arrastra al cuadro de texto):
+                  Contenidos del Sinóptico (Haz clic o arrastra al cuadro de texto):
                 </span>
                 <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-1">
                   {availableCompetences.map((comp: string, idx: number) => {
@@ -332,6 +336,25 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
           </div>
 
           <div className="space-y-1.5">
+            <Label htmlFor="specificCompetence" className="text-xs font-bold text-foreground">Competencia Específica</Label>
+            <Textarea
+              id="specificCompetence"
+              {...register('specificCompetence')}
+              className="bg-background border-border text-sm min-h-[60px] resize-none text-foreground placeholder:text-muted-foreground"
+              placeholder="Describa la competencia específica..."
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="criteriosDesempeno" className="text-xs font-bold text-foreground">Criterios de Desempeño</Label>
+            <Textarea
+              id="criteriosDesempeno"
+              {...register('criteriosDesempeno')}
+              className="bg-background border-border text-sm min-h-[80px] resize-none text-foreground placeholder:text-muted-foreground"
+              placeholder="Criterios para evaluar la competencia..."
+            />
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="estrategiasDidacticas" className="text-xs font-bold text-foreground">Estrategias Didácticas</Label>
             <Textarea
               id="estrategiasDidacticas"
@@ -352,16 +375,6 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="criteriosDesempeno" className="text-xs font-bold text-foreground">Criterios de Desempeño</Label>
-            <Textarea
-              id="criteriosDesempeno"
-              {...register('criteriosDesempeno')}
-              className="bg-background border-border text-sm min-h-[80px] resize-none text-foreground placeholder:text-muted-foreground"
-              placeholder="Criterios para evaluar la competencia..."
-            />
-          </div>
-
-          <div className="space-y-1.5">
             <Label htmlFor="bibliografia" className="text-xs font-bold text-foreground">Bibliografía</Label>
             <Textarea
               id="bibliografia"
@@ -372,9 +385,39 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
           </div>
 
           <div className="space-y-3 pt-4 border-t border-border">
-            <Label className="text-xs font-bold text-foreground uppercase tracking-wider block">
-              Evaluación de la Semana
-            </Label>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <Label className="text-xs font-bold text-foreground uppercase tracking-wider block">
+                Evaluación de la Semana
+              </Label>
+              <div className="flex gap-4">
+                {['Diagnóstica', 'Formativa', 'Sumativa'].map((type) => {
+                  const { types: activeTypes } = parseEvaluationFeedback(evaluationFeedbackValue);
+                  const isChecked = activeTypes.includes(type);
+                  return (
+                    <label key={type} className="flex items-center gap-1.5 text-xs font-bold cursor-pointer select-none text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          let newTypes = [...activeTypes];
+                          if (isChecked) {
+                            if (!newTypes.includes(type)) newTypes.push(type);
+                          } else {
+                            newTypes = newTypes.filter(t => t !== type);
+                          }
+                          const rawText = getValues('evaluationFeedbackRaw') || '';
+                          const prefix = newTypes.map(t => `[${t}]`).join('');
+                          setValue('evaluationFeedback', prefix + (rawText ? ' ' + rawText : ''), { shouldDirty: true });
+                        }}
+                        className="rounded border-border bg-background text-primary focus:ring-primary h-4 w-4"
+                      />
+                      {type}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
             
             {/* Fixed evaluations assigned to this week */}
             {weekEvaluations.length > 0 && (
@@ -395,12 +438,19 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
 
             {/* Field for placing other evaluations by hand */}
             <div className="space-y-1.5">
-              <Label htmlFor="evaluationFeedback" className="text-[11px] font-bold text-muted-foreground">
+              <Label htmlFor="evaluationFeedbackRaw" className="text-[11px] font-bold text-muted-foreground">
                 Otras Evaluaciones / Retroalimentación (Escrito a mano)
               </Label>
               <Textarea
-                id="evaluationFeedback"
-                {...register('evaluationFeedback')}
+                id="evaluationFeedbackRaw"
+                {...register('evaluationFeedbackRaw', {
+                  onChange: (e) => {
+                    const text = e.target.value;
+                    const { types: activeTypes } = parseEvaluationFeedback(getValues('evaluationFeedback'));
+                    const prefix = activeTypes.map(t => `[${t}]`).join('');
+                    setValue('evaluationFeedback', prefix + (text ? ' ' + text : ''), { shouldDirty: true });
+                  }
+                })}
                 className="bg-background border-border text-sm min-h-[80px] resize-none text-foreground placeholder:text-muted-foreground"
                 placeholder="Describe otras actividades evaluativas o de retroalimentación para esta semana..."
               />
@@ -416,9 +466,10 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
             type="button" 
             variant="outline"
             onClick={() => { if(confirm('¿Eliminar esta semana y todo su contenido?')) onDelete(); }}
-            className="border-red-500/50 text-red-500 hover:bg-red-500/10 px-3"
+            className="border-red-500/50 text-red-500 hover:bg-red-500/10 px-3 gap-1.5 font-bold"
           >
             <X size={16} />
+            Borrar
           </Button>
         )}
         <Button 
