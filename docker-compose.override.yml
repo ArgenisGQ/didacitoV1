@@ -46,12 +46,16 @@ services:
       APP_ENV: local
     volumes:
       - ./sys-ai:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   sys-ai-worker:
     environment:
       APP_ENV: local
     volumes:
       - ./sys-ai:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 networks:
   dokploy-network:

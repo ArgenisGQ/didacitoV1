@@ -29,6 +29,8 @@ export default function AISettings() {
   // States for Provider Modal
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<any>(null)
+  const [testError, setTestError] = useState<string | null>(null)
+  const [selectedProviderType, setSelectedProviderType] = useState<string>('openai-compatible')
   
   // States for Template Modal
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -291,8 +293,12 @@ export default function AISettings() {
       const { data } = await api.post('/ai/admin/test-provider/', body)
       return { ...data, targetKey: body.provider_id ? `${body.provider_id}-${body.test_target || 'all'}` : null }
     },
+    onMutate: () => {
+      setTestError(null)
+    },
     onSuccess: (data, variables) => {
       toast.success(data.message || 'Conexión exitosa')
+      setTestError(null)
       if (data.targetKey) {
         setTestResults(prev => ({ ...prev, [data.targetKey]: 'success' }))
       }
@@ -301,7 +307,9 @@ export default function AISettings() {
       }
     },
     onError: (error: any, variables) => {
-      toast.error(error.response?.data?.error || 'Error al probar conexión')
+      const errMsg = error.response?.data?.error || 'Error al probar conexión'
+      toast.error(errMsg)
+      setTestError(errMsg)
       const body = typeof variables === 'number' ? { provider_id: variables } : variables
       if (body.provider_id) {
         const targetKey = `${body.provider_id}-${body.test_target || 'all'}`
@@ -323,7 +331,9 @@ export default function AISettings() {
 
   const openProviderModal = (p: any = null) => {
     setEditingProvider(p)
+    setSelectedProviderType(p?.provider_type || 'openai-compatible')
     setAvailableModels([])
+    setTestError(null)
     setIsProviderModalOpen(true)
   }
 
@@ -1342,7 +1352,11 @@ export default function AISettings() {
             </div>
             <div>
               <label className="text-sm font-medium">Tipo de Proveedor</label>
-              <Select name="provider_type" defaultValue={editingProvider?.provider_type || 'openai-compatible'}>
+              <Select 
+                name="provider_type" 
+                defaultValue={editingProvider?.provider_type || 'openai-compatible'}
+                onValueChange={(val) => setSelectedProviderType(val)}
+              >
                 <SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="openai">OpenAI (Oficial)</SelectItem>
@@ -1354,9 +1368,46 @@ export default function AISettings() {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium">Base URL (Requerido para LMStudio/Compatible)</label>
-              <Input name="base_url" autoComplete="off" defaultValue={editingProvider?.base_url} placeholder="Ej: http://host.docker.internal:1234/v1" />
-              <p className="text-xs text-muted-foreground mt-1">Si usas LMStudio local y Docker, coloca <b>http://host.docker.internal:1234/v1</b></p>
+              {(() => {
+                const getUrlHelperJSX = (type: string) => {
+                  switch (type) {
+                    case 'google':
+                      return {
+                        placeholder: 'Dejar en blanco (Google API oficial)',
+                        info: <span>No es necesario configurar Base URL para Google Gemini oficial.</span>
+                      }
+                    case 'lmstudio':
+                      return {
+                        placeholder: 'http://host.docker.internal:1234/v1',
+                        info: <span>LM Studio local. Usa <b>http://host.docker.internal:1234/v1</b> si usas Docker en Windows, o <b>http://localhost:1234/v1</b> si ejecutas en local directo sin Docker.</span>
+                      }
+                    case 'openai':
+                      return {
+                        placeholder: 'Dejar en blanco (Usa https://api.openai.com/v1 por defecto)',
+                        info: <span>Opcional. Modifica este valor únicamente si utilizas un proxy o gateway personalizado para OpenAI.</span>
+                      }
+                    case 'anthropic':
+                      return {
+                        placeholder: 'Dejar en blanco (Usa oficial por defecto)',
+                        info: <span>Opcional. Modifica únicamente si usas un proxy o endpoint intermedio para Anthropic.</span>
+                      }
+                    case 'openai-compatible':
+                    default:
+                      return {
+                        placeholder: 'Ej: https://api.deepseek.com/v1 o http://host.docker.internal:11434/v1',
+                        info: <span>Requerido para servicios compatibles (ej. <b>https://api.deepseek.com/v1</b> para DeepSeek, o <b>http://host.docker.internal:11434/v1</b> para Ollama).</span>
+                      }
+                  }
+                }
+                const urlHelper = getUrlHelperJSX(selectedProviderType)
+                return (
+                  <>
+                    <label className="text-sm font-medium">Base URL (Sugerencias según tipo)</label>
+                    <Input name="base_url" autoComplete="off" defaultValue={editingProvider?.base_url} placeholder={urlHelper.placeholder} />
+                    <p className="text-xs text-muted-foreground mt-1">{urlHelper.info}</p>
+                  </>
+                )
+              })()}
             </div>
             <div>
               <label className="text-sm font-medium">API Key</label>
@@ -1388,6 +1439,23 @@ export default function AISettings() {
                 Probar Conexión y Cargar Modelos
               </Button>
             </div>
+
+            {testError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-md text-xs space-y-1.5 animate-in fade-in duration-200">
+                <p className="font-bold flex items-center gap-1">
+                  <AlertTriangle size={14} className="text-red-500" />
+                  Error de Conexión Detectado
+                </p>
+                <p className="font-mono bg-white/70 p-2 rounded border border-red-100 overflow-x-auto whitespace-pre-wrap max-h-24">
+                  {testError}
+                </p>
+                <p className="text-[10px] text-red-600 mt-1 leading-relaxed">
+                  <b>¿Estás usando Docker en Windows?</b><br />
+                  1. Asegúrate de colocar <b>http://host.docker.internal:1234/v1</b> como Base URL en vez de <i>localhost</i>.<br />
+                  2. Asegúrate de que LM Studio tenga habilitado el servidor local y que el modelo de embedding/texto esté cargado.
+                </p>
+              </div>
+            )}
 
             {availableModels.length > 0 && (
               <div className="grid grid-cols-2 gap-4 pt-2 border-t mt-4">

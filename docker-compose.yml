@@ -132,6 +132,7 @@ services:
         condition: service_healthy
     networks:
       - dokploy-network
+      - tailscale-net
 
   sys-ai-worker:
     build:
@@ -152,6 +153,7 @@ services:
         condition: service_healthy
     networks:
       - dokploy-network
+      - tailscale-net
 
 volumes:
   postgres_data:
@@ -159,4 +161,6 @@ volumes:
 
 networks:
   dokploy-network:
+    external: true
+  tailscale-net:
     external: true
