@@ -249,6 +249,15 @@ def admin_templates(request):
     if request.method == "POST":
         try:
             data = json.loads(request.body)
+            provider_id = data.get('provider_id')
+            if not provider_id or provider_id in ('', 'none', 'null', 'undefined'):
+                provider_id = None
+            else:
+                try:
+                    provider_id = int(provider_id)
+                except (ValueError, TypeError):
+                    provider_id = None
+
             t = AgentTemplate.objects.create(
                 name=data.get('name', 'Nuevo Agente'),
                 description=data.get('description', ''),
@@ -256,7 +265,7 @@ def admin_templates(request):
                 is_active=data.get('is_active', True) == 'on' or data.get('is_active') is True,
                 agent_type=data.get('agent_type', 'chat'),
                 enabled_tools=data.get('enabled_tools', []),
-                provider_id=data.get('provider_id')
+                provider_id=provider_id
             )
             return JsonResponse({"id": t.id, "status": "success"})
         except Exception as e:
@@ -470,6 +479,36 @@ def admin_providers_detail(request, provider_id):
         p = AIProvider.objects.get(id=provider_id)
         if request.method == "PUT":
             data = json.loads(request.body)
+            
+            # Warning logic if embedding model changes
+            old_model = p.embedding_model
+            new_model = data.get('embedding_model', p.embedding_model)
+            if old_model != new_model and request.GET.get('confirm') != 'true':
+                from .models import SyllabusChunk, LessonPlanChunk
+                chunks_filter = {"embedding_model": old_model}
+                total_chunks = (
+                    SyllabusChunk.objects.filter(**chunks_filter).count() +
+                    LessonPlanChunk.objects.filter(**chunks_filter).count()
+                )
+                if total_chunks > 0:
+                    syllabi_count = SyllabusChunk.objects.filter(**chunks_filter).values('syllabus_id').distinct().count()
+                    plans_count = LessonPlanChunk.objects.filter(**chunks_filter).values('lesson_plan_id').distinct().count()
+                    return JsonResponse({
+                        "warning": "embedding_model_change",
+                        "message": (
+                            f"Cambiar el modelo de embeddings de '{old_model or 'Ninguno'}' a '{new_model or 'Ninguno'}' "
+                            f"requiere re-indexar {syllabi_count} sinóptico(s) y {plans_count} plan(es) de clase. "
+                            f"Esta operación procesará {total_chunks} chunk(s) en segundo plano usando el texto "
+                            f"contextualizado ya almacenado (sin costo adicional de LLM). "
+                            f"¿Desea continuar?"
+                        ),
+                        "syllabi_affected": syllabi_count,
+                        "plans_affected": plans_count,
+                        "chunks_affected": total_chunks,
+                        "old_model": old_model,
+                        "new_model": new_model,
+                    }, status=409)
+
             p.name = data.get('name', p.name)
             p.provider_type = data.get('provider_type', p.provider_type)
             p.base_url = data.get('base_url', p.base_url)
@@ -510,7 +549,14 @@ def admin_templates_detail(request, template_id):
             t.agent_type = data.get('agent_type', t.agent_type)
             t.enabled_tools = data.get('enabled_tools', t.enabled_tools)
             if 'provider_id' in data:
-                t.provider_id = data.get('provider_id')
+                provider_id = data.get('provider_id')
+                if not provider_id or provider_id in ('', 'none', 'null', 'undefined'):
+                    t.provider_id = None
+                else:
+                    try:
+                        t.provider_id = int(provider_id)
+                    except (ValueError, TypeError):
+                        t.provider_id = None
             t.save()
             return JsonResponse({"id": t.id, "status": "success"})
         elif request.method == "DELETE":
@@ -731,7 +777,7 @@ def chat_rag(request):
         if agent_template and agent_template.enabled_tools:
             # Flujo AGENTIC RAG
             from .tools import get_tools_by_names
-            from langchain.agents import create_tool_calling_agent, AgentExecutor
+            from langchain_classic.agents import create_tool_calling_agent, AgentExecutor
             from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
             
             tools = get_tools_by_names(agent_template.enabled_tools)
@@ -759,34 +805,56 @@ def chat_rag(request):
                 raise llm_error
                 
         else:
-            # Flujo RAG TRADICIONAL FALLBACK (si no hay tools)
-            embeddings_model = get_embeddings_model()
+            # Flujo RAG TRADICIONAL AVANZADO con LangGraph, Hybrid Search y Re-ranking
+            from .rag_graph import rag_graph
             try:
-                query_vector = embeddings_model.embed_query(user_message)
-            except Exception as emb_error:
-                raise emb_error
+                initial_state = {
+                    "messages": chat_history + [HumanMessage(content=user_message)],
+                    "user_query": user_message
+                }
+                graph_result = rag_graph.invoke(
+                    initial_state,
+                    config={"configurable": {"llm": llm, "system_prompt": system_prompt}}
+                )
+                if graph_result.get("error"):
+                    raise ValueError(graph_result["error"])
+                last_msg = graph_result["messages"][-1]
+                reply_text = last_msg.content
+            except Exception as graph_error:
+                raise graph_error
 
-            syllabus_chunks = list(SyllabusChunk.objects.select_related('syllabus__subject').annotate(distance=L2Distance('embedding', query_vector)).order_by('distance')[:5])
-            plan_chunks = list(LessonPlanChunk.objects.select_related('lesson_plan').annotate(distance=L2Distance('embedding', query_vector)).order_by('distance')[:5])
-            combined_chunks = sorted(syllabus_chunks + plan_chunks, key=lambda x: getattr(x, 'distance', 999))[:5]
-
-            context_texts = []
-            for c in combined_chunks:
-                if isinstance(c, SyllabusChunk):
-                    context_texts.append(f"[FUENTE: Sinóptico | Asignatura: {c.syllabus.subject.code}]\n{c.content}")
+        # Convertir respuesta a string y dar formato al razonamiento ("thought" / "thinking")
+        if isinstance(reply_text, list):
+            text_parts = []
+            thought_parts = []
+            for part in reply_text:
+                if isinstance(part, dict):
+                    part_type = part.get("type")
+                    part_text = part.get("text", "")
+                    if part_type == "thought" or part_type == "reasoning":
+                        thought_parts.append(part_text)
+                    else:
+                        text_parts.append(part_text)
+                elif isinstance(part, str):
+                    text_parts.append(part)
+            
+            final_text = "".join(text_parts)
+            if thought_parts:
+                thought_text = "".join(thought_parts).strip()
+                if thought_text:
+                    reply_text = (
+                        f"<details class=\"mb-4 bg-muted/40 border p-3 rounded-lg\">\n"
+                        f"  <summary class=\"cursor-pointer text-xs font-bold text-muted-foreground select-none\">💡 Ver razonamiento del agente...</summary>\n"
+                        f"  <div class=\"text-xs text-muted-foreground mt-2 whitespace-pre-wrap font-sans\">{thought_text}</div>\n"
+                        f"</details>\n\n"
+                        f"{final_text}"
+                    )
                 else:
-                    context_texts.append(f"[FUENTE: Plan Aprobado | Título: {c.lesson_plan.title}]\n{c.content}")
-            
-            context_str = "\n\n---\n\n".join(context_texts)
-            full_prompt = f"{system_prompt}\n\nCONTEXTO DE BÚSQUEDA:\n{context_str}"
-            
-            messages = [SystemMessage(content=full_prompt)] + chat_history + [HumanMessage(content=user_message)]
-            
-            try:
-                response = llm.invoke(messages)
-                reply_text = response.content
-            except Exception as llm_error:
-                raise llm_error
+                    reply_text = final_text
+            else:
+                reply_text = final_text
+        elif not isinstance(reply_text, str):
+            reply_text = str(reply_text)
 
         # Guardar respuesta de la IA en la DB
         ChatMessage.objects.create(session=session, sender='assistant', content=reply_text)

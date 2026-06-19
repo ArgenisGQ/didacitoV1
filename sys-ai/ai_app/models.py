@@ -1,12 +1,14 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from pgvector.django import VectorField
+from django.contrib.postgres.search import SearchVectorField
 
 
 class CoreUser(models.Model):
     email = models.EmailField(max_length=255, unique=True)
     full_name = models.CharField(max_length=255)
     role = models.CharField(max_length=50)
+    id_user = models.CharField(max_length=50, unique=True, blank=True, null=True)
 
     class Meta:
         managed = False
@@ -22,6 +24,17 @@ class CoreAcademicPeriod(models.Model):
     class Meta:
         managed = False
         db_table = "plan_app_academicperiod"
+
+class CoreUserAcademicPeriod(models.Model):
+    user = models.ForeignKey(CoreUser, on_delete=models.DO_NOTHING, related_name="academic_period_assignments")
+    academic_period = models.ForeignKey(CoreAcademicPeriod, on_delete=models.DO_NOTHING, related_name="user_assignments")
+    subject_code = models.TextField(blank=True, null=True)
+    section = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        managed = False
+        db_table = "plan_app_user_academic_period"
 
 class CoreSubject(models.Model):
     code = models.CharField(max_length=50, unique=True)
@@ -236,6 +249,18 @@ class SyllabusChunk(models.Model):
     syllabus = models.ForeignKey(CoreSyllabusVersion, on_delete=models.CASCADE, related_name="chunks")
     chunk_index = models.IntegerField()
     content = models.TextField()
+    contextualized_content = models.TextField(
+        null=True, blank=True,
+        help_text="Texto contextualizado por LLM (contexto + chunk original). Persiste para re-indexación sin costo de LLM."
+    )
+    embedding_model = models.CharField(
+        max_length=200, null=True, blank=True,
+        help_text="Identificador del modelo de embeddings usado (ej. 'text-embedding-3-small')."
+    )
+    search_vector = SearchVectorField(
+        null=True, blank=True,
+        help_text="Vector BM25 para búsqueda de texto completo en PostgreSQL."
+    )
     # No limitamos la dimensión para que pueda soportar modelos de OpenAI (1536) o locales de LM Studio (ej. 1024 o 768).
     embedding = VectorField(help_text="Vector de embeddings del fragmento")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -251,6 +276,18 @@ class LessonPlanChunk(models.Model):
     lesson_plan = models.ForeignKey(CoreLessonPlan, on_delete=models.CASCADE, related_name="chunks")
     chunk_index = models.IntegerField()
     content = models.TextField()
+    contextualized_content = models.TextField(
+        null=True, blank=True,
+        help_text="Texto contextualizado por LLM (contexto + chunk original). Persiste para re-indexación sin costo de LLM."
+    )
+    embedding_model = models.CharField(
+        max_length=200, null=True, blank=True,
+        help_text="Identificador del modelo de embeddings usado (ej. 'text-embedding-3-small')."
+    )
+    search_vector = SearchVectorField(
+        null=True, blank=True,
+        help_text="Vector BM25 para búsqueda de texto completo en PostgreSQL."
+    )
     # No limitamos la dimensión para que pueda soportar modelos de OpenAI (1536) o locales de LM Studio (ej. 1024 o 768).
     embedding = VectorField(help_text="Vector de embeddings del fragmento del plan")
     created_at = models.DateTimeField(auto_now_add=True)

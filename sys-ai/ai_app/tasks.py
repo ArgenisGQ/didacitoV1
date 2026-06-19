@@ -66,37 +66,15 @@ def get_embeddings_model(provider_id: int = None):
             max_retries=0
         )
 
-    # Wrap model to dynamically adjust output vectors to exactly 1536 dimensions
-    class DimensionAdjustedEmbeddings:
-        def __init__(self, base_embeddings, target_dim=1536):
-            self.base_embeddings = base_embeddings
-            self.target_dim = target_dim
-
-        def _adjust(self, vector: list[float]) -> list[float]:
-            if not vector:
-                return [0.0] * self.target_dim
-            if len(vector) < self.target_dim:
-                return vector + [0.0] * (self.target_dim - len(vector))
-            elif len(vector) > self.target_dim:
-                return vector[:self.target_dim]
-            return vector
-
-        def embed_documents(self, texts: list[str]) -> list[list[float]]:
-            vectors = self.base_embeddings.embed_documents(texts)
-            return [self._adjust(v) for v in vectors]
-
-        def embed_query(self, text: str) -> list[float]:
-            vector = self.base_embeddings.embed_query(text)
-            return self._adjust(vector)
-
-    return DimensionAdjustedEmbeddings(emb_model)
+    return emb_model
 
 def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
     """
     Tarea de Django-Q2. Lee un SyllabusVersion, hace el chunking, 
     obtiene los embeddings y los guarda en SyllabusChunk con pgvector.
     """
-    from .models import AILog
+    from .models import AILog, SyllabusChunk
+    from django.contrib.postgres.search import SearchVector
     
     logger.info(f"Iniciando ingesta del syllabus ID: {syllabus_id}")
     log_entry = AILog.objects.create(
@@ -114,13 +92,16 @@ def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
             log_entry.save()
             return
 
-        # 1. Limpiar chunks anteriores si se está re-procesando
+        # 1. Obtener chunks existentes para reutilizar contextualización (resiliencia)
+        existing_chunks = {c.chunk_index: c for c in SyllabusChunk.objects.filter(syllabus_id=syllabus_id)}
+
+        # Limpiar chunks anteriores de la base de datos para evitar duplicados
         SyllabusChunk.objects.filter(syllabus_id=syllabus_id).delete()
         
-        # 2. Configurar el splitter
+        # 2. Configurar el splitter con tamaño 800 y overlap 80
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
+            chunk_size=800,
+            chunk_overlap=80,
             separators=["\n\n", "\n", ".", " ", ""]
         )
         
@@ -146,6 +127,8 @@ def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
         else:
             provider = AIProvider.objects.filter(is_active=True).first()
 
+        current_embedding_model = provider.embedding_model if provider else "unknown"
+
         # Estimate embedding tokens
         prompt_tokens = sum(len(t) for t in texts) // 4
         log_entry.prompt_tokens = prompt_tokens
@@ -162,17 +145,62 @@ def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
         for i in range(0, total_chunks, batch_size):
             batch_texts = texts[i:i+batch_size]
             
-            # Obtener embeddings para el lote actual
-            vectors = embeddings_model.embed_documents(batch_texts)
+            # Preparar textos contextualizados
+            batch_contextualized = []
+            for j, text in enumerate(batch_texts):
+                chunk_index = i + j
+                existing_chunk = existing_chunks.get(chunk_index)
+                
+                contextualized_text = None
+                if existing_chunk and existing_chunk.contextualized_content:
+                    if text in existing_chunk.contextualized_content:
+                        contextualized_text = existing_chunk.contextualized_content
+                
+                if not contextualized_text:
+                    if provider:
+                        try:
+                            llm = get_llm_model(provider)
+                            prompt = f"""Tendrás acceso al documento completo de un programa sinóptico universitario y a uno de sus fragmentos.
+Tu tarea es escribir una descripción corta (máximo 2-3 oraciones) que explique qué parte del programa
+sinóptico representa este fragmento y qué información pedagógica clave aporta.
+
+<documento>
+{syllabus.extracted_text}
+</documento>
+
+<fragmento>
+{text}
+</fragmento>
+
+Responde SOLO con la descripción contextual. No incluyas saludos ni explicaciones adicionales."""
+                            from langchain_core.messages import HumanMessage, SystemMessage
+                            response = llm.invoke([
+                                SystemMessage(content="Eres un asistente experto en educación universitaria."),
+                                HumanMessage(content=prompt)
+                            ])
+                            context = response.content.strip()
+                            contextualized_text = f"{context}\n\n{text}"
+                        except Exception as e:
+                            logger.error(f"Error generando contexto para chunk {chunk_index}: {e}")
+                            contextualized_text = text
+                    else:
+                        contextualized_text = text
+                
+                batch_contextualized.append(contextualized_text)
+            
+            # Obtener embeddings para el lote actual usando textos contextualizados
+            vectors = embeddings_model.embed_documents(batch_contextualized)
             
             # Guardar el lote en la DB
             chunks_to_create = []
-            for j, (text, vector) in enumerate(zip(batch_texts, vectors)):
+            for j, (raw_text, contextualized_text, vector) in enumerate(zip(batch_texts, batch_contextualized, vectors)):
                 chunks_to_create.append(
                     SyllabusChunk(
                         syllabus_id=syllabus.id,
                         chunk_index=i + j,
-                        content=text,
+                        content=contextualized_text,
+                        contextualized_content=contextualized_text,
+                        embedding_model=current_embedding_model,
                         embedding=vector
                     )
                 )
@@ -184,6 +212,11 @@ def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
             log_entry.details = f"Vectorizando... {chunks_created} de {total_chunks} fragmentos procesados."
             log_entry.save()
             
+        # Actualizar search_vector para BM25 en lote de manera eficiente
+        SyllabusChunk.objects.filter(syllabus_id=syllabus.id).update(
+            search_vector=SearchVector('content', config='spanish')
+        )
+        
         logger.info(f"Ingesta exitosa. Syllabus {syllabus_id}: {chunks_created} chunks creados.")
         
         log_entry.status = "success"
@@ -207,6 +240,7 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
     Extrae, fragmenta y vectoriza el contenido de un CoreLessonPlan.
     """
     from .models import CoreLessonPlan, LessonPlanChunk, AILog
+    from django.contrib.postgres.search import SearchVector
     
     log_entry = AILog.objects.create(
         action=f"Vectorización de Plan de Clase #{plan_id}",
@@ -223,7 +257,10 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
             log_entry.save()
             return
             
-        # 1. Borrar chunks anteriores si existían
+        # 1. Obtener chunks existentes para reutilizar contextualización (resiliencia)
+        existing_chunks = {c.chunk_index: c for c in LessonPlanChunk.objects.filter(lesson_plan=plan)}
+
+        # Borrar chunks anteriores
         LessonPlanChunk.objects.filter(lesson_plan=plan).delete()
         
         # 2. Extraer y concatenar texto del plan
@@ -253,11 +290,11 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
             log_entry.save()
             return
             
-        # 3. Fragmentación
+        # 3. Fragmentación con tamaño 800 y overlap 80
         from langchain_text_splitters import RecursiveCharacterTextSplitter
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
+            chunk_size=800,
+            chunk_overlap=80,
             length_function=len,
         )
         
@@ -274,6 +311,8 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
                 provider = AIProvider.objects.filter(is_active=True).first()
         else:
             provider = AIProvider.objects.filter(is_active=True).first()
+
+        current_embedding_model = provider.embedding_model if provider else "unknown"
 
         # Estimate embedding tokens
         prompt_tokens = sum(len(t) for t in texts) // 4
@@ -292,8 +331,50 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i:i+batch_size]
             
-            # Generar embeddings para el batch
-            batch_embeddings = embeddings_model.embed_documents(batch_texts)
+            # Preparar textos contextualizados
+            batch_contextualized = []
+            for j, text in enumerate(batch_texts):
+                chunk_index = i + j
+                existing_chunk = existing_chunks.get(chunk_index)
+                
+                contextualized_text = None
+                if existing_chunk and existing_chunk.contextualized_content:
+                    if text in existing_chunk.contextualized_content:
+                        contextualized_text = existing_chunk.contextualized_content
+                        
+                if not contextualized_text:
+                    if provider:
+                        try:
+                            llm = get_llm_model(provider)
+                            prompt = f"""Tendrás acceso al contenido completo de un plan de clase universitario y a uno de sus fragmentos.
+Tu tarea es escribir una descripción corta (máximo 2-3 oraciones) que explique qué semana,
+unidad o sección del plan de clase representa este fragmento.
+
+<documento>
+{full_text}
+</documento>
+
+<fragmento>
+{text}
+</fragmento>
+
+Responde SOLO con la descripción contextual. No incluyas saludos ni explicaciones adicionales."""
+                            from langchain_core.messages import HumanMessage, SystemMessage
+                            response = llm.invoke([
+                                SystemMessage(content="Eres un asistente experto en educación universitaria."),
+                                HumanMessage(content=prompt)
+                            ])
+                            context = response.content.strip()
+                            contextualized_text = f"{context}\n\n{text}"
+                        except Exception as e:
+                            logger.error(f"Error generando contexto para chunk {chunk_index}: {e}")
+                            contextualized_text = text
+                    else:
+                        contextualized_text = text
+                batch_contextualized.append(contextualized_text)
+            
+            # Generar embeddings para el batch usando los textos contextualizados
+            batch_embeddings = embeddings_model.embed_documents(batch_contextualized)
             
             # Guardar en DB
             chunks_to_create = []
@@ -303,7 +384,9 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
                     LessonPlanChunk(
                         lesson_plan=plan,
                         chunk_index=chunk_index,
-                        content=batch_texts[j],
+                        content=batch_contextualized[j],
+                        contextualized_content=batch_contextualized[j],
+                        embedding_model=current_embedding_model,
                         embedding=emb
                     )
                 )
@@ -315,6 +398,11 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
             log_entry.details = f"Vectorizando... {chunks_created} de {total_chunks} fragmentos procesados."
             log_entry.save()
             
+        # Actualizar search_vector para BM25 en lote de manera eficiente
+        LessonPlanChunk.objects.filter(lesson_plan=plan).update(
+            search_vector=SearchVector('content', config='spanish')
+        )
+        
         logger.info(f"Ingesta exitosa. Plan {plan_id}: {chunks_created} chunks creados.")
         
         log_entry.status = "success"
@@ -334,19 +422,25 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
         raise
 
 def get_llm_model(provider: AIProvider):
-    from langchain_openai import ChatOpenAI
-    
     model_name = provider.llm_model or "gpt-4o"
-    base_url = provider.base_url if provider.base_url else None
     
     if provider.provider_type == "google":
-        base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+        from langchain_google_genai import ChatGoogleGenerativeAI
         if not provider.llm_model:
             model_name = "gemini-2.5-flash"
-        elif "models/" in model_name:
-            model_name = model_name.replace("models/", "")
+        else:
+            model_name = provider.llm_model
+        return ChatGoogleGenerativeAI(
+            google_api_key=provider.api_key,
+            model=model_name,
+            temperature=0.2,
+            max_retries=0,
+            timeout=280
+        )
             
-    elif provider.provider_type == "lmstudio" and not provider.llm_model:
+    from langchain_openai import ChatOpenAI
+    base_url = provider.base_url if provider.base_url else None
+    if provider.provider_type == "lmstudio" and not provider.llm_model:
         model_name = "local-model"
     elif not provider.llm_model and ("deepseek" in provider.provider_type.lower() or "deepseek" in provider.name.lower()):
         model_name = "deepseek-chat"

@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Bot, User, Loader2, Sparkles, MessageSquare, Trash2, Plus } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, MessageSquare, Trash2, Plus, Pause, Play, Square } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import axios from 'axios';
 import api from '../lib/api-client';
 import { toast } from 'sonner';
 import { getDecodedToken } from '../lib/permissions';
@@ -18,9 +19,11 @@ export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string>('none');
   const [activeSessionId, setActiveSessionId] = useState<string | number>('new');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const decodedToken = getDecodedToken();
   const isAdmin = decodedToken?.role === 'SUPER_ADMIN';
@@ -90,6 +93,20 @@ export default function AIChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -98,12 +115,18 @@ export default function AIChat() {
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
+    setIsPaused(false);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const response = await api.post('/ai/admin/chat-rag/', {
         message: userMessage,
         session_id: activeSessionId,
         agent_id: (selectedAgent && selectedAgent !== 'none') ? parseInt(selectedAgent) : null
+      }, {
+        signal: controller.signal
       });
       
       if (response.data.status === 'success') {
@@ -118,10 +141,18 @@ export default function AIChat() {
         setMessages(prev => [...prev, { role: 'assistant', content: "Hubo un error: " + (response.data.error || "Desconocido") }]);
       }
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || "Error de conexión";
-      setMessages(prev => [...prev, { role: 'assistant', content: `Lo siento, ocurrió un error: ${errorMsg}` }]);
+      if (err.name === 'CanceledError' || err.name === 'AbortError' || axios.isCancel(err)) {
+        setMessages(prev => [...prev, { role: 'assistant', content: "🛑 Consulta detenida por el usuario." }]);
+      } else {
+        const errorMsg = err.response?.data?.error || err.message || "Error de conexión";
+        setMessages(prev => [...prev, { role: 'assistant', content: `Lo siento, ocurrió un error: ${errorMsg}` }]);
+      }
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
       setIsLoading(false);
+      setIsPaused(false);
     }
   };
 
@@ -301,13 +332,54 @@ export default function AIChat() {
             ))}
             
             {isLoading && (
-              <div className="flex gap-4 flex-row">
+              <div className="flex gap-4 flex-row animate-in fade-in-0 duration-300">
                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center shadow-md">
                   <Bot size={20} />
                 </div>
-                <div className="bg-muted/60 text-foreground border border-border/50 rounded-2xl rounded-tl-sm p-4 shadow-sm flex items-center gap-2">
-                  <Loader2 className="animate-spin text-primary" size={18} />
-                  <span className="text-sm font-medium animate-pulse">Procesando consulta...</span>
+                <div className="bg-muted/60 text-foreground border border-border/50 rounded-2xl rounded-tl-sm p-4 shadow-sm flex flex-col gap-3 min-w-[280px]">
+                  <div className="flex items-center gap-2">
+                    {isPaused ? (
+                      <Pause className="text-amber-500 animate-pulse" size={18} />
+                    ) : (
+                      <Loader2 className="animate-spin text-primary" size={18} />
+                    )}
+                    <span className="text-sm font-medium">
+                      {isPaused ? 'Procesando consulta (Pausado)...' : 'Procesando consulta...'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 border-t pt-2 border-border/40">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setIsPaused(!isPaused)}
+                      className="text-xs h-7 px-2.5 gap-1.5 hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-foreground transition-all"
+                    >
+                      {isPaused ? (
+                        <>
+                          <Play size={13} className="text-emerald-500 fill-emerald-500" />
+                          Reanudar
+                        </>
+                      ) : (
+                        <>
+                          <Pause size={13} className="text-amber-500 fill-amber-500" />
+                          Pausar
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleStop}
+                      className="text-xs h-7 px-2.5 gap-1.5 hover:bg-destructive/10 hover:text-destructive rounded-lg text-muted-foreground transition-all"
+                    >
+                      <Square size={13} className="fill-destructive/20" />
+                      Detener
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}

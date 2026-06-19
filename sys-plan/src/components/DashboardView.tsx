@@ -237,16 +237,66 @@ export function DashboardView({
                     />
                   ))}
 
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={true} minTickGap={30} />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="hsl(var(--muted-foreground))" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={true} 
+                    minTickGap={45} 
+                    tickFormatter={(value) => {
+                      const item = data.find((d: any) => d.name === value);
+                      return item && item.date ? `${value} (${item.date})` : value;
+                    }}
+                  />
                   <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={true} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--card-foreground))', borderRadius: '8px' }}
-                    itemStyle={{ color: 'hsl(var(--foreground))' }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const item = payload[0].payload;
+                        return (
+                          <div className="bg-card/95 border border-border p-3.5 rounded-xl shadow-xl backdrop-blur-md transition-all duration-200 animate-in fade-in zoom-in-95 duration-100">
+                            <div className="mb-2">
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{item.full_date || item.date || 'Fecha'}</p>
+                              <p className="text-sm font-black text-foreground">{label}</p>
+                            </div>
+                            <div className="space-y-1.5 border-t border-border/60 pt-2">
+                              {payload.map((p: any, idx: number) => (
+                                <div key={idx} className="flex items-center justify-between gap-6">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.stroke || p.color }} />
+                                    <span className="text-xs font-semibold text-muted-foreground">{p.name}</span>
+                                  </div>
+                                  <span className="text-xs font-bold text-foreground">{p.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
                   <Legend verticalAlign="top" height={36}/>
                   
-                  <Line name="Conexiones" type="monotone" dataKey="connections" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} activeDot={{ r: 6 }} />
-                  <Line name="Planes Creados" type="monotone" dataKey="plans" stroke="hsl(var(--accent))" strokeWidth={2} dot={false} activeDot={{ r: 6 }} />
+                  <Line 
+                    name="Conexiones" 
+                    type="monotone" 
+                    dataKey="connections" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={2.5} 
+                    dot={false} 
+                    activeDot={{ r: 6, strokeWidth: 0 }} 
+                  />
+                  <Line 
+                    name="Planes Creados" 
+                    type="monotone" 
+                    dataKey="plans" 
+                    stroke="hsl(var(--accent))" 
+                    strokeWidth={2.5} 
+                    dot={false} 
+                    activeDot={{ r: 6, strokeWidth: 0 }} 
+                  />
                   
                   {/* Brush para hacer zoom, ensanchar/estrechar y navegar */}
                   <Brush 

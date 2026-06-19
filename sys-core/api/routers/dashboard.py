@@ -125,6 +125,8 @@ async def fetch_global_analytics(db: AsyncSession) -> dict:
             
             active_users_series.append({
                 "name": f"S{w}-{days_es[d]}",
+                "date": day_dt.strftime("%d/%m"),
+                "full_date": day_dt.strftime("%d/%m/%Y"),
                 "connections": 0 if is_future else connections_by_day[day_dt.date()],
                 "plans": 0 if is_future else plans_by_day[day_dt.date()],
                 "weekIndex": w,

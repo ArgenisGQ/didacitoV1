@@ -31,6 +31,7 @@ export default function AISettings() {
   const [editingProvider, setEditingProvider] = useState<any>(null)
   const [testError, setTestError] = useState<string | null>(null)
   const [selectedProviderType, setSelectedProviderType] = useState<string>('openai-compatible')
+  const [changeApiKey, setChangeApiKey] = useState(false)
   
   // States for Template Modal
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -334,6 +335,7 @@ export default function AISettings() {
     setSelectedProviderType(p?.provider_type || 'openai-compatible')
     setAvailableModels([])
     setTestError(null)
+    setChangeApiKey(false)
     setIsProviderModalOpen(true)
   }
 
@@ -1409,14 +1411,31 @@ export default function AISettings() {
                 )
               })()}
             </div>
-            <div>
-              <label className="text-sm font-medium">API Key</label>
-              <div className="relative">
-                <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                <Input name="api_key" type="password" autoComplete="new-password" className="pl-10" placeholder={editingProvider ? '*** Dejar en blanco para no cambiar ***' : 'sk-...'} required={!editingProvider} />
+            {editingProvider && (
+              <div className="flex items-center gap-2 mb-2">
+                <input 
+                  type="checkbox" 
+                  id="change_api_key_check" 
+                  checked={changeApiKey} 
+                  onChange={(e) => setChangeApiKey(e.target.checked)} 
+                  className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                />
+                <label htmlFor="change_api_key_check" className="text-sm font-semibold cursor-pointer select-none">
+                  Modificar la API Key actual
+                </label>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">La llave se almacenará cifrada en la base de datos.</p>
-            </div>
+            )}
+
+            {(!editingProvider || changeApiKey) && (
+              <div>
+                <label className="text-sm font-medium">API Key</label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                  <Input name="api_key" type="password" autoComplete="new-password" className="pl-10" placeholder="sk-..." required={!editingProvider} />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">La llave se almacenará cifrada en la base de datos.</p>
+              </div>
+            )}
 
             <div>
               <label className="text-sm font-medium">Límite de Contexto (caracteres)</label>
@@ -1573,6 +1592,42 @@ export default function AISettings() {
                 <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
                   <input type="checkbox" name="enabled_tools" value="busqueda_semantica_planes" defaultChecked={editingTemplate?.enabled_tools?.includes('busqueda_semantica_planes')} />
                   Búsqueda Semántica en Planes
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="buscar_asignaturas_por_area" defaultChecked={editingTemplate?.enabled_tools?.includes('buscar_asignaturas_por_area')} />
+                  Buscar Asignaturas por Área (Ej. Matemáticas)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="buscar_planes_por_tema_evaluacion" defaultChecked={editingTemplate?.enabled_tools?.includes('buscar_planes_por_tema_evaluacion')} />
+                  Buscar Evaluaciones por Palabra Clave/Tema (Ej. IA)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="busqueda_semantica_planes_filtrada" defaultChecked={editingTemplate?.enabled_tools?.includes('busqueda_semantica_planes_filtrada')} />
+                  Búsqueda Semántica en Planes Filtrada por Materia
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="buscar_recursos_y_bibliografia" defaultChecked={editingTemplate?.enabled_tools?.includes('buscar_recursos_y_bibliografia')} />
+                  Buscar Recursos y Bibliografía
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="buscar_asignatura_por_codigo" defaultChecked={editingTemplate?.enabled_tools?.includes('buscar_asignatura_por_codigo')} />
+                  Buscar Asignatura por Código
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="buscar_asignatura_por_nombre" defaultChecked={editingTemplate?.enabled_tools?.includes('buscar_asignatura_por_nombre')} />
+                  Buscar Asignatura por Nombre
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="buscar_asignatura_multicampo" defaultChecked={editingTemplate?.enabled_tools?.includes('buscar_asignatura_multicampo')} />
+                  Buscar Asignatura por Múltiples Campos (Multicampo)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="buscar_usuario_multicampo" defaultChecked={editingTemplate?.enabled_tools?.includes('buscar_usuario_multicampo')} />
+                  Buscar Usuario por Múltiples Campos (Multicampo)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input type="checkbox" name="enabled_tools" value="buscar_plan_multicampo" defaultChecked={editingTemplate?.enabled_tools?.includes('buscar_plan_multicampo')} />
+                  Buscar Plan por Múltiples Campos (Multicampo)
                 </label>
               </div>
               <p className="text-xs text-muted-foreground mt-1">Selecciona qué acciones puede ejecutar la IA.</p>
