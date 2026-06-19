@@ -1145,6 +1145,8 @@ def ai_metrics_summary(request):
             
             tokens_series.append({
                 "name": f"S{w}-{days_es[d]}",
+                "date": day_dt.strftime("%d/%m"),
+                "full_date": day_dt.strftime("%d/%m/%Y"),
                 "prompt_tokens": prompt_val,
                 "completion_tokens": comp_val,
                 "total_tokens": prompt_val + comp_val,
@@ -1167,6 +1169,8 @@ def ai_metrics_summary(request):
                 
                 prov_series.append({
                     "name": f"S{w}-{days_es[d]}",
+                    "date": day_dt.strftime("%d/%m"),
+                    "full_date": day_dt.strftime("%d/%m/%Y"),
                     "prompt_tokens": prompt_val,
                     "completion_tokens": comp_val,
                     "total_tokens": prompt_val + comp_val,
@@ -1190,6 +1194,8 @@ def ai_metrics_summary(request):
                 
                 mod_series.append({
                     "name": f"S{w}-{days_es[d]}",
+                    "date": day_dt.strftime("%d/%m"),
+                    "full_date": day_dt.strftime("%d/%m/%Y"),
                     "prompt_tokens": prompt_val,
                     "completion_tokens": comp_val,
                     "total_tokens": prompt_val + comp_val,

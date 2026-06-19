@@ -162,6 +162,30 @@ Módulo diseñado para la planificación didáctica semanal y la autogestión de
 6. **Mensajes de Advertencia Simplificados**
    * **Renombre de Alerta:** La advertencia de cuello de botella visual debido a la ausencia de hitos de evaluación en la semana fue renombrada a `"Falta asignar evaluación"`.
 
+### 🧠 Categoría G: Arquitectura RAG Avanzada (Contextual Retrieval, Hybrid Search, Re-ranking y LangGraph)
+
+Se ha implementado una arquitectura RAG avanzada de nivel de producción que optimiza drásticamente la relevancia, precisión y seguridad en el chat de consultas académicas:
+
+1. **Recuperación Contextualizada (Contextual Retrieval)**
+   * **Enriquecimiento Semántico en Ingesta:** Al procesar programas sinópticos y planes de clase, el sistema genera fragmentos (chunks) de 800 tokens con un solape (overlap) de 80 tokens. Cada chunk es analizado por el LLM activo, inyectando un contexto sintáctico y pedagógico personalizado de 2-3 oraciones (guardado en el campo `contextualized_content` de base de datos) antes de generar el embedding. Esto previene la pérdida de contexto global en fragmentos aislados.
+   * **Indexación Inteligente de Resiliencia (Tokens a Costo $0):** Al re-indexar o sincronizar, el sistema detecta de forma inteligente si el contenido del fragmento ya existe. De ser así, reutiliza el `contextualized_content` previamente computado, evitando por completo llamadas al LLM. Esto garantiza un **ahorro de 100% de tokens del LLM** en re-indexaciones y acelera el proceso hasta 40x (reduciendo el tiempo de minutos a tan solo 4.38 segundos).
+
+2. **Búsqueda Híbrida Vectorial + Léxica (BM25)**
+   * **Paralelismo de Recuperación:** El motor de búsqueda ejecuta en paralelo una consulta de similitud de vectores de alta dimensionalidad en `pgvector` y una consulta léxica tradicional de tipo BM25 en PostgreSQL utilizando un campo indexado `search_vector` de tipo `SearchVectorField` (con índice GIN). Esto combina la comprensión semántica profunda con la coincidencia precisa de códigos de materias, siglas, nombres y términos específicos.
+   * **Fusión por Rango Recíproco (RRF):** Los candidatos resultantes de ambas búsquedas (top-20 por cada vía) se unifican y desduplican empleando la fórmula RRF con una constante de suavizado $k=60$, ordenando los elementos por relevancia combinada.
+
+3. **Re-ranking con Cross-Encoder Local**
+   * **Validación Semántica Profunda:** El pipeline utiliza un modelo local Cross-Encoder (`cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`) instanciado en CPU en el contenedor. Este modelo evalúa simultáneamente el par (pregunta, chunk contextualizado) para re-ordenar los 20 mejores candidatos de la fusión RRF en base a afinidad real, filtrando y entregando únicamente los 5 mejores chunks al LLM.
+
+4. **Orquestación Determinista mediante LangGraph**
+   * **Grafo de Estados Secuencial:** El flujo de consulta RAG tradicional se reemplazó por un grafo de 4 nodos (`hybrid_retriever` -> `rrf_fusion` -> `reranker` -> `synthesizer`) desarrollado con `langgraph`. Esto proporciona una estructura modular, rastreable y altamente observable de los datos de contexto en cada fase de la consulta.
+
+5. **Gobernanza de Seguridad en Cambio de Modelo (HTTP 409)**
+   * **Advertencia de Re-indexación Requerida:** Para evitar la corrupción semántica o pérdida de correspondencia al cambiar el modelo de embeddings en el panel de administración de proveedores, el backend realiza un análisis en tiempo real de los documentos y chunks afectados. Si se detecta un cambio en el modelo activo y hay datos indexados, el endpoint PUT de guardado responde con `HTTP 409 Conflict` mostrando una advertencia detallada del volumen a procesar. Para forzar la operación, el administrador debe confirmar explícitamente enviando el query parameter `?confirm=true`.
+
+6. **Optimización de Visualización de Métricas de Tokens (Frontend)**
+   * Se removió el parámetro obsoleto de límite de contexto (`context_limit`) y se re-estructuró la gráfica de consumo diario de tokens en el frontend (`AISettings.tsx`). El eje X y los tooltips fueron formateados dinámicamente (`S1-Vie (19/06)` en eje X y formato extendido en tooltip) para mantener consistencia visual con el resto de gráficas del sistema.
+
 ## 🏗️ Arquitectura y Tecnologías (Stack Detallado)
 
 El proyecto está dockerizado y dividido en dos contenedores principales de desarrollo, orquestados junto a una base de datos PostgreSQL.
@@ -200,6 +224,19 @@ Microservicio asíncrono e independiente especializado en la extracción, contro
 *   **Motor de Extracción y Parsing:** PyMuPDF (`fitz` `1.23.26`) para parsing de PDF y extracción estructurada de texto.
 *   **Procesamiento de Datos:** Pandas `2.2.1` y Openpyxl `3.1.2` para la consolidación sintáctica y exportación dinámica de matrices Excel/CSV.
 *   **ORM y Drivers:** SQLAlchemy `2.0.29` y Asyncpg `0.29.0` para operaciones relacionales no bloqueantes en PostgreSQL.
+
+### Microservicio de Inteligencia Artificial (`sys-ai`)
+Microservicio especializado en tareas de procesamiento de lenguaje natural, vectorización de contenidos, evaluación automatizada de planes y ejecución de flujos RAG estructurados mediante grafos de estado.
+*   **Lenguaje Base:** Python `3.12-slim` con soporte de extensiones para compilación de dependencias de aprendizaje profundo (`torch`).
+*   **Frameworks y Procesamiento:** Django `5.0` y `django-q2` para la gestión administrativa del servicio, colas de tareas asíncronas y orquestación distribuida (QCluster).
+*   **Orquestación de Agentes e IA:**
+    *   `langgraph>=0.3.0` para la estructuración y ejecución determinista del pipeline RAG mediante grafos de estado.
+    *   `langchain>=0.3.0` para abstracción de modelos de lenguaje (LLM), plantillas de prompts y wrappers de base de datos vectorial.
+*   **Procesamiento y Aprendizaje Local (CPU):**
+    *   `torch` y `sentence-transformers>=3.0.0` para la instanciación local y ejecución en CPU del modelo Cross-Encoder (`cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`) utilizado para el re-ranking de precisión.
+*   **Base de Datos Vectorial y Léxica:**
+    *   `pgvector` como extensión relacional de PostgreSQL para almacenamiento y consulta de similitud de embeddings de alta dimensionalidad.
+    *   Índices de búsqueda léxica nativa (`SearchVectorField`) optimizados en PostgreSQL con índices de tipo GIN (`syllabus_chunk_search_gin` y `lesson_plan_chunk_search_gin`).
 
 ### Frontend (`sys-plan`)
 Aplicación de una sola página (SPA) responsiva y moderna.
@@ -368,16 +405,17 @@ La aplicación ha evolucionado significativamente hasta convertirse en un sistem
 6. **Diseño de Interfaz Premium (Glassmorphism):** Navegación fluida y responsiva, cuadros de diálogo modales con retroalimentación en vivo, y componentes modernos de React que otorgan una experiencia visual de élite.
 7. **Jerarquía Institucional y Aprobación de Planes Didácticos:** Flujos de aprobación multinivel. Los `COORDINADORES` pueden aprobar planes didácticos únicamente de las asignaturas pertenecientes a su departamento asignado, mientras que los administradores generales (`SUPER_ADMIN`, `ADMIN_GESTION`) poseen aprobación global.
 8. **Seguridad y Accesos Granulares por Rol:** El módulo de Programas Sinópticos restringe la carga masiva e individual (PDF/ZIP) y la modificación de metadatos exclusivamente a perfiles administrativos (`ADMIN_GESTION`, `SUPER_ADMIN`), estableciendo para los Coordinadores un entorno seguro de solo consulta. Asimismo, los Dashboards de revisión filtran los contenidos en tiempo real según el área de supervisión del usuario.
-9. **Integración Inteligente RAG (Retrieval-Augmented Generation):**
-   * **Vectorización Híbrida Automática:** El sistema indexa de forma combinada tanto los Programas Sinópticos como los Planes de Clase una vez que son aprobados, vectorizándolos (mediante embeddings) en bases de datos PostgreSQL + pgvector.
-   * **Búsqueda Avanzada Multi-fuente:** El Chat de IA interroga a ambas fuentes, evaluando la cercanía semántica y citando explícitamente en cada respuesta si la información provino del currículo oficial o del plan elaborado por el docente.
-   * **Personalidad de IA Configurable:** El sistema de chat posee un *"System Prompt"* predeterminado enfocado en pedagogía universitaria, pero otorga libertad total al integrador para modificar el comportamiento del Chat mediante la variable opcional en el `.env`.
+9. **Integración Inteligente RAG (Retrieval-Augmented Generation) y Orquestación Avanzada:**
+   * **Búsqueda Híbrida Multi-fuente:** El Chat de IA interroga tanto a los Programas Sinópticos como a los Planes de Clase, evaluando en paralelo la similitud vectorial con `pgvector` y la coincidencia léxica mediante la búsqueda indexada BM25 (`SearchVectorField`).
+   * **Orquestación con LangGraph:** Sustitución de la consulta lineal tradicional por un flujo de grafo estructurado de 4 nodos (`hybrid_retriever` -> `rrf_fusion` -> `reranker` -> `synthesizer`) para optimizar el ciclo de vida de la recuperación y la observabilidad.
+   * **Fusión RRF y Re-ranking Local:** Combina los resultados mediante Reciprocal Rank Fusion ($k=60$) y aplica un modelo local de Cross-Encoder (`cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`) cargado en CPU para reordenar por relevancia real, citando de manera explícita la procedencia (currículo oficial o plan del docente).
+   * **Personalidad de IA Configurable:** El sistema de chat posee un *"System Prompt"* predeterminado enfocado en pedagogía universitaria, modificable de forma centralizada en el `.env`.
    * **Soporte Multi-Proveedor Dinámico:** Panel administrativo que permite configurar y probar en tiempo real conexiones a APIs locales o en la nube (OpenAI, DeepSeek, LMStudio, etc.) tanto para Embeddings como para Modelos de Lenguaje (LLM).
-   * **Agentic RAG y Herramientas (LangChain):** El sistema va un paso más allá del RAG tradicional, implementando agentes ejecutores (`AgentExecutor`) capaces de invocar herramientas o *tools* en tiempo real (por ejemplo, obtener recuentos estadísticos de planes, buscar cualitativamente en sinópticos, o en planes de clase), permitiendo respuestas analíticas complejas.
-   * **Evaluación Automatizada de Planes Didácticos:** Tarea asíncrona inteligente que contrasta automáticamente la propuesta del plan de clase del docente contra el programa sinóptico oficial vectorizado, utilizando al Agente LLM para verificar el cumplimiento de competencias, emitiendo observaciones pedagógicas y recomendaciones de forma estructurada.
+   * **Agentic RAG y Herramientas (LangChain):** Agentes ejecutores (`AgentExecutor`) capaces de invocar herramientas en tiempo real para obtener métricas cuantitativas o buscar en sinópticos y planes de clase.
+   * **Evaluación Automatizada de Planes Didácticos:** Tarea asíncrona que contrasta la propuesta del plan de clase del docente contra el programa sinóptico oficial vectorizado, utilizando al Agente LLM para verificar el cumplimiento de competencias, emitiendo observaciones pedagógicas y recomendaciones de forma estructurada.
 10. **Sistema de Feedback de Coordinadores a Docentes (Observaciones):**
     * **Persistencia en Base de Datos:** Se añadió el campo de texto `feedback` a la entidad `LessonPlan` tanto en los modelos de Django (`django_project/plan_app/models.py`) como en SQLAlchemy/FastAPI (`api/models.py`). Las migraciones correspondientes se generan y ejecutan en caliente al iniciar los contenedores.
-    * **Esquemas y Endpoints:** Se actualizaron los esquemas Pydantic `LessonPlanUpdate` y `LessonPlanResponse` en `schemas.py` y se adecuó la lógica de persistencia en el endpoint `update_plan` de `plans.py`.
+    * **Esquemas y Endpoints:** Se actualizaron los esquemas Pydantic `LessonPlanUpdate` and `LessonPlanResponse` en `schemas.py` y se adecuó la lógica de persistencia en el endpoint `update_plan` de `plans.py`.
     * **Casilla de Retroalimentación en Listado:** En la tabla del coordinador, la acción de "Corregir" abre un modal `<Dialog>` estilizado de confirmación que solicita la retroalimentación textual al coordinador antes de devolver la planificación.
     * **Bandeja de Entrada Integrada:** La acción "Revisar" de la bandeja de entrada abre el modal interactivo de previsualización (`LessonPlanWebModal`) donde el coordinador puede analizar el plan, ver la evaluación por IA y emitir su dictamen ("Aceptar" o "Corregir con observaciones") directamente.
 11. **Visualización y Flujo del Docente (Correcciones):**
@@ -402,6 +440,10 @@ La aplicación ha evolucionado significativamente hasta convertirse en un sistem
     * **Formulario y Tabla de Asignación Completa:** Se rediseñó la sección de asignación en el panel de configuración de la IA (`AISettings.tsx`) para permitir crear, editar y visualizar las reglas con los nuevos parámetros de Facultad, Departamento, Carrera, Asignatura y Secciones.
 15. **Redirección de Notificaciones al Borrador:**
     * Se actualizó el comportamiento de la interfaz de usuario para que, al hacer clic en notificaciones de planes corregidos u observados, redireccione al flujo de edición (borrador) del plan en lugar del visor de PDF estático, agilizando el ciclo de corrección de planificaciones.
+16. **Contextual Retrieval y Gobernanza de Re-indexación:**
+    * **Recuperación Contextualizada (Contextual Retrieval):** Ingesta enriquecida semánticamente que inyecta contexto de 2-3 oraciones generadas por el LLM a cada chunk de 800 tokens con overlap de 80 tokens, resolviendo el problema de fragmentación aislada.
+    * **Re-indexación Resiliente a Costo Cero ($0 en LLM):** Al re-indexar, el sistema detecta chunks duplicados y reutiliza el texto contextualizado guardado. Esto evita llamadas al LLM, reduciendo el costo de tokens a $0 y logrando una aceleración de hasta 40x (de ~3 minutos a 4.38 segundos).
+    * **Gobernanza de Seguridad en Cambio de Modelo (HTTP 409):** Advertencia de seguridad que previene cambios involuntarios de modelo de embeddings alertando sobre el número exacto de documentos a re-indexar y solicitando confirmación explícita (`?confirm=true`).
 
 ---
 

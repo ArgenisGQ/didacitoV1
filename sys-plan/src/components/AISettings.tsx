@@ -557,7 +557,6 @@ export default function AISettings() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Tipo / Modelo</TableHead>
                   <TableHead>Base URL</TableHead>
-                  <TableHead>Límite Contexto</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -565,7 +564,7 @@ export default function AISettings() {
               <TableBody>
                 {providers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                       No hay proveedores configurados.
                     </TableCell>
                   </TableRow>
@@ -575,7 +574,6 @@ export default function AISettings() {
                       <TableCell className="font-bold">{p.name}</TableCell>
                       <TableCell>{p.provider_type}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{p.base_url || 'N/A'}</TableCell>
-                      <TableCell className="text-xs font-semibold">{p.context_limit ? `${p.context_limit.toLocaleString()} carac.` : '2,000 carac.'}</TableCell>
                       <TableCell>
                         <Badge variant={p.is_active ? 'default' : 'secondary'}>
                           {p.is_active ? 'Activo' : 'Inactivo'}
@@ -1159,14 +1157,42 @@ export default function AISettings() {
                                 />
                               ))}
 
-                              <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} />
+                              <XAxis 
+                                dataKey="name" 
+                                stroke="hsl(var(--muted-foreground))" 
+                                fontSize={10} 
+                                tickLine={false}
+                                tickFormatter={(value) => {
+                                  const item = tokensSeries.find((d: any) => d.name === value);
+                                  return item && item.date ? `${value} (${item.date})` : value;
+                                }}
+                              />
                               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} />
                               <Tooltip
-                                contentStyle={{
-                                  backgroundColor: 'hsl(var(--card))',
-                                  borderColor: 'hsl(var(--border))',
-                                  color: 'hsl(var(--card-foreground))',
-                                  borderRadius: '8px'
+                                content={({ active, payload, label }) => {
+                                  if (active && payload && payload.length) {
+                                    const item = payload[0].payload;
+                                    return (
+                                      <div className="bg-card/95 border border-border p-3.5 rounded-xl shadow-xl backdrop-blur-md transition-all duration-200 animate-in fade-in zoom-in-95 duration-100">
+                                        <div className="mb-2">
+                                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{item.full_date || item.date || 'Fecha'}</p>
+                                          <p className="text-sm font-black text-foreground">{label}</p>
+                                        </div>
+                                        <div className="space-y-1.5 border-t border-border/60 pt-2">
+                                          {payload.map((p: any, idx: number) => (
+                                            <div key={idx} className="flex items-center justify-between gap-6">
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.stroke || p.color }} />
+                                                <span className="text-xs font-semibold text-muted-foreground">{p.name}</span>
+                                              </div>
+                                              <span className="text-xs font-bold text-foreground">{p.value}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
                                 }}
                               />
                               <Legend verticalAlign="top" height={36} />
@@ -1437,20 +1463,7 @@ export default function AISettings() {
               </div>
             )}
 
-            <div>
-              <label className="text-sm font-medium">Límite de Contexto (caracteres)</label>
-              <Input 
-                name="context_limit" 
-                type="number" 
-                min={1000} 
-                max={10000} 
-                defaultValue={editingProvider?.context_limit ?? 2000} 
-                required 
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Límite de caracteres para el análisis de planes y contexto del programa sinóptico (mínimo 1,000, máximo 10,000, por defecto 2,000).
-              </p>
-            </div>
+
 
             <div className="pt-2">
               <Button type="button" variant="secondary" className="w-full gap-2" onClick={handleTestModal} disabled={isTesting}>
