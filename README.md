@@ -186,6 +186,17 @@ Se ha implementado una arquitectura RAG avanzada de nivel de producción que opt
 6. **Optimización de Visualización de Métricas de Tokens (Frontend)**
    * Se removió el parámetro obsoleto de límite de contexto (`context_limit`) y se re-estructuró la gráfica de consumo diario de tokens en el frontend (`AISettings.tsx`). El eje X y los tooltips fueron formateados dinámicamente (`S1-Vie (19/06)` en eje X y formato extendido en tooltip) para mantener consistencia visual con el resto de gráficas del sistema.
 
+### 🔌 Categoría H: Desactivación de Razonamiento (Thinking Mode) en Modelos de IA
+Para optimizar el rendimiento y controlar los costos en la vectorización e ingesta RAG, se implementó un control dinámico de razonamiento:
+1. **Control de Razonamiento Extendido:** Campo `disable_thinking` en el modelo `AIProvider` (migrado a base de datos) que permite habilitar/deshabilitar el modo de razonamiento en modelos que lo soporten.
+2. **Parámetros Específicos por Proveedor:**
+   - **Google Gemini:** Se envía `thinking_budget=0` para deshabilitar el pensamiento extendido en modelos `gemini-2.5-*`.
+   - **OpenAI-Compatible/Local (LM Studio):** Se inyecta `extra_body={"thinking": {"type": "disabled"}}` para deshabilitar el pensamiento en modelos locales como Qwen.
+   - **DeepSeek-R1:** Emisión automática de advertencias en logs para desaconsejar el uso de `deepseek-reasoner` y proponer `deepseek-chat` (V3), dado que DeepSeek-R1 no permite desactivar el pensamiento por API.
+3. **Reducción de Temperatura:** Configuración fija de `temperature=0` para las tareas de RAG (contextualización), garantizando respuestas consistentes y deterministas.
+4. **Alerta de Modelos en Frontend:** Banner visual de advertencia y recomendación de modelos en la pestaña de Proveedores, indicando modelos no-razonadores sugeridos (Llama 3.1/3.2, Qwen2.5 7B, gemini-2.0-flash, gpt-4o-mini).
+5. **Formulario Modal Mejorado:** Toggle de control con explicación del impacto de latencia y tokens del razonamiento en RAG, y serialización booleana explícita en el frontend (`saveProvider` y `handleTestModal`) para resolver discrepancias en checkboxes.
+
 ## 🏗️ Arquitectura y Tecnologías (Stack Detallado)
 
 El proyecto está dockerizado y dividido en dos contenedores principales de desarrollo, orquestados junto a una base de datos PostgreSQL.
@@ -444,6 +455,7 @@ La aplicación ha evolucionado significativamente hasta convertirse en un sistem
     * **Recuperación Contextualizada (Contextual Retrieval):** Ingesta enriquecida semánticamente que inyecta contexto de 2-3 oraciones generadas por el LLM a cada chunk de 800 tokens con overlap de 80 tokens, resolviendo el problema de fragmentación aislada.
     * **Re-indexación Resiliente a Costo Cero ($0 en LLM):** Al re-indexar, el sistema detecta chunks duplicados y reutiliza el texto contextualizado guardado. Esto evita llamadas al LLM, reduciendo el costo de tokens a $0 y logrando una aceleración de hasta 40x (de ~3 minutos a 4.38 segundos).
     * **Gobernanza de Seguridad en Cambio de Modelo (HTTP 409):** Advertencia de seguridad que previene cambios involuntarios de modelo de embeddings alertando sobre el número exacto de documentos a re-indexar y solicitando confirmación explícita (`?confirm=true`).
+17. **Desactivación de Modo Razonador (Thinking) en RAG:** Configuración dinámica a nivel de base de datos para omitir el razonamiento extendido en modelos de Google Gemini y OpenAI-compatibles, reduciendo drásticamente latencia y costos. Incluye un banner explicativo en el frontend y toggle de configuración en el formulario.
 
 ---
 
