@@ -64,6 +64,8 @@ Q_CLUSTER = {
     'workers': 4,
     'recycle': 500,
     'timeout': 600,
+    'retry': 900,
+    'max_attempts': 2,
     'compress': True,
     'save_limit': 250,
     'queue_limit': 500,
@@ -78,3 +80,11 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'ai_cache_table',
+    }
+}
+

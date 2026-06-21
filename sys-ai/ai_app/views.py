@@ -66,37 +66,205 @@ def get_evaluation(request, plan_id):
 def rag_status(request):
     """
     Endpoint para que el Super Admin revise el estado de sincronización del RAG
-    con los programas sinópticos.
+    con los programas sinópticos y planes de clase.
     """
     from .models import CoreSyllabusVersion, SyllabusChunk, CoreLessonPlan, LessonPlanChunk
+    from django.core.cache import cache
     
     # Todos los sinópticos activos
     total_active_syllabuses = CoreSyllabusVersion.objects.filter(is_active=True).count()
     
-    # Cuántos de esos tienen chunks asociados
-    synced_syllabuses_ids = SyllabusChunk.objects.values_list('syllabus_id', flat=True).distinct()
-    total_synced_syllabuses = CoreSyllabusVersion.objects.filter(id__in=synced_syllabuses_ids, is_active=True).count()
+    # Cuántos de esos tienen chunks asociados (Vectores Listos)
+    embedded_syllabuses_ids = SyllabusChunk.objects.filter(embedding__isnull=False).values_list('syllabus_id', flat=True).distinct()
+    total_embedded_syllabuses = CoreSyllabusVersion.objects.filter(id__in=embedded_syllabuses_ids, is_active=True).count()
+
+    # Cuántos tienen contextos listos (Contextos generados)
+    contextualized_syllabuses_ids = SyllabusChunk.objects.filter(contextualized_content__isnull=False).values_list('syllabus_id', flat=True).distinct()
+    total_contextualized_syllabuses = CoreSyllabusVersion.objects.filter(id__in=contextualized_syllabuses_ids, is_active=True).count()
 
     # Todos los planes aprobados
     total_approved_plans = CoreLessonPlan.objects.filter(status='APPROVED').count()
 
-    # Cuántos de esos tienen chunks
-    synced_plans_ids = LessonPlanChunk.objects.values_list('lesson_plan_id', flat=True).distinct()
-    total_synced_plans = CoreLessonPlan.objects.filter(id__in=synced_plans_ids, status='APPROVED').count()
+    # Cuántos de esos tienen chunks (Vectores Listos)
+    embedded_plans_ids = LessonPlanChunk.objects.filter(embedding__isnull=False).values_list('lesson_plan_id', flat=True).distinct()
+    total_embedded_plans = CoreLessonPlan.objects.filter(id__in=embedded_plans_ids, status='APPROVED').count()
     
-    # Buscamos si hay alguna tarea de vectorización en progreso
+    # Cuántos tienen contextos listos (Contextos generados)
+    contextualized_plans_ids = LessonPlanChunk.objects.filter(contextualized_content__isnull=False).values_list('lesson_plan_id', flat=True).distinct()
+    total_contextualized_plans = CoreLessonPlan.objects.filter(id__in=contextualized_plans_ids, status='APPROVED').count()
+
+    # Conteo a nivel de fragmentos (para progreso fino y estimación)
+    total_chunks_syllabuses = SyllabusChunk.objects.filter(syllabus__is_active=True).count()
+    contextualized_chunks_syllabuses = SyllabusChunk.objects.filter(syllabus__is_active=True, contextualized_content__isnull=False).count()
+
+    total_chunks_plans = LessonPlanChunk.objects.filter(lesson_plan__status='APPROVED').count()
+    contextualized_chunks_plans = LessonPlanChunk.objects.filter(lesson_plan__status='APPROVED', contextualized_content__isnull=False).count()
+
+    # Buscamos si hay alguna tarea de vectorización en progreso por separado, u obtener la última realizada/cancelada
     from .models import AILog
-    latest_log = AILog.objects.filter(status='started', action__startswith='Vectorización').order_by('-created_at').first()
-    current_task_detail = latest_log.details if latest_log else None
     
+    active_logs_syllabuses = AILog.objects.filter(status='started', action__startswith='Vectorización del Syllabus').order_by('-created_at')
+    syllabuses_sync_active = active_logs_syllabuses.exists()
+    
+    if not syllabuses_sync_active:
+        active_logs_syllabuses = AILog.objects.filter(action__startswith='Vectorización del Syllabus').order_by('-created_at')[:1]
+        
+    processes_syllabuses = []
+    for log in active_logs_syllabuses:
+        processes_syllabuses.append({
+            "id": log.id,
+            "current_document_name": log.current_document_name,
+            "processed_percent": log.processed_percent,
+            "status": log.status,
+            "details": log.details
+        })
+
+    active_logs_plans = AILog.objects.filter(status='started', action__startswith='Vectorización de Plan').order_by('-created_at')
+    plans_sync_active = active_logs_plans.exists()
+    
+    if not plans_sync_active:
+        active_logs_plans = AILog.objects.filter(action__startswith='Vectorización de Plan').order_by('-created_at')[:1]
+        
+    processes_plans = []
+    for log in active_logs_plans:
+        processes_plans.append({
+            "id": log.id,
+            "current_document_name": log.current_document_name,
+            "processed_percent": log.processed_percent,
+            "status": log.status,
+            "details": log.details
+        })
+
+    # Campos de compatibilidad hacia atrás
+    latest_s = processes_syllabuses[0] if processes_syllabuses else None
+    latest_p = processes_plans[0] if processes_plans else None
+    
+    processed_percent_syllabuses = latest_s["processed_percent"] if latest_s else 0.0
+    current_document_name_syllabuses = latest_s["current_document_name"] if latest_s else None
+    status_syllabuses = latest_s["status"] if latest_s else None
+    current_task_detail_syllabuses = latest_s["details"] if latest_s else None
+
+    processed_percent_plans = latest_p["processed_percent"] if latest_p else 0.0
+    current_document_name_plans = latest_p["current_document_name"] if latest_p else None
+    status_plans = latest_p["status"] if latest_p else None
+    current_task_detail_plans = latest_p["details"] if latest_p else None
+    
+    # Parámetros de estimación de tiempo para syllabus
+    remaining_llm_calls_syllabuses = cache.get('rag_sync_remaining_llm_calls_syllabuses', 0)
+    if remaining_llm_calls_syllabuses < 0:
+        remaining_llm_calls_syllabuses = 0
+    durations_syllabuses = cache.get('last_context_durations_syllabuses', [])
+    avg_context_time_syllabuses = sum(durations_syllabuses) / len(durations_syllabuses) if durations_syllabuses else 2.5
+    estimated_time_seconds_syllabuses = remaining_llm_calls_syllabuses * avg_context_time_syllabuses if remaining_llm_calls_syllabuses > 0 else 0
+
+    # Parámetros de estimación de tiempo para planes
+    remaining_llm_calls_plans = cache.get('rag_sync_remaining_llm_calls_plans', 0)
+    if remaining_llm_calls_plans < 0:
+        remaining_llm_calls_plans = 0
+    durations_plans = cache.get('last_context_durations_plans', [])
+    avg_context_time_plans = sum(durations_plans) / len(durations_plans) if durations_plans else 2.5
+    estimated_time_seconds_plans = remaining_llm_calls_plans * avg_context_time_plans if remaining_llm_calls_plans > 0 else 0
+
     return JsonResponse({
         "total_active_syllabuses": total_active_syllabuses,
-        "total_synced": total_synced_syllabuses,
-        "is_fully_synced": total_active_syllabuses > 0 and total_active_syllabuses == total_synced_syllabuses,
+        "total_synced": total_embedded_syllabuses,
+        "total_contexts_syllabuses": total_contextualized_syllabuses,
+        "is_fully_synced": total_active_syllabuses > 0 and total_active_syllabuses == total_embedded_syllabuses,
+        
         "total_approved_plans": total_approved_plans,
-        "total_synced_plans": total_synced_plans,
-        "is_plans_fully_synced": total_approved_plans > 0 and total_approved_plans == total_synced_plans,
-        "current_task_detail": current_task_detail
+        "total_synced_plans": total_embedded_plans,
+        "total_contexts_plans": total_contextualized_plans,
+        "is_plans_fully_synced": total_approved_plans > 0 and total_approved_plans == total_embedded_plans,
+        
+        "total_chunks_syllabuses": total_chunks_syllabuses,
+        "contextualized_chunks_syllabuses": contextualized_chunks_syllabuses,
+        "total_chunks_plans": total_chunks_plans,
+        "contextualized_chunks_plans": contextualized_chunks_plans,
+        
+        "syllabuses_sync_active": syllabuses_sync_active,
+        "plans_sync_active": plans_sync_active,
+        "current_task_detail_syllabuses": current_task_detail_syllabuses,
+        "current_task_detail_plans": current_task_detail_plans,
+        "processed_percent_syllabuses": processed_percent_syllabuses,
+        "current_document_name_syllabuses": current_document_name_syllabuses,
+        "status_syllabuses": status_syllabuses,
+        "processed_percent_plans": processed_percent_plans,
+        "current_document_name_plans": current_document_name_plans,
+        "status_plans": status_plans,
+        "active_processes_syllabuses": processes_syllabuses,
+        "active_processes_plans": processes_plans,
+        "remaining_llm_calls_syllabuses": remaining_llm_calls_syllabuses,
+        "avg_context_time_seconds_syllabuses": avg_context_time_syllabuses,
+        "estimated_time_seconds_syllabuses": estimated_time_seconds_syllabuses,
+        "remaining_llm_calls_plans": remaining_llm_calls_plans,
+        "avg_context_time_seconds_plans": avg_context_time_plans,
+        "estimated_time_seconds_plans": estimated_time_seconds_plans
+    })
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def clear_embeddings(request):
+    """
+    Elimina los vectores de embeddings de la base de datos para forzar la re-vectorización.
+    Permite filtrar por target ('syllabuses' o 'plans') para granularidad.
+    """
+    import json
+    from .models import SyllabusChunk, LessonPlanChunk
+    
+    target = None
+    try:
+        data = json.loads(request.body)
+        target = data.get('target')
+    except:
+        pass
+        
+    if target == 'syllabuses':
+        SyllabusChunk.objects.all().update(embedding=None, embedding_model=None)
+        msg = "Vectores de embeddings de Programas Sinópticos eliminados correctamente."
+    elif target == 'plans':
+        LessonPlanChunk.objects.all().update(embedding=None, embedding_model=None)
+        msg = "Vectores de embeddings de Planes de Clase eliminados correctamente."
+    else:
+        SyllabusChunk.objects.all().update(embedding=None, embedding_model=None)
+        LessonPlanChunk.objects.all().update(embedding=None, embedding_model=None)
+        msg = "Todos los vectores de embeddings del RAG fueron eliminados correctamente."
+        
+    return JsonResponse({
+        "status": "success",
+        "message": msg
+    })
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def clear_contexts(request):
+    """
+    Elimina los contextos generados por el LLM en la base de datos.
+    Permite filtrar por target ('syllabuses' o 'plans') para granularidad.
+    """
+    import json
+    from .models import SyllabusChunk, LessonPlanChunk
+    
+    target = None
+    try:
+        data = json.loads(request.body)
+        target = data.get('target')
+    except:
+        pass
+        
+    if target == 'syllabuses':
+        SyllabusChunk.objects.all().update(contextualized_content=None)
+        msg = "Contextos de LLM de Programas Sinópticos eliminados correctamente."
+    elif target == 'plans':
+        LessonPlanChunk.objects.all().update(contextualized_content=None)
+        msg = "Contextos de LLM de Planes de Clase eliminados correctamente."
+    else:
+        SyllabusChunk.objects.all().update(contextualized_content=None)
+        LessonPlanChunk.objects.all().update(contextualized_content=None)
+        msg = "Todos los contextos de LLM del RAG fueron eliminados correctamente."
+        
+    return JsonResponse({
+        "status": "success",
+        "message": msg
     })
 
 @csrf_exempt
@@ -106,8 +274,10 @@ def sync_all_syllabuses(request):
     Endpoint para que el Super Admin sincronice manualmente todos los programas sinópticos
     activos que aún no tienen vectores.
     """
-    from .models import CoreSyllabusVersion, SyllabusChunk, AIProvider
+    from .models import CoreSyllabusVersion, AIProvider
     from django_q.tasks import async_task
+    from django.core.cache import cache
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
     
     if not AIProvider.objects.filter(is_active=True).exists():
         return JsonResponse({"error": "El sistema no tiene un modelo de IA configurado o activo. Por favor configure uno en la sección de Proveedores."}, status=400)
@@ -123,10 +293,25 @@ def sync_all_syllabuses(request):
     # Obtenemos los activos
     active_syllabuses = CoreSyllabusVersion.objects.filter(is_active=True)
     
+    # Inicializar el conteo estimado de fragmentos a procesar en la caché
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=80,
+        separators=["\n\n", "\n", ".", " ", ""]
+    )
+    total_chunks = 0
+    for syllabus in active_syllabuses:
+        if syllabus.extracted_text:
+            try:
+                chunks = text_splitter.split_text(syllabus.extracted_text)
+                total_chunks += len(chunks)
+            except Exception:
+                pass
+                
+    cache.set('rag_sync_remaining_llm_calls_syllabuses', total_chunks)
+    
     tasks_queued = 0
     for syllabus in active_syllabuses:
-        # Podríamos sincronizar solo los que faltan o forzar todos. 
-        # Aquí forzamos todos para estar seguros, la tarea ya borra los chunks viejos.
         async_task('ai_app.tasks.ingest_syllabus_task', syllabus.id, provider_id=provider_id)
         tasks_queued += 1
         
@@ -143,6 +328,8 @@ def sync_all_plans(request):
     """
     from .models import CoreLessonPlan, AIProvider
     from django_q.tasks import async_task
+    from django.core.cache import cache
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
     
     if not AIProvider.objects.filter(is_active=True).exists():
         return JsonResponse({"error": "El sistema no tiene un modelo de IA configurado o activo."}, status=400)
@@ -156,6 +343,45 @@ def sync_all_plans(request):
         pass
 
     approved_plans = CoreLessonPlan.objects.filter(status='APPROVED')
+    
+    # Inicializar el conteo estimado de fragmentos en la caché (agregando al existente)
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=80,
+        length_function=len
+    )
+    total_chunks = 0
+    for plan in approved_plans:
+        full_text = f"PLAN DE CLASE\n"
+        full_text += f"Título: {plan.title}\n"
+        full_text += f"Asignatura (Código): {plan.subject_code}\n"
+        full_text += f"Sección: {plan.section}\n\n"
+        
+        full_text += "== CONTENIDOS SEMANALES ==\n"
+        for wc in plan.weekly_contents.all().order_by('week_number'):
+            full_text += f"Semana {wc.week_number}:\n"
+            full_text += f"Contenido: {wc.content_description}\n"
+            full_text += f"Estrategia Didáctica: {wc.teaching_strategy}\n"
+            full_text += f"Recursos: {wc.resources}\n"
+            full_text += f"Bibliografía: {wc.bibliography}\n\n"
+            
+        full_text += "== PLAN DE EVALUACIÓN ==\n"
+        for ev in plan.evaluation_plans.all().order_by('due_week'):
+            full_text += f"Semana de entrega {ev.due_week} (Unidad {ev.unit}):\n"
+            full_text += f"Estrategia de evaluación: {ev.strategy}\n"
+            full_text += f"Instrumento: {ev.instrument}\n"
+            full_text += f"Ponderación: {ev.weight}%\n\n"
+            
+        if full_text.strip():
+            try:
+                chunks = text_splitter.split_text(full_text)
+                total_chunks += len(chunks)
+            except Exception:
+                pass
+                
+    curr_remaining = cache.get('rag_sync_remaining_llm_calls_plans', 0)
+    cache.set('rag_sync_remaining_llm_calls_plans', curr_remaining + total_chunks)
+
     tasks_queued = 0
     for plan in approved_plans:
         async_task('ai_app.tasks.ingest_lesson_plan_task', plan.id, provider_id=provider_id)
@@ -171,19 +397,86 @@ def sync_all_plans(request):
 def cancel_sync(request):
     """
     Endpoint para cancelar la sincronización actual vaciando la cola de Django Q y marcando logs como cancelados.
+    Admite {"target": "syllabuses" | "plans"} para cancelación parcial.
     """
     from django_q.models import OrmQ
+    from django_q.signing import SignedPackage
     from .models import AILog
+    from django.core.cache import cache
     
-    deleted_count, _ = OrmQ.objects.all().delete()
-    updated_count = AILog.objects.filter(status='started').update(
-        status='failed',
-        details='Cancelado por el usuario.'
-    )
+    target = None
+    try:
+        data = json.loads(request.body)
+        target = data.get('target')
+    except:
+        pass
+        
+    deleted_count = 0
+    updated_count = 0
     
+    if target == 'syllabuses':
+        # Eliminar solo tareas de syllabus de la cola
+        for task in OrmQ.objects.all():
+            try:
+                task_dict = SignedPackage.loads(task.payload)
+                if task_dict.get('func') == 'ai_app.tasks.ingest_syllabus_task':
+                    task.delete()
+                    deleted_count += 1
+            except Exception:
+                pass
+                
+        # Cancelar logs de syllabus activos
+        updated_count = AILog.objects.filter(
+            status='started', 
+            action__startswith='Vectorización del Syllabus'
+        ).update(
+            status='stopped',
+            details='Sincronización detenida por el usuario.'
+        )
+        
+        # Eliminar caché de syllabus
+        cache.delete('rag_sync_remaining_llm_calls_syllabuses')
+        msg = f"Sincronización de sinópticos cancelada. Se eliminaron {deleted_count} tareas de la cola y se actualizaron {updated_count} logs."
+        
+    elif target == 'plans':
+        # Eliminar solo tareas de planes de la cola
+        for task in OrmQ.objects.all():
+            try:
+                task_dict = SignedPackage.loads(task.payload)
+                if task_dict.get('func') == 'ai_app.tasks.ingest_lesson_plan_task':
+                    task.delete()
+                    deleted_count += 1
+            except Exception:
+                pass
+                
+        # Cancelar logs de planes activos
+        updated_count = AILog.objects.filter(
+            status='started', 
+            action__startswith='Vectorización de Plan'
+        ).update(
+            status='stopped',
+            details='Sincronización detenida por el usuario.'
+        )
+        
+        # Eliminar caché de planes
+        cache.delete('rag_sync_remaining_llm_calls_plans')
+        msg = f"Sincronización de planes cancelada. Se eliminaron {deleted_count} tareas de la cola y se actualizaron {updated_count} logs."
+        
+    else:
+        # Cancelar todo
+        deleted_count, _ = OrmQ.objects.all().delete()
+        updated_count = AILog.objects.filter(status='started').update(
+            status='stopped',
+            details='Sincronización detenida por el usuario.'
+        )
+        cache.delete('rag_sync_remaining_llm_calls_syllabuses')
+        cache.delete('rag_sync_remaining_llm_calls_plans')
+        cache.delete('rag_sync_remaining_llm_calls')
+        msg = f"Sincronización general cancelada. Se eliminaron {deleted_count} tareas de la cola y se actualizaron {updated_count} logs."
+        
     return JsonResponse({
         "status": "success",
-        "message": f"Sincronización cancelada. Se eliminaron {deleted_count} tareas de la cola y {updated_count} logs en ejecución fueron cancelados."
+        "message": msg
     })
 
 @csrf_exempt
@@ -224,6 +517,7 @@ def admin_providers(request):
                 embedding_model=data.get('embedding_model', ''),
                 llm_model=data.get('llm_model', ''),
                 context_limit=int(data.get('context_limit', 2000)) if data.get('context_limit') else 2000,
+                disable_thinking=data.get('disable_thinking', True) is True or data.get('disable_thinking') == 'on',
                 is_active=data.get('is_active', True) == 'on' or data.get('is_active') is True
             )
             p.api_key = data.get('api_key', '***')
@@ -519,6 +813,8 @@ def admin_providers_detail(request, provider_id):
                     p.context_limit = int(data.get('context_limit'))
                 except (ValueError, TypeError):
                     pass
+            if 'disable_thinking' in data:
+                p.disable_thinking = data.get('disable_thinking') is True or data.get('disable_thinking') == 'on'
             new_key = data.get('api_key', '')
             if new_key and new_key != '***':
                 p.api_key = new_key

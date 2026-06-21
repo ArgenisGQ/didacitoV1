@@ -10,6 +10,7 @@ services:
       VITE_API_URL: "http://localhost:8009"
     volumes:
       - ./sys-plan:/app
+      - ./sys-plan/dist:/usr/share/nginx/html
       - /app/node_modules
 
   django-admin:

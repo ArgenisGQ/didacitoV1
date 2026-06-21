@@ -32,6 +32,8 @@ export default function AISettings() {
   const [testError, setTestError] = useState<string | null>(null)
   const [selectedProviderType, setSelectedProviderType] = useState<string>('openai-compatible')
   const [changeApiKey, setChangeApiKey] = useState(false)
+  const [isStoppingSyllabuses, setIsStoppingSyllabuses] = useState(false)
+  const [isStoppingPlans, setIsStoppingPlans] = useState(false)
   
   // States for Template Modal
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -278,14 +280,21 @@ export default function AISettings() {
     retry: false
   })
 
-  const [selectedSyncProviderId, setSelectedSyncProviderId] = useState<string>('')
+  const [selectedSyllabusProviderId, setSelectedSyllabusProviderId] = useState<string>('')
+  const [selectedPlanProviderId, setSelectedPlanProviderId] = useState<string>('')
 
   useEffect(() => {
     const active = providers.filter((p: any) => p.is_active)
-    if (active.length > 0 && !selectedSyncProviderId) {
-      setSelectedSyncProviderId(active[0].id.toString())
+    if (active.length > 0) {
+      if (!selectedSyllabusProviderId) {
+        setSelectedSyllabusProviderId(active[0].id.toString())
+      }
+      if (!selectedPlanProviderId) {
+        setSelectedPlanProviderId(active[0].id.toString())
+      }
     }
-  }, [providers, selectedSyncProviderId])
+  }, [providers, selectedSyllabusProviderId, selectedPlanProviderId])
+
 
   const { mutate: testConnection, isPending: isTesting, variables: testVariables } = useMutation({
     mutationFn: async (payload: any) => {
@@ -323,7 +332,9 @@ export default function AISettings() {
     const form = document.getElementById('provider-form') as HTMLFormElement
     if (!form) return
     const formData = new FormData(form)
-    const payload = Object.fromEntries(formData.entries())
+    const payload: any = Object.fromEntries(formData.entries())
+    payload.is_active = !!formData.get('is_active')
+    payload.disable_thinking = !!formData.get('disable_thinking')
     if (editingProvider?.id) {
        payload.provider_id = editingProvider.id
     }
@@ -356,9 +367,12 @@ export default function AISettings() {
     },
     enabled: activeTab === 'rag',
     refetchInterval: (query) => {
-      // Polling every 3s if not fully synced
+      // Polling every 3s if not fully synced or if LLM calls are in progress
       const data = query.state.data as any
-      if (data && (!data.is_fully_synced || !data.is_plans_fully_synced) && (data.total_active_syllabuses > 0 || data.total_approved_plans > 0)) {
+      if (data && (
+        (!data.is_fully_synced || !data.is_plans_fully_synced || data.remaining_llm_calls > 0) &&
+        (data.total_active_syllabuses > 0 || data.total_approved_plans > 0)
+      )) {
         return 3000;
       }
       return false;
@@ -366,9 +380,20 @@ export default function AISettings() {
     retry: false
   })
 
-  const { mutate: syncAll, isPending: isSyncing } = useMutation({
+  useEffect(() => {
+    if (ragStatus) {
+      if (!ragStatus.syllabuses_sync_active) {
+        setIsStoppingSyllabuses(false)
+      }
+      if (!ragStatus.plans_sync_active) {
+        setIsStoppingPlans(false)
+      }
+    }
+  }, [ragStatus])
+
+  const { mutate: syncAllSyllabuses, isPending: isSyncing } = useMutation({
     mutationFn: async (providerId?: number) => {
-      const { data } = await api.post('/ai/admin/sync-all/', providerId ? { provider_id: providerId } : {})
+      const { data } = await api.post('/ai/admin/sync-all-syllabuses/', providerId ? { provider_id: providerId } : {})
       return data
     },
     onSuccess: (data) => {
@@ -396,8 +421,8 @@ export default function AISettings() {
   })
 
   const { mutate: cancelSync, isPending: isCancelling } = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post('/ai/admin/cancel-sync/')
+    mutationFn: async (payload?: { target?: 'syllabuses' | 'plans' }) => {
+      const { data } = await api.post('/ai/admin/cancel-sync/', payload || {})
       return data
     },
     onSuccess: (data) => {
@@ -409,11 +434,41 @@ export default function AISettings() {
     }
   })
 
+  const { mutate: clearEmbeddings, isPending: isClearingEmbeddings } = useMutation({
+    mutationFn: async (payload?: { target?: 'syllabuses' | 'plans' }) => {
+      const { data } = await api.post('/ai/admin/clear-embeddings/', payload || {})
+      return data
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || 'Vectores de embeddings eliminados correctamente')
+      refetchRag()
+    },
+    onError: () => {
+      toast.error('Error al eliminar vectores de embeddings')
+    }
+  })
+
+  const { mutate: clearContexts, isPending: isClearingContexts } = useMutation({
+    mutationFn: async (payload?: { target?: 'syllabuses' | 'plans' }) => {
+      const { data } = await api.post('/ai/admin/clear-contexts/', payload || {})
+      return data
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || 'Contextos de LLM eliminados correctamente')
+      refetchRag()
+    },
+    onError: () => {
+      toast.error('Error al eliminar contextos de LLM')
+    }
+  })
+
   // Mutations would go here (omitted for brevity, will implement if backend is ready)
   const saveProvider = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    const payload = Object.fromEntries(formData.entries())
+    const payload: any = Object.fromEntries(formData.entries())
+    payload.is_active = !!formData.get('is_active')
+    payload.disable_thinking = !!formData.get('disable_thinking')
     try {
       if (editingProvider?.id) {
         await api.put(`/ai/admin/providers/${editingProvider.id}`, payload)
@@ -551,6 +606,26 @@ export default function AISettings() {
             </Button>
           </CardHeader>
           <CardContent>
+            {/* Advertencia de Modelos Razonadores */}
+            <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/30 text-amber-900 dark:text-amber-200 flex gap-3 text-sm animate-in fade-in duration-300">
+              <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={18} />
+              <div className="space-y-2">
+                <p className="font-semibold leading-none">Advertencia sobre Modelos Razonadores (Extended Thinking / Reasoning)</p>
+                <p className="text-xs leading-relaxed text-amber-850 dark:text-amber-300">
+                  Para la ingesta, vectorización y contextualización de sinópticos y planes de clase (RAG), <strong>no se recomiendan</strong> modelos razonadores (ej. <code>gemini-2.5-pro</code>, <code>DeepSeek-R1</code>, o la serie <code>o1/o3</code> de OpenAI). Estos modelos consumen una alta cantidad de tokens de razonamiento interno, introducen latencia de varios segundos y pueden desbordar los límites de contexto.
+                </p>
+                <div className="text-xs pt-1">
+                  <span className="font-semibold block mb-1">Modelos Recomendados para RAG (Rápido, Barato y Determinista):</span>
+                  <ul className="list-disc pl-4 space-y-1 text-amber-805 dark:text-amber-305">
+                    <li><strong>Google Gemini API:</strong> <code>gemini-2.0-flash</code> o <code>gemini-1.5-flash</code> (Tienen ventana de contexto de 1M y bajo costo).</li>
+                    <li><strong>DeepSeek API:</strong> Usar <code>deepseek-chat</code> (V3) — <em>NO usar <code>deepseek-reasoner</code></em>.</li>
+                    <li><strong>Local / LM Studio:</strong> Llama 3.1/3.2 8B, Qwen 2.5 (7B o 14B), Mistral 7B, Phi-4.</li>
+                    <li><strong>OpenAI / Anthropic:</strong> <code>gpt-4o-mini</code> o <code>claude-3-5-haiku</code>.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -676,128 +751,437 @@ export default function AISettings() {
           </CardContent>
         </Card>
       )}
-
       {activeTab === 'rag' && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
             <div>
               <CardTitle>Estado de Sincronización RAG</CardTitle>
-              <CardDescription>Verifica la sincronización de los programas sinópticos con la base de datos vectorial.</CardDescription>
+              <CardDescription>Verifica la sincronización de los programas sinópticos y planes de clase con la base de datos vectorial y los contextos de IA.</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button onClick={() => { setIsLogsModalOpen(true); fetchLogs(); }} variant="outline" className="gap-2">
                 <FileText size={16} /> Ver Logs
               </Button>
               <Button onClick={() => refetchRag()} variant="outline" className="gap-2" disabled={loadingRag || isSyncing}>
-                <Play size={16} /> Actualizar
+                <RefreshCw size={16} className={loadingRag ? 'animate-spin' : ''} /> Actualizar
               </Button>
-              
-              <div className="flex items-center gap-2 border rounded-md px-2 py-1 bg-background">
-                <label className="text-xs font-bold text-muted-foreground whitespace-nowrap">Proveedor:</label>
-                <Select value={selectedSyncProviderId} onValueChange={setSelectedSyncProviderId}>
-                  <SelectTrigger className="w-[140px] h-7 text-xs"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                  <SelectContent>
-                    {providers.filter((p: any) => p.is_active).map((p: any) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button onClick={() => { 
-                const pid = selectedSyncProviderId ? Number(selectedSyncProviderId) : undefined;
-                syncAll(pid); 
-                syncAllPlans(pid); 
-              }} className="gap-2" disabled={!hasActiveProvider || isSyncing || isSyncingPlans || loadingRag || (ragStatus?.is_fully_synced && ragStatus?.is_plans_fully_synced)}>
-                <Database size={16} /> Sincronizar Todos
-              </Button>
-
-              {ragStatus && (!ragStatus.is_fully_synced || !ragStatus.is_plans_fully_synced) && (
-                <Button onClick={() => cancelSync()} variant="destructive" className="gap-2" disabled={isCancelling}>
-                  <XCircle size={16} /> Detener Sincronización
-                </Button>
-              )}
             </div>
           </CardHeader>
           <CardContent>
             {loadingRag ? (
               <p className="text-center py-8 text-muted-foreground">Cargando estado...</p>
             ) : ragStatus ? (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 text-center">
-                    <p className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-2">Total Sinópticos</p>
-                    <p className="text-5xl font-black text-blue-600">{ragStatus.total_active_syllabuses}</p>
+              <div className="space-y-6 animate-in fade-in duration-300">
+                
+                {/* Sección de Programas Sinópticos */}
+                <div className="space-y-3">
+                  <h3 className="text-base font-bold text-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-1.5">
+                    <span className="flex items-center gap-2">
+                      <FileText size={16} className="text-blue-500" />
+                      Programas Sinópticos
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5 border rounded-md px-2 py-0.5 bg-background h-8">
+                        <label className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">Proveedor:</label>
+                        <Select value={selectedSyllabusProviderId} onValueChange={setSelectedSyllabusProviderId}>
+                          <SelectTrigger className="w-[120px] h-6 text-[11px] border-none shadow-none focus:ring-0 px-1 py-0"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                          <SelectContent>
+                            {providers.filter((p: any) => p.is_active).map((p: any) => (
+                              <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <Button
+                        onClick={() => {
+                          const pid = selectedSyllabusProviderId ? Number(selectedSyllabusProviderId) : undefined;
+                          syncAllSyllabuses(pid);
+                        }}
+                        disabled={!hasActiveProvider || isSyncing || loadingRag || ragStatus?.is_fully_synced}
+                        variant="outline"
+                        className="h-8 text-xs gap-1 border-blue-200 text-blue-700 hover:bg-blue-50 font-semibold"
+                      >
+                        <RefreshCw size={13} className={isSyncing ? 'animate-spin' : ''} />
+                        Sincronizar Sinópticos
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("¿Desea detener todo el proceso de sincronización? La tarea actual en el worker se cancelará y se mantendrá el registro del avance del último documento.")) {
+                            setIsStoppingSyllabuses(true)
+                            cancelSync({ target: 'syllabuses' })
+                          }
+                        }}
+                        disabled={isCancelling || loadingRag || isStoppingSyllabuses || !ragStatus?.syllabuses_sync_active}
+                        variant="destructive"
+                        className="h-8 text-xs gap-1 font-semibold"
+                      >
+                        {isStoppingSyllabuses ? (
+                          <>
+                            <Loader2 size={13} className="animate-spin" />
+                            Deteniendo...
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={13} />
+                            Detener
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("¿Seguro que deseas eliminar los vectores de embeddings de los Programas Sinópticos? Esto conservará los contextos para ahorrar llamadas al LLM.")) {
+                            clearEmbeddings({ target: 'syllabuses' });
+                          }
+                        }}
+                        disabled={loadingRag || isClearingEmbeddings || isSyncing}
+                        variant="outline"
+                        className="h-8 text-xs gap-1 border-amber-200 text-amber-600 hover:bg-amber-50 font-semibold"
+                      >
+                        <Binary size={13} />
+                        Limpiar Vectores
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("¿Seguro que deseas eliminar todos los contextos enriquecidos generados por el LLM de los Programas Sinópticos?")) {
+                            clearContexts({ target: 'syllabuses' });
+                          }
+                        }}
+                        disabled={loadingRag || isClearingContexts || isSyncing}
+                        variant="outline"
+                        className="h-8 text-xs gap-1 border-purple-200 text-purple-600 hover:bg-purple-50 font-semibold"
+                      >
+                        <Cpu size={13} />
+                        Limpiar Contextos
+                      </Button>
+                    </div>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-blue-50/50 border border-blue-100/70 rounded-xl p-4 text-center">
+                      <p className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-1">Total Activos</p>
+                      <p className="text-3xl font-black text-blue-600">{ragStatus.total_active_syllabuses}</p>
+                    </div>
+                    <div className="bg-emerald-50/50 border border-emerald-100/70 rounded-xl p-4 text-center">
+                      <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-1">Vectores Listos</p>
+                      <p className="text-3xl font-black text-emerald-600">
+                        {ragStatus.total_synced} <span className="text-xs font-normal text-emerald-500">/ {ragStatus.total_active_syllabuses}</span>
+                      </p>
+                    </div>
+                    <div className="bg-purple-50/50 border border-purple-100/70 rounded-xl p-4 text-center">
+                      <p className="text-xs font-bold text-purple-800 uppercase tracking-wider mb-1">Contextos LLM</p>
+                      <p className="text-3xl font-black text-purple-600">
+                        {ragStatus.total_contexts_syllabuses} <span className="text-xs font-normal text-purple-500">/ {ragStatus.total_active_syllabuses}</span>
+                      </p>
+                    </div>
+                    <div className={`border rounded-xl p-4 flex flex-col justify-center items-center ${ragStatus.is_fully_synced ? 'bg-emerald-100/40 border-emerald-200/50' : 'bg-amber-50/50 border-amber-200/50'}`}>
+                      <p className={`text-xs font-bold uppercase tracking-wider mb-1.5 ${ragStatus.is_fully_synced ? 'text-emerald-800' : 'text-amber-800'}`}>Estado General</p>
+                      <Badge variant={ragStatus.is_fully_synced ? 'default' : 'destructive'} className="px-3 py-0.5 text-xs font-semibold">
+                        {ragStatus.is_fully_synced ? 'Sincronizado' : 'Incompleto'}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-6 text-center">
-                    <p className="text-sm font-bold text-emerald-800 uppercase tracking-wider mb-2">Vectorizados</p>
-                    <p className="text-5xl font-black text-emerald-600">{ragStatus.total_synced}</p>
-                  </div>
-                  <div className={`border rounded-xl p-6 flex flex-col justify-center items-center ${ragStatus.is_fully_synced ? 'bg-emerald-100 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-                    <p className={`text-sm font-bold uppercase tracking-wider mb-2 ${ragStatus.is_fully_synced ? 'text-emerald-800' : 'text-amber-800'}`}>Estado Sinópticos</p>
-                    <Badge variant={ragStatus.is_fully_synced ? 'default' : 'destructive'} className="text-lg px-4 py-1">
-                      {ragStatus.is_fully_synced ? 'Sincronizado' : 'Incompleto'}
-                    </Badge>
+
+                  {/* Barras de Progreso de Documentos Sinópticos (Siempre Visibles) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 bg-slate-50/40 p-4 border border-slate-100 rounded-xl">
+                    {(ragStatus.active_processes_syllabuses || (ragStatus.current_document_name_syllabuses ? [{
+                      id: 'fallback-s',
+                      current_document_name: ragStatus.current_document_name_syllabuses,
+                      processed_percent: ragStatus.processed_percent_syllabuses,
+                      status: ragStatus.status_syllabuses
+                    }] : [])).filter((process: any) => process.processed_percent > 0).map((process: any) => (
+                      <div key={process.id} className="md:col-span-2 bg-white/80 border border-slate-100 rounded-lg p-2.5 flex items-center justify-between text-xs font-semibold shadow-sm animate-in fade-in duration-200">
+                        <div className="flex items-center gap-2">
+                          {process.status === 'started' ? (
+                            <>
+                              <Loader2 className="animate-spin text-blue-500" size={14} />
+                              <span className="text-slate-700">
+                                <b>Procesando:</b> {process.current_document_name}
+                              </span>
+                            </>
+                          ) : process.status === 'stopped' ? (
+                            <>
+                              <AlertTriangle className="text-amber-500" size={14} />
+                              <span className="text-slate-600">
+                                <b>Detenido en:</b> {process.current_document_name} (Sincronización detenida por el usuario)
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle className="text-red-500" size={14} />
+                              <span className="text-slate-600">
+                                <b>Último estado:</b> {process.current_document_name} ({process.status === 'success' ? 'Completado' : 'Error/Incompleto'})
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <Badge variant="secondary" className="font-bold bg-blue-50 text-blue-700">
+                          {process.processed_percent}% del documento
+                        </Badge>
+                      </div>
+                    ))}
+                    {/* Vectores */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                          <Binary size={13} className="text-emerald-600" />
+                          Documentos Vectorizados (Embeddings)
+                        </span>
+                        <span className="text-xs font-medium text-slate-500">
+                          {ragStatus.total_synced} de {ragStatus.total_active_syllabuses} ({Math.round((ragStatus.total_synced / (ragStatus.total_active_syllabuses || 1)) * 100)}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-1.5">
+                        <div 
+                          className="bg-emerald-600 h-1.5 rounded-full transition-all duration-500" 
+                          style={{ width: `${Math.round((ragStatus.total_synced / (ragStatus.total_active_syllabuses || 1)) * 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    {/* Contextos */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                          <Cpu size={13} className="text-purple-600" />
+                          Documentos Contextualizados (LLM)
+                        </span>
+                        <span className="text-xs font-medium text-slate-500">
+                          {ragStatus.total_contexts_syllabuses} de {ragStatus.total_active_syllabuses} ({Math.round((ragStatus.total_contexts_syllabuses / (ragStatus.total_active_syllabuses || 1)) * 100)}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-1.5">
+                        <div 
+                          className="bg-purple-600 h-1.5 rounded-full transition-all duration-500" 
+                          style={{ width: `${Math.round((ragStatus.total_contexts_syllabuses / (ragStatus.total_active_syllabuses || 1)) * 100)}%` }}
+                        ></div>
+                      </div>
+                      {ragStatus.syllabuses_sync_active && (
+                        <div className="mt-1.5 text-[10px] text-purple-700 font-bold flex items-center gap-1">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-500"></span>
+                          </span>
+                          Tiempo estimado: {(() => {
+                            const sec = ragStatus.estimated_time_seconds_syllabuses;
+                            if (!sec || sec <= 0) return "calculando...";
+                            const h = Math.floor(sec / 3600);
+                            const m = Math.floor((sec % 3600) / 60);
+                            const s = Math.floor(sec % 60);
+                            let res = '';
+                            if (h > 0) res += `${h}h `;
+                            if (m > 0 || h > 0) res += `${m}m `;
+                            res += `${s}s`;
+                            return res;
+                          })()}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 text-center">
-                    <p className="text-sm font-bold text-indigo-800 uppercase tracking-wider mb-2">Planes Aprobados</p>
-                    <p className="text-5xl font-black text-indigo-600">{ragStatus.total_approved_plans}</p>
+                {/* Sección de Planes de Clase */}
+                <div className="space-y-3 mt-6">
+                  <h3 className="text-base font-bold text-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-1.5">
+                    <span className="flex items-center gap-2">
+                      <Layers size={16} className="text-indigo-500" />
+                      Planes de Clase Aprobados
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5 border rounded-md px-2 py-0.5 bg-background h-8">
+                        <label className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">Proveedor:</label>
+                        <Select value={selectedPlanProviderId} onValueChange={setSelectedPlanProviderId}>
+                          <SelectTrigger className="w-[120px] h-6 text-[11px] border-none shadow-none focus:ring-0 px-1 py-0"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                          <SelectContent>
+                            {providers.filter((p: any) => p.is_active).map((p: any) => (
+                              <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <Button
+                        onClick={() => {
+                          const pid = selectedPlanProviderId ? Number(selectedPlanProviderId) : undefined;
+                          syncAllPlans(pid);
+                        }}
+                        disabled={!hasActiveProvider || isSyncingPlans || loadingRag || ragStatus?.is_plans_fully_synced}
+                        variant="outline"
+                        className="h-8 text-xs gap-1 border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold"
+                      >
+                        <RefreshCw size={13} className={isSyncingPlans ? 'animate-spin' : ''} />
+                        Sincronizar Planes
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("¿Desea detener todo el proceso de sincronización de planes? La tarea actual en el worker se cancelará y se mantendrá el registro del avance del último documento.")) {
+                            setIsStoppingPlans(true)
+                            cancelSync({ target: 'plans' })
+                          }
+                        }}
+                        disabled={isCancelling || loadingRag || isStoppingPlans || !ragStatus?.plans_sync_active}
+                        variant="destructive"
+                        className="h-8 text-xs gap-1 font-semibold"
+                      >
+                        {isStoppingPlans ? (
+                          <>
+                            <Loader2 size={13} className="animate-spin" />
+                            Deteniendo...
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={13} />
+                            Detener
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("¿Seguro que deseas eliminar los vectores de embeddings de los Planes de Clase? Esto conservará los contextos para ahorrar llamadas al LLM.")) {
+                            clearEmbeddings({ target: 'plans' });
+                          }
+                        }}
+                        disabled={loadingRag || isClearingEmbeddings || isSyncingPlans}
+                        variant="outline"
+                        className="h-8 text-xs gap-1 border-teal-200 text-teal-600 hover:bg-teal-50 font-semibold"
+                      >
+                        <Binary size={13} />
+                        Limpiar Vectores
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("¿Seguro que deseas eliminar todos los contextos enriquecidos generados por el LLM de los Planes de Clase?")) {
+                            clearContexts({ target: 'plans' });
+                          }
+                        }}
+                        disabled={loadingRag || isClearingContexts || isSyncingPlans}
+                        variant="outline"
+                        className="h-8 text-xs gap-1 border-pink-200 text-pink-600 hover:bg-pink-50 font-semibold"
+                      >
+                        <Cpu size={13} />
+                        Limpiar Contextos
+                      </Button>
+                    </div>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-indigo-50/50 border border-indigo-100/70 rounded-xl p-4 text-center">
+                      <p className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-1">Total Aprobados</p>
+                      <p className="text-3xl font-black text-indigo-600">{ragStatus.total_approved_plans}</p>
+                    </div>
+                    <div className="bg-teal-50/50 border border-teal-100/70 rounded-xl p-4 text-center">
+                      <p className="text-xs font-bold text-teal-800 uppercase tracking-wider mb-1">Vectores Listos</p>
+                      <p className="text-3xl font-black text-teal-600">
+                        {ragStatus.total_synced_plans} <span className="text-xs font-normal text-teal-500">/ {ragStatus.total_approved_plans}</span>
+                      </p>
+                    </div>
+                    <div className="bg-pink-50/50 border border-pink-100/70 rounded-xl p-4 text-center">
+                      <p className="text-xs font-bold text-pink-800 uppercase tracking-wider mb-1">Contextos LLM</p>
+                      <p className="text-3xl font-black text-pink-600">
+                        {ragStatus.total_contexts_plans} <span className="text-xs font-normal text-pink-500">/ {ragStatus.total_approved_plans}</span>
+                      </p>
+                    </div>
+                    <div className={`border rounded-xl p-4 flex flex-col justify-center items-center ${ragStatus.is_plans_fully_synced ? 'bg-teal-100/40 border-teal-200/50' : 'bg-orange-50/50 border-orange-200/50'}`}>
+                      <p className={`text-xs font-bold uppercase tracking-wider mb-1.5 ${ragStatus.is_plans_fully_synced ? 'text-teal-800' : 'text-orange-800'}`}>Estado General</p>
+                      <Badge variant={ragStatus.is_plans_fully_synced ? 'default' : 'destructive'} className="px-3 py-0.5 text-xs font-semibold">
+                        {ragStatus.is_plans_fully_synced ? 'Sincronizado' : 'Incompleto'}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="bg-teal-50 border border-teal-100 rounded-xl p-6 text-center">
-                    <p className="text-sm font-bold text-teal-800 uppercase tracking-wider mb-2">Vectorizados</p>
-                    <p className="text-5xl font-black text-teal-600">{ragStatus.total_synced_plans}</p>
-                  </div>
-                  <div className={`border rounded-xl p-6 flex flex-col justify-center items-center ${ragStatus.is_plans_fully_synced ? 'bg-teal-100 border-teal-200' : 'bg-orange-50 border-orange-200'}`}>
-                    <p className={`text-sm font-bold uppercase tracking-wider mb-2 ${ragStatus.is_plans_fully_synced ? 'text-teal-800' : 'text-orange-800'}`}>Estado Planes</p>
-                    <Badge variant={ragStatus.is_plans_fully_synced ? 'default' : 'destructive'} className="text-lg px-4 py-1">
-                      {ragStatus.is_plans_fully_synced ? 'Sincronizado' : 'Incompleto'}
-                    </Badge>
+
+                  {/* Barras de Progreso de Planes (Siempre Visibles) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 bg-slate-50/40 p-4 border border-slate-100 rounded-xl">
+                    {(ragStatus.active_processes_plans || (ragStatus.current_document_name_plans ? [{
+                      id: 'fallback-p',
+                      current_document_name: ragStatus.current_document_name_plans,
+                      processed_percent: ragStatus.processed_percent_plans,
+                      status: ragStatus.status_plans
+                    }] : [])).filter((process: any) => process.processed_percent > 0).map((process: any) => (
+                      <div key={process.id} className="md:col-span-2 bg-white/80 border border-slate-100 rounded-lg p-2.5 flex items-center justify-between text-xs font-semibold shadow-sm animate-in fade-in duration-200">
+                        <div className="flex items-center gap-2">
+                          {process.status === 'started' ? (
+                            <>
+                              <Loader2 className="animate-spin text-indigo-500" size={14} />
+                              <span className="text-slate-700">
+                                <b>Procesando:</b> {process.current_document_name}
+                              </span>
+                            </>
+                          ) : process.status === 'stopped' ? (
+                            <>
+                              <AlertTriangle className="text-amber-500" size={14} />
+                              <span className="text-slate-600">
+                                <b>Detenido en:</b> {process.current_document_name} (Sincronización detenida por el usuario)
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle className="text-red-500" size={14} />
+                              <span className="text-slate-600">
+                                <b>Último estado:</b> {process.current_document_name} ({process.status === 'success' ? 'Completado' : 'Error/Incompleto'})
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <Badge variant="secondary" className="font-bold bg-indigo-50 text-indigo-700">
+                          {process.processed_percent}% del documento
+                        </Badge>
+                      </div>
+                    ))}
+                    {/* Vectores */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                          <Binary size={13} className="text-teal-600" />
+                          Planes Vectorizados (Embeddings)
+                        </span>
+                        <span className="text-xs font-medium text-slate-500">
+                          {ragStatus.total_synced_plans} de {ragStatus.total_approved_plans} ({Math.round((ragStatus.total_synced_plans / (ragStatus.total_approved_plans || 1)) * 100)}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-1.5">
+                        <div 
+                          className="bg-teal-600 h-1.5 rounded-full transition-all duration-500" 
+                          style={{ width: `${Math.round((ragStatus.total_synced_plans / (ragStatus.total_approved_plans || 1)) * 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    {/* Contextos */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                          <Cpu size={13} className="text-pink-600" />
+                          Planes Contextualizados (LLM)
+                        </span>
+                        <span className="text-xs font-medium text-slate-500">
+                          {ragStatus.total_contexts_plans} de {ragStatus.total_approved_plans} ({Math.round((ragStatus.total_contexts_plans / (ragStatus.total_approved_plans || 1)) * 100)}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-1.5">
+                        <div 
+                          className="bg-pink-600 h-1.5 rounded-full transition-all duration-500" 
+                          style={{ width: `${Math.round((ragStatus.total_contexts_plans / (ragStatus.total_approved_plans || 1)) * 100)}%` }}
+                        ></div>
+                      </div>
+                      {ragStatus.plans_sync_active && (
+                        <div className="mt-1.5 text-[10px] text-pink-700 font-bold flex items-center gap-1">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-pink-500"></span>
+                          </span>
+                          Tiempo estimado: {(() => {
+                            const sec = ragStatus.estimated_time_seconds_plans;
+                            if (!sec || sec <= 0) return "calculando...";
+                            const h = Math.floor(sec / 3600);
+                            const m = Math.floor((sec % 3600) / 60);
+                            const s = Math.floor(sec % 60);
+                            let res = '';
+                            if (h > 0) res += `${h}h `;
+                            if (m > 0 || h > 0) res += `${m}m `;
+                            res += `${s}s`;
+                            return res;
+                          })()}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-
-                {/* Progress bar logic (shows when syncing and there are >0 total) */}
-                {(!ragStatus.is_fully_synced && ragStatus.total_active_syllabuses > 0) && (
-                  <div className="mt-6 p-4 border rounded-xl bg-slate-50">
-                    <div className="flex justify-between items-center mb-2">
-                      <p className="text-sm font-bold text-slate-700">Progreso de Sincronización (Sinópticos)</p>
-                      <p className="text-sm font-medium text-slate-500">
-                        Procesados: {ragStatus.total_synced} de {ragStatus.total_active_syllabuses} documentos ({Math.round((ragStatus.total_synced / ragStatus.total_active_syllabuses) * 100)}%)
-                      </p>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2.5">
-                      <div 
-                        className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
-                        style={{ width: `${Math.round((ragStatus.total_synced / ragStatus.total_active_syllabuses) * 100)}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2 text-center animate-pulse">
-                      {ragStatus.current_task_detail || "La IA está vectorizando documentos en segundo plano. Esto puede demorar varios minutos dependiendo de la carga."}
-                    </p>
-                  </div>
-                )}
-
-                {(!ragStatus.is_plans_fully_synced && ragStatus.total_approved_plans > 0) && (
-                  <div className="mt-6 p-4 border rounded-xl bg-slate-50">
-                    <div className="flex justify-between items-center mb-2">
-                      <p className="text-sm font-bold text-slate-700">Progreso de Sincronización (Planes)</p>
-                      <p className="text-sm font-medium text-slate-500">
-                        Procesados: {ragStatus.total_synced_plans} de {ragStatus.total_approved_plans} documentos ({Math.round((ragStatus.total_synced_plans / ragStatus.total_approved_plans) * 100)}%)
-                      </p>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2.5">
-                      <div 
-                        className="bg-teal-600 h-2.5 rounded-full transition-all duration-500" 
-                        style={{ width: `${Math.round((ragStatus.total_synced_plans / ragStatus.total_approved_plans) * 100)}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2 text-center animate-pulse">
-                      {ragStatus.current_task_detail || "La IA está vectorizando planes en segundo plano. Esto puede demorar varios minutos dependiendo de la carga."}
-                    </p>
-                  </div>
-                )}
               </div>
             ) : (
               <p className="text-center py-8 text-red-500">No se pudo cargar el estado del RAG.</p>
@@ -1515,6 +1899,34 @@ export default function AISettings() {
                 </div>
               </div>
             )}
+
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-xs space-y-1">
+              <p className="font-bold flex items-center gap-1">
+                <AlertTriangle size={14} className="text-amber-600" />
+                Recomendación de Contexto (Ventana de Tokens)
+              </p>
+              <p className="leading-relaxed">
+                Para la correcta vectorización y contextualización de programas sinópticos completos, asegúrese de que su modelo (LM Studio, API, etc.) esté cargado con una ventana de contexto de <b>al menos 8,192 (8k)</b> u óptimamente <b>16,384 (16k) tokens</b>. Esto previene interrupciones por desbordamiento de texto.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+              <input 
+                type="checkbox" 
+                id="disable_thinking"
+                name="disable_thinking" 
+                defaultChecked={editingProvider?.disable_thinking ?? true}
+                className="mt-1 rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+              />
+              <div className="grid gap-0.5 leading-none">
+                <label htmlFor="disable_thinking" className="text-sm font-semibold cursor-pointer select-none">
+                  Desactivar Razonamiento (Thinking)
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Evita que el modelo consuma tokens y latencia extra en razonamiento durante la ingesta. Recomendado siempre para RAG.
+                </p>
+              </div>
+            </div>
 
             <div>
               <label className="text-sm font-medium flex items-center gap-2">

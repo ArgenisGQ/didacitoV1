@@ -181,6 +181,10 @@ class AIProvider(models.Model):
         validators=[MinValueValidator(1000), MaxValueValidator(10000)],
         help_text="Límite de contexto en caracteres (Min 1000, Max 10000)"
     )
+    disable_thinking = models.BooleanField(
+        default=True,
+        help_text="Si está activo, instruye al modelo a omitir el razonamiento extendido (thinking). Recomendado siempre para vectorización de documentos."
+    )
     is_active = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -326,6 +330,8 @@ class AILog(models.Model):
     completion_tokens = models.IntegerField(default=0)
     provider_name = models.CharField(max_length=100, blank=True, null=True)
     model_name = models.CharField(max_length=100, blank=True, null=True)
+    processed_percent = models.FloatField(default=0.0, help_text="Porcentaje de procesamiento actual")
+    current_document_name = models.CharField(max_length=255, blank=True, null=True, help_text="Nombre del documento que se está analizando")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

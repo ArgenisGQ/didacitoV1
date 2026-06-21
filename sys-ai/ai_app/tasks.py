@@ -76,15 +76,27 @@ def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
     from .models import AILog, SyllabusChunk
     from django.contrib.postgres.search import SearchVector
     
+    doc_name = f"Syllabus #{syllabus_id}"
+    syllabus = None
+    try:
+        syllabus = CoreSyllabusVersion.objects.get(id=syllabus_id)
+        if syllabus.subject:
+            doc_name = syllabus.subject.name
+    except Exception:
+        pass
+
     logger.info(f"Iniciando ingesta del syllabus ID: {syllabus_id}")
     log_entry = AILog.objects.create(
         action=f"Vectorización del Syllabus {syllabus_id}",
         status="started",
-        details="Iniciando proceso de fragmentación y obtención de embeddings..."
+        details="Iniciando proceso de fragmentación y obtención de embeddings...",
+        current_document_name=doc_name,
+        processed_percent=0.0
     )
     
     try:
-        syllabus = CoreSyllabusVersion.objects.get(id=syllabus_id)
+        if not syllabus:
+            syllabus = CoreSyllabusVersion.objects.get(id=syllabus_id)
         if not syllabus.extracted_text:
             logger.warning(f"Syllabus {syllabus_id} no tiene texto extraido. Abortando ingesta.")
             log_entry.status = "failed"
@@ -94,9 +106,7 @@ def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
 
         # 1. Obtener chunks existentes para reutilizar contextualización (resiliencia)
         existing_chunks = {c.chunk_index: c for c in SyllabusChunk.objects.filter(syllabus_id=syllabus_id)}
-
-        # Limpiar chunks anteriores de la base de datos para evitar duplicados
-        SyllabusChunk.objects.filter(syllabus_id=syllabus_id).delete()
+        # NO borramos al inicio para poder reanudar y reutilizar
         
         # 2. Configurar el splitter con tamaño 800 y overlap 80
         text_splitter = RecursiveCharacterTextSplitter(
@@ -142,11 +152,17 @@ def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
         batch_size = 10
         chunks_created = 0
         
+        from django.core.cache import cache
+        import time
+
+        from django.db import transaction
+
         for i in range(0, total_chunks, batch_size):
             batch_texts = texts[i:i+batch_size]
             
-            # Preparar textos contextualizados
-            batch_contextualized = []
+            chunks_to_embed = []  # list of (chunk_index, contextualized_text)
+            reused_chunks = []    # list of SyllabusChunk
+            
             for j, text in enumerate(batch_texts):
                 chunk_index = i + j
                 existing_chunk = existing_chunks.get(chunk_index)
@@ -155,17 +171,33 @@ def ingest_syllabus_task(syllabus_id: int, provider_id: int = None):
                 if existing_chunk and existing_chunk.contextualized_content:
                     if text in existing_chunk.contextualized_content:
                         contextualized_text = existing_chunk.contextualized_content
+                        # Si el embedding también existe y es válido
+                        if existing_chunk.embedding is not None:
+                            reused_chunks.append(existing_chunk)
+                            # Reutilizado, decrementar contador de llamadas
+                            try:
+                                remaining = cache.get('rag_sync_remaining_llm_calls_syllabuses', 0)
+                                if remaining > 0:
+                                    cache.set('rag_sync_remaining_llm_calls_syllabuses', remaining - 1)
+                            except Exception:
+                                pass
+                            continue
                 
                 if not contextualized_text:
                     if provider:
                         try:
+                            start_time = time.time()
                             llm = get_llm_model(provider)
+                            # Truncado inteligente del documento según context_limit
+                            limit_chars = provider.context_limit if provider.context_limit else 3000
+                            truncated_text = syllabus.extracted_text[:limit_chars]
+                            
                             prompt = f"""Tendrás acceso al documento completo de un programa sinóptico universitario y a uno de sus fragmentos.
 Tu tarea es escribir una descripción corta (máximo 2-3 oraciones) que explique qué parte del programa
 sinóptico representa este fragmento y qué información pedagógica clave aporta.
 
 <documento>
-{syllabus.extracted_text}
+{truncated_text}
 </documento>
 
 <fragmento>
@@ -180,38 +212,69 @@ Responde SOLO con la descripción contextual. No incluyas saludos ni explicacion
                             ])
                             context = response.content.strip()
                             contextualized_text = f"{context}\n\n{text}"
+                            
+                            # Registrar duración
+                            duration = time.time() - start_time
+                            try:
+                                durations = cache.get('last_context_durations_syllabuses', [])
+                                durations.append(duration)
+                                if len(durations) > 10:
+                                    durations = durations[-10:]
+                                cache.set('last_context_durations_syllabuses', durations)
+                            except Exception:
+                                pass
                         except Exception as e:
                             logger.error(f"Error generando contexto para chunk {chunk_index}: {e}")
+                            # Fallback graceful a texto original si falla
                             contextualized_text = text
                     else:
                         contextualized_text = text
+                    
+                    # Decrementar contador de llamadas restantes
+                    try:
+                        remaining = cache.get('rag_sync_remaining_llm_calls_syllabuses', 0)
+                        if remaining > 0:
+                            cache.set('rag_sync_remaining_llm_calls_syllabuses', remaining - 1)
+                    except Exception:
+                        pass
                 
-                batch_contextualized.append(contextualized_text)
+                chunks_to_embed.append((chunk_index, contextualized_text))
             
-            # Obtener embeddings para el lote actual usando textos contextualizados
-            vectors = embeddings_model.embed_documents(batch_contextualized)
-            
-            # Guardar el lote en la DB
-            chunks_to_create = []
-            for j, (raw_text, contextualized_text, vector) in enumerate(zip(batch_texts, batch_contextualized, vectors)):
-                chunks_to_create.append(
-                    SyllabusChunk(
-                        syllabus_id=syllabus.id,
-                        chunk_index=i + j,
-                        content=contextualized_text,
-                        contextualized_content=contextualized_text,
-                        embedding_model=current_embedding_model,
-                        embedding=vector
+            # Obtener embeddings para los chunks nuevos/modificados y guardarlos
+            if chunks_to_embed:
+                embed_texts = [item[1] for item in chunks_to_embed]
+                vectors = embeddings_model.embed_documents(embed_texts)
+                
+                chunks_to_create = []
+                chunk_indexes_to_delete = []
+                for (chunk_idx, contextualized_text), vector in zip(chunks_to_embed, vectors):
+                    chunks_to_create.append(
+                        SyllabusChunk(
+                            syllabus_id=syllabus.id,
+                            chunk_index=chunk_idx,
+                            content=contextualized_text,
+                            contextualized_content=contextualized_text,
+                            embedding_model=current_embedding_model,
+                            embedding=vector
+                        )
                     )
-                )
+                    chunk_indexes_to_delete.append(chunk_idx)
+                
+                with transaction.atomic():
+                    SyllabusChunk.objects.filter(syllabus_id=syllabus.id, chunk_index__in=chunk_indexes_to_delete).delete()
+                    SyllabusChunk.objects.bulk_create(chunks_to_create)
             
-            SyllabusChunk.objects.bulk_create(chunks_to_create)
-            chunks_created += len(chunks_to_create)
+            chunks_created += len(chunks_to_embed) + len(reused_chunks)
             
             # Actualizar progreso en el log
+            log_entry.processed_percent = round((chunks_created / total_chunks) * 100, 1)
+            log_entry.current_document_name = syllabus.subject.name if syllabus.subject else f"Syllabus {syllabus.id}"
             log_entry.details = f"Vectorizando... {chunks_created} de {total_chunks} fragmentos procesados."
-            log_entry.save()
+            log_entry.save(update_fields=['processed_percent', 'current_document_name', 'details'])
             
+        # Eliminar cualquier chunk excedente de versiones anteriores (si las hubiera)
+        SyllabusChunk.objects.filter(syllabus_id=syllabus.id, chunk_index__gte=total_chunks).delete()
+
         # Actualizar search_vector para BM25 en lote de manera eficiente
         SyllabusChunk.objects.filter(syllabus_id=syllabus.id).update(
             search_vector=SearchVector('content', config='spanish')
@@ -220,8 +283,9 @@ Responde SOLO con la descripción contextual. No incluyas saludos ni explicacion
         logger.info(f"Ingesta exitosa. Syllabus {syllabus_id}: {chunks_created} chunks creados.")
         
         log_entry.status = "success"
+        log_entry.processed_percent = 100.0
         log_entry.details = f"Ingesta exitosa. {chunks_created} fragmentos creados y vectorizados."
-        log_entry.save()
+        log_entry.save(update_fields=['status', 'processed_percent', 'details'])
 
     except CoreSyllabusVersion.DoesNotExist:
         logger.error(f"Syllabus {syllabus_id} no encontrado en la DB.")
@@ -242,14 +306,25 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
     from .models import CoreLessonPlan, LessonPlanChunk, AILog
     from django.contrib.postgres.search import SearchVector
     
+    doc_name = f"Plan #{plan_id}"
+    plan = None
+    try:
+        plan = CoreLessonPlan.objects.get(id=plan_id)
+        doc_name = plan.title if plan.title else f"Plan {plan.id}"
+    except Exception:
+        pass
+
     log_entry = AILog.objects.create(
         action=f"Vectorización de Plan de Clase #{plan_id}",
         status="started",
-        details="Iniciando extracción y vectorización..."
+        details="Iniciando extracción y vectorización...",
+        current_document_name=doc_name,
+        processed_percent=0.0
     )
     
     try:
-        plan = CoreLessonPlan.objects.get(id=plan_id)
+        if not plan:
+            plan = CoreLessonPlan.objects.get(id=plan_id)
         
         if plan.status != 'APPROVED':
             log_entry.status = "failed"
@@ -259,9 +334,7 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
             
         # 1. Obtener chunks existentes para reutilizar contextualización (resiliencia)
         existing_chunks = {c.chunk_index: c for c in LessonPlanChunk.objects.filter(lesson_plan=plan)}
-
-        # Borrar chunks anteriores
-        LessonPlanChunk.objects.filter(lesson_plan=plan).delete()
+        # NO borramos al inicio para poder reanudar y reutilizar
         
         # 2. Extraer y concatenar texto del plan
         full_text = f"PLAN DE CLASE\n"
@@ -328,11 +401,17 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
         chunks_created = 0
         total_chunks = len(texts)
         
+        from django.core.cache import cache
+        import time
+
+        from django.db import transaction
+
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i:i+batch_size]
             
-            # Preparar textos contextualizados
-            batch_contextualized = []
+            chunks_to_embed = []  # list of (chunk_index, contextualized_text)
+            reused_chunks = []    # list of LessonPlanChunk
+            
             for j, text in enumerate(batch_texts):
                 chunk_index = i + j
                 existing_chunk = existing_chunks.get(chunk_index)
@@ -341,17 +420,33 @@ def ingest_lesson_plan_task(plan_id: int, provider_id: int = None):
                 if existing_chunk and existing_chunk.contextualized_content:
                     if text in existing_chunk.contextualized_content:
                         contextualized_text = existing_chunk.contextualized_content
-                        
+                        # Si el embedding también existe y es válido
+                        if existing_chunk.embedding is not None:
+                            reused_chunks.append(existing_chunk)
+                            # Reutilizado, decrementar contador de llamadas
+                            try:
+                                remaining = cache.get('rag_sync_remaining_llm_calls_plans', 0)
+                                if remaining > 0:
+                                    cache.set('rag_sync_remaining_llm_calls_plans', remaining - 1)
+                            except Exception:
+                                pass
+                            continue
+                
                 if not contextualized_text:
                     if provider:
                         try:
+                            start_time = time.time()
                             llm = get_llm_model(provider)
+                            # Truncado inteligente del documento según context_limit
+                            limit_chars = provider.context_limit if provider.context_limit else 3000
+                            truncated_text = full_text[:limit_chars]
+                            
                             prompt = f"""Tendrás acceso al contenido completo de un plan de clase universitario y a uno de sus fragmentos.
 Tu tarea es escribir una descripción corta (máximo 2-3 oraciones) que explique qué semana,
 unidad o sección del plan de clase representa este fragmento.
 
 <documento>
-{full_text}
+{truncated_text}
 </documento>
 
 <fragmento>
@@ -366,38 +461,69 @@ Responde SOLO con la descripción contextual. No incluyas saludos ni explicacion
                             ])
                             context = response.content.strip()
                             contextualized_text = f"{context}\n\n{text}"
+                            
+                            # Registrar duración
+                            duration = time.time() - start_time
+                            try:
+                                durations = cache.get('last_context_durations_plans', [])
+                                durations.append(duration)
+                                if len(durations) > 10:
+                                    durations = durations[-10:]
+                                cache.set('last_context_durations_plans', durations)
+                            except Exception:
+                                pass
                         except Exception as e:
                             logger.error(f"Error generando contexto para chunk {chunk_index}: {e}")
+                            # Fallback graceful a texto original si falla
                             contextualized_text = text
                     else:
                         contextualized_text = text
-                batch_contextualized.append(contextualized_text)
+                        
+                    # Decrementar contador de llamadas restantes
+                    try:
+                        remaining = cache.get('rag_sync_remaining_llm_calls_plans', 0)
+                        if remaining > 0:
+                            cache.set('rag_sync_remaining_llm_calls_plans', remaining - 1)
+                    except Exception:
+                        pass
+                
+                chunks_to_embed.append((chunk_index, contextualized_text))
             
-            # Generar embeddings para el batch usando los textos contextualizados
-            batch_embeddings = embeddings_model.embed_documents(batch_contextualized)
-            
-            # Guardar en DB
-            chunks_to_create = []
-            for j, emb in enumerate(batch_embeddings):
-                chunk_index = i + j
-                chunks_to_create.append(
-                    LessonPlanChunk(
-                        lesson_plan=plan,
-                        chunk_index=chunk_index,
-                        content=batch_contextualized[j],
-                        contextualized_content=batch_contextualized[j],
-                        embedding_model=current_embedding_model,
-                        embedding=emb
+            # Obtener embeddings para los chunks nuevos/modificados y guardarlos
+            if chunks_to_embed:
+                embed_texts = [item[1] for item in chunks_to_embed]
+                batch_embeddings = embeddings_model.embed_documents(embed_texts)
+                
+                chunks_to_create = []
+                chunk_indexes_to_delete = []
+                for (chunk_idx, contextualized_text), emb in zip(chunks_to_embed, batch_embeddings):
+                    chunks_to_create.append(
+                        LessonPlanChunk(
+                            lesson_plan=plan,
+                            chunk_index=chunk_idx,
+                            content=contextualized_text,
+                            contextualized_content=contextualized_text,
+                            embedding_model=current_embedding_model,
+                            embedding=emb
+                        )
                     )
-                )
+                    chunk_indexes_to_delete.append(chunk_idx)
+                
+                with transaction.atomic():
+                    LessonPlanChunk.objects.filter(lesson_plan=plan, chunk_index__in=chunk_indexes_to_delete).delete()
+                    LessonPlanChunk.objects.bulk_create(chunks_to_create)
             
-            LessonPlanChunk.objects.bulk_create(chunks_to_create)
-            chunks_created += len(chunks_to_create)
+            chunks_created += len(chunks_to_embed) + len(reused_chunks)
             
             # Actualizar progreso
+            log_entry.processed_percent = round((chunks_created / total_chunks) * 100, 1)
+            log_entry.current_document_name = plan.title if plan.title else f"Plan {plan.id}"
             log_entry.details = f"Vectorizando... {chunks_created} de {total_chunks} fragmentos procesados."
-            log_entry.save()
+            log_entry.save(update_fields=['processed_percent', 'current_document_name', 'details'])
             
+        # Eliminar cualquier chunk excedente de versiones anteriores (si las hubiera)
+        LessonPlanChunk.objects.filter(lesson_plan=plan, chunk_index__gte=total_chunks).delete()
+
         # Actualizar search_vector para BM25 en lote de manera eficiente
         LessonPlanChunk.objects.filter(lesson_plan=plan).update(
             search_vector=SearchVector('content', config='spanish')
@@ -406,8 +532,9 @@ Responde SOLO con la descripción contextual. No incluyas saludos ni explicacion
         logger.info(f"Ingesta exitosa. Plan {plan_id}: {chunks_created} chunks creados.")
         
         log_entry.status = "success"
+        log_entry.processed_percent = 100.0
         log_entry.details = f"Ingesta exitosa. {chunks_created} fragmentos creados y vectorizados."
-        log_entry.save()
+        log_entry.save(update_fields=['status', 'processed_percent', 'details'])
         
     except CoreLessonPlan.DoesNotExist:
         logger.error(f"LessonPlan {plan_id} no encontrado en la DB.")
@@ -422,6 +549,7 @@ Responde SOLO con la descripción contextual. No incluyas saludos ni explicacion
         raise
 
 def get_llm_model(provider: AIProvider):
+    disable_thinking = getattr(provider, 'disable_thinking', True)
     model_name = provider.llm_model or "gpt-4o"
     
     if provider.provider_type == "google":
@@ -430,13 +558,18 @@ def get_llm_model(provider: AIProvider):
             model_name = "gemini-2.5-flash"
         else:
             model_name = provider.llm_model
-        return ChatGoogleGenerativeAI(
-            google_api_key=provider.api_key,
-            model=model_name,
-            temperature=0.2,
-            max_retries=0,
-            timeout=280
-        )
+        
+        kwargs = {
+            "google_api_key": provider.api_key,
+            "model": model_name,
+            "temperature": 0,
+            "max_retries": 0,
+            "timeout": 280
+        }
+        if disable_thinking:
+            kwargs["thinking_budget"] = 0
+            
+        return ChatGoogleGenerativeAI(**kwargs)
             
     from langchain_openai import ChatOpenAI
     base_url = provider.base_url if provider.base_url else None
@@ -445,13 +578,24 @@ def get_llm_model(provider: AIProvider):
     elif not provider.llm_model and ("deepseek" in provider.provider_type.lower() or "deepseek" in provider.name.lower()):
         model_name = "deepseek-chat"
         
+    # Advertir si se detecta un modelo razonador de DeepSeek (R1)
+    is_reasoner = any(x in model_name.lower() for x in ["r1", "reasoner"])
+    if is_reasoner and disable_thinking:
+        logger.warning(
+            f"Modelo razonador detectado ({model_name}). "
+            "Para RAG se recomienda usar 'deepseek-chat' en su lugar, ya que DeepSeek-R1 no permite desactivar thinking por parámetro."
+        )
+
+    extra_body = {"thinking": {"type": "disabled"}} if disable_thinking else {}
+
     return ChatOpenAI(
         api_key=provider.api_key or "not-needed",
         base_url=base_url,
         model=model_name,
-        temperature=0.2,
+        temperature=0,
         max_retries=0,
-        timeout=280
+        timeout=280,
+        **({"extra_body": extra_body} if extra_body else {})
     )
 
 def evaluate_plan_task(plan_id: int):
