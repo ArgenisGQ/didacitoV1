@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api-client';
 import { useWizard } from '@/context/WizardContext';
-import { Layers, Target, ClipboardList, Settings, Clock, BookOpen, Wand2, Trash2 } from 'lucide-react';
+import { Layers, Target, ClipboardList, Settings, Clock, BookOpen, Wand2, Trash2, Sparkles, Loader2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,8 +16,20 @@ import { cn } from '@/lib/utils';
 
 const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV'];
 
-export function EvaluationPlanGrid() {
-  const { state, updateEvaluationItem, updateEvaluationPredictive, removeEvaluationItem } = useWizard();
+interface EvaluationPlanGridProps {
+  onSuggestFullPlan?: () => Promise<void>;
+  isSuggesting?: boolean;
+  limitReached?: boolean;
+  hasAssignedAgent?: boolean;
+}
+
+export function EvaluationPlanGrid({
+  onSuggestFullPlan,
+  isSuggesting = false,
+  limitReached = false,
+  hasAssignedAgent = false,
+}: EvaluationPlanGridProps) {
+  const { state, updateEvaluationItem, updateEvaluationPredictive, removeEvaluationItem, updateField } = useWizard();
   
   const { data: taxonomy } = useQuery({
     queryKey: ['taxonomySettings'],
@@ -129,17 +141,41 @@ export function EvaluationPlanGrid() {
           </p>
         </div>
         
-        {syllabusDetail && syllabusDetail.units && syllabusDetail.units.length > 0 && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleAutoFill}
-            className="flex items-center gap-2 text-primary border-primary/30 hover:bg-primary/10"
-          >
-            <Wand2 size={16} />
-            Extraer del Sinóptico Oficial
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {hasAssignedAgent && onSuggestFullPlan && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSuggesting || limitReached}
+              onClick={onSuggestFullPlan}
+              className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 gap-1.5 font-bold shadow-sm"
+            >
+              {isSuggesting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Generando plan completo...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Sugerir con IA</span>
+                </>
+              )}
+            </Button>
+          )}
+          {syllabusDetail && syllabusDetail.units && syllabusDetail.units.length > 0 && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleAutoFill}
+              className="flex items-center gap-2 text-primary border-primary/30 hover:bg-primary/10 font-bold"
+            >
+              <Wand2 size={16} />
+              Extraer del Sinóptico Oficial
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-x-auto custom-scrollbar p-6 bg-muted/30">

@@ -1729,3 +1729,533 @@ def ai_metrics_tokens_export(request):
     return response
 
 
+def resolve_agent(subject_code, section, allow_fallback=True):
+    from .models import AgentAssignment, CoreDepartment, CoreSubject, CoreCareer, AgentTemplate
+    from django.db.models import Q
+    
+    agent = None
+    assignment = None
+    
+    # 1. Buscar asignación directa por asignatura y sección
+    if section:
+        sections_list = [s.strip() for s in section.split(",") if s.strip()]
+        subj_assignments = AgentAssignment.objects.filter(subject_code=subject_code, is_active=True).exclude(Q(section__isnull=True) | Q(section=''))
+        for sa in subj_assignments:
+            if sa.section:
+                sa_sections = [s.strip() for s in sa.section.split(",") if s.strip()]
+                if any(sec in sa_sections for sec in sections_list):
+                    assignment = sa
+                    break
+                    
+    # 2. Buscar asignación por asignatura global (sección vacía)
+    if not assignment:
+        assignment = AgentAssignment.objects.filter(subject_code=subject_code, is_active=True).filter(Q(section__isnull=True) | Q(section='')).first()
+        
+    if assignment:
+        agent = assignment.agent
+        
+    if not agent:
+        # 3. Buscar por Carrera (Career)
+        subject = CoreSubject.objects.filter(code=subject_code).first()
+        if subject and subject.program:
+            career = CoreCareer.objects.filter(name=subject.program, is_active=True).first()
+            if career:
+                assignment = AgentAssignment.objects.filter(career_id=career.id, is_active=True).first()
+                if assignment:
+                    agent = assignment.agent
+                    
+    if not agent:
+        # 4. Buscar por Departamento (Department)
+        dept = CoreDepartment.objects.filter(subject_codes__contains=subject_code, is_active=True).first()
+        if dept:
+            assignment = AgentAssignment.objects.filter(department_id=dept.id, is_active=True).first()
+            if assignment:
+                agent = assignment.agent
+            
+            # 5. Buscar por Facultad (Faculty)
+            if not agent and dept.faculty_id:
+                assignment = AgentAssignment.objects.filter(faculty_id=dept.faculty_id, is_active=True).first()
+                if assignment:
+                    agent = assignment.agent
+                    
+    # 6. Agente por defecto
+    if not agent and allow_fallback:
+        agent = AgentTemplate.objects.filter(agent_type='copilot', is_active=True).first()
+        if not agent:
+            agent = AgentTemplate.objects.filter(is_active=True).first()
+        
+    return agent
+
+
+@require_http_methods(["GET"])
+def agent_assignment_status(request):
+    """
+    Verifica si hay un agente asignado activo en la jerarquía para una materia y sección.
+    Se excluye de requerir LLM activo, solo lee la base de datos de asignaciones.
+    """
+    subject_code = request.GET.get("subject_code")
+    section = request.GET.get("section")
+    
+    if not subject_code:
+        return JsonResponse({"error": "Parámetro subject_code requerido"}, status=400)
+        
+    agent = resolve_agent(subject_code, section, allow_fallback=False)
+    has_assigned_agent = agent is not None and agent.is_active
+    
+    return JsonResponse({
+        "has_assigned_agent": has_assigned_agent
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def suggest_objectives(request):
+    """
+    Sugerencia atómica de objetivos y estrategias basada en el syllabus.
+    """
+    from .models import CoreSyllabusVersion, AILog
+    from .tasks import get_llm_model
+    from langchain_core.messages import HumanMessage, SystemMessage
+    
+    try:
+        data = json.loads(request.body)
+        subject_code = data.get("subject_code")
+        section = data.get("section")
+    except:
+        return JsonResponse({"error": "Cuerpo JSON inválido"}, status=400)
+        
+    if not subject_code:
+        return JsonResponse({"error": "subject_code requerido"}, status=400)
+        
+    agent = resolve_agent(subject_code, section)
+    if not agent or not agent.provider:
+        return JsonResponse({"error": "No hay un agente asignado o proveedor activo configurado para esta materia."}, status=400)
+        
+    # Obtener syllabus activo
+    syllabus = CoreSyllabusVersion.objects.filter(subject__code=subject_code, is_active=True).first()
+    if not syllabus or not syllabus.extracted_text:
+        return JsonResponse({"error": "El programa sinóptico oficial debe estar cargado en el sistema para usar el Copiloto."}, status=400)
+        
+    # Limitar el contexto para evitar sobrecostos
+    limit_chars = agent.provider.context_limit if getattr(agent.provider, 'context_limit', None) is not None else 3000
+    truncated_text = syllabus.extracted_text[:limit_chars]
+    
+    prompt = f"""Basándote en el siguiente programa sinóptico oficial, extrae y formula:
+1. Una lista de 3 a 5 objetivos específicos de aprendizaje para el plan didáctico.
+2. Una lista de 3 a 5 estrategias de enseñanza/aprendizaje idóneas.
+
+=== PROGRAMA SINÓPTICO ===
+{truncated_text}
+
+Devuelve la respuesta estrictamente en formato JSON con la siguiente estructura:
+{{
+  "objectives": [
+    "Objetivo 1...",
+    "Objetivo 2..."
+  ],
+  "strategies": [
+    "Estrategia 1...",
+    "Estrategia 2..."
+  ]
+}}
+Responde SOLO con el JSON. No incluyas saludos ni explicaciones."""
+
+    try:
+        llm = get_llm_model(agent.provider)
+        messages = [
+            SystemMessage(content=agent.system_prompt),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = llm.invoke(messages)
+        clean_json = response.content.strip().strip('```json').strip('```').strip()
+        result_data = json.loads(clean_json)
+        
+        # Registrar consumo
+        prompt_tokens = 0
+        completion_tokens = 0
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            prompt_tokens = response.usage_metadata.get('input_tokens', 0) or response.usage_metadata.get('prompt_tokens', 0) or 0
+            completion_tokens = response.usage_metadata.get('output_tokens', 0) or response.usage_metadata.get('completion_tokens', 0) or 0
+            
+        AILog.objects.create(
+            action=f"Copiloto: Sugerencia de Objetivos ({subject_code})",
+            status="success",
+            details="Objetivos y estrategias generadas de forma atómica.",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            provider_name=agent.provider.name,
+            model_name=agent.provider.llm_model
+        )
+        
+        return JsonResponse(result_data)
+    except Exception as e:
+        logger.exception(f"Error generando objetivos con Copiloto: {e}")
+        return JsonResponse({"error": f"Fallo al procesar la sugerencia: {str(e)}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def suggest_weekly_content(request):
+    """
+    Sugerencia de contenido detallado para una semana específica del plan (forzada a dosificación de 12 semanas).
+    """
+    from .models import CoreSyllabusVersion, AILog, CoreSubjectUnit
+    from .tasks import get_llm_model
+    from langchain_core.messages import HumanMessage, SystemMessage
+    
+    try:
+        data = json.loads(request.body)
+        subject_code = data.get("subject_code")
+        section = data.get("section")
+        week_number = int(data.get("week_number", 1))
+        modality = data.get("modality", "Presencial")
+    except:
+        return JsonResponse({"error": "Parámetros requeridos inválidos"}, status=400)
+        
+    if not subject_code or not week_number:
+        return JsonResponse({"error": "subject_code y week_number requeridos"}, status=400)
+        
+    agent = resolve_agent(subject_code, section)
+    if not agent or not agent.provider:
+        return JsonResponse({"error": "No hay un agente asignado o proveedor activo configurado."}, status=400)
+        
+    syllabus = CoreSyllabusVersion.objects.filter(subject__code=subject_code, is_active=True).first()
+    if not syllabus or not syllabus.extracted_text:
+        return JsonResponse({"error": "El programa sinóptico oficial debe estar cargado en el sistema."}, status=400)
+        
+    # Obtener todas las unidades temáticas de la materia para dosificación
+    units = CoreSubjectUnit.objects.filter(subject__code=subject_code).order_by('unit_number')
+    units_text = ""
+    for u in units:
+        units_text += f"Unidad {u.unit_number}: {u.unit_title}\nContenidos: {u.contents}\nCriterios: {u.performance_criteria}\n\n"
+        
+    limit_chars = agent.provider.context_limit if getattr(agent.provider, 'context_limit', None) is not None else 3000
+    truncated_units = units_text[:limit_chars]
+    
+    prompt = f"""Actúas como un Copiloto Pedagógico experto.
+Debes sugerir detalladamente el contenido de la SEMANA {week_number} (de un plan de clase de exactamente 12 semanas) para la materia '{subject_code}' bajo modalidad '{modality}'.
+Dosifica los contenidos del programa sinóptico en estas 12 semanas.
+
+=== UNIDADES Y TEMARIOS DEL SINÓPTICO ===
+{truncated_units}
+
+Por favor, genera la sugerencia estructural para la Semana {week_number}.
+Importante:
+1. Inserta saltos de línea (\\n) después de cada punto y seguido en 'content_description', 'specific_competence' y 'performance_criteria'.
+2. La bibliografía recomendada debe formatearse en estilo APA y presentarse dentro de un bloque HTML de sangría francesa estructurado así:
+<div style="padding-left: 20px; text-indent: -20px; margin-bottom: 2px; text-align: left; line-height: 1.2;">[Autor] ([Año]). [Título del Libro]. [Editorial]</div>
+3. Adapta las estrategias didácticas según la modalidad '{modality}'.
+
+Devuelve la respuesta estrictamente en formato JSON con la siguiente estructura:
+{{
+  "content_description": "Contenido temático detallado para la semana...",
+  "specific_competence": "Competencia a desarrollar en esta semana...",
+  "performance_criteria": "Criterios de desempeño esperados...",
+  "teaching_strategy": "Estrategias de enseñanza adecuadas para modalidad {modality}...",
+  "evaluation_feedback": "Evaluación o realimentación sugerida para esta semana...",
+  "resources": "Recursos de aprendizaje...",
+  "bibliography": "Bibliografía sugerida en el HTML de sangría francesa..."
+}}
+Responde SOLO con el JSON."""
+
+    try:
+        llm = get_llm_model(agent.provider)
+        messages = [
+            SystemMessage(content=agent.system_prompt),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = llm.invoke(messages)
+        clean_json = response.content.strip().strip('```json').strip('```').strip()
+        result_data = json.loads(clean_json)
+        
+        # Registrar consumo
+        prompt_tokens = 0
+        completion_tokens = 0
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            prompt_tokens = response.usage_metadata.get('input_tokens', 0) or response.usage_metadata.get('prompt_tokens', 0) or 0
+            completion_tokens = response.usage_metadata.get('output_tokens', 0) or response.usage_metadata.get('completion_tokens', 0) or 0
+            
+        AILog.objects.create(
+            action=f"Copiloto: Sugerencia de Semana {week_number} ({subject_code})",
+            status="success",
+            details=f"Semana {week_number} generada de forma atómica.",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            provider_name=agent.provider.name,
+            model_name=agent.provider.llm_model
+        )
+        
+        return JsonResponse(result_data)
+    except Exception as e:
+        logger.exception(f"Error generando contenido de semana con Copiloto: {e}")
+        return JsonResponse({"error": f"Fallo al procesar la sugerencia: {str(e)}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def suggest_evaluations(request):
+    """
+    Sugerencia de matriz de evaluación estructurada. El sumatorio de pesos debe ser exactamente 100%.
+    """
+    from .models import CoreSyllabusVersion, AILog, CoreSubject
+    from .tasks import get_llm_model
+    from langchain_core.messages import HumanMessage, SystemMessage
+    
+    try:
+        data = json.loads(request.body)
+        subject_code = data.get("subject_code")
+        section = data.get("section")
+    except:
+        return JsonResponse({"error": "Cuerpo JSON inválido"}, status=400)
+        
+    if not subject_code:
+        return JsonResponse({"error": "subject_code requerido"}, status=400)
+        
+    agent = resolve_agent(subject_code, section)
+    if not agent or not agent.provider:
+        return JsonResponse({"error": "No hay un agente asignado o proveedor activo configurado."}, status=400)
+        
+    subject = CoreSubject.objects.filter(code=subject_code).first()
+    syllabus = CoreSyllabusVersion.objects.filter(subject__code=subject_code, is_active=True).first()
+    if not syllabus or not syllabus.extracted_text:
+        return JsonResponse({"error": "El programa sinóptico oficial debe estar cargado en el sistema."}, status=400)
+        
+    # Obtener detalles del syllabus que hablen de evaluación si están disponibles
+    eval_text = ""
+    if subject:
+        eval_text += f"Evaluación Diagnóstica: {subject.eval_diagnostica or ''}\n"
+        eval_text += f"Evaluación Formativa: {subject.eval_formativa or ''}\n"
+        eval_text += f"Evaluación Sumativa: {subject.eval_sumativa or ''}\n"
+        
+    limit_chars = agent.provider.context_limit if getattr(agent.provider, 'context_limit', None) is not None else 3000
+    truncated_text = (eval_text + "\n" + syllabus.extracted_text)[:limit_chars]
+    
+    prompt = f"""Actúas como un Copiloto Pedagógico experto.
+Tu tarea es proponer la MATRIZ COMPLETA DE EVALUACIÓN (3 o 4 evaluaciones como máximo) para la materia '{subject_code}'.
+Debes distribuir los cortes a lo largo del periodo académico.
+
+=== INFORMACIÓN DE EVALUACIÓN DEL SINÓPTICO ===
+{truncated_text}
+
+Reglas estrictas para el plan de evaluación:
+1. El sumatorio del campo 'weight' (Ponderación) de todas las evaluaciones sugeridas debe ser exactamente igual a 100.0%.
+2. Los valores permitidos para 'unit' son números enteros (1, 2, 3 o 4).
+3. 'due_week' (Semana de entrega) debe estar comprendida entre la semana 1 y la semana 12.
+
+Devuelve la respuesta estrictamente en formato JSON con la siguiente estructura:
+{{
+  "evaluation_plans": [
+    {{
+      "unit": 1,
+      "title": "Evaluación corte 1...",
+      "competence": "Competencia específica evaluada...",
+      "performance_criterion": "Criterio de desempeño...",
+      "strategy": "Estrategia de evaluación...",
+      "instrument": "Instrumento de evaluación...",
+      "evaluation_type": "Sumativa/Formativa/Diagnóstica...",
+      "evidence": "Evidencia de aprendizaje...",
+      "feedback_method": "Método de realimentación...",
+      "weight": 25.0,
+      "due_week": 4
+    }}
+  ]
+}}
+Responde SOLO con el JSON."""
+
+    try:
+        llm = get_llm_model(agent.provider)
+        messages = [
+            SystemMessage(content=agent.system_prompt),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = llm.invoke(messages)
+        clean_json = response.content.strip().strip('```json').strip('```').strip()
+        result_data = json.loads(clean_json)
+        
+        # Validar la sumatoria de ponderaciones y forzar ajuste si es necesario para evitar fallos de negocio
+        evals = result_data.get("evaluation_plans", [])
+        if evals:
+            total_weight = sum(float(e.get("weight", 0)) for e in evals)
+            if abs(total_weight - 100.0) > 0.01:
+                # Ajustar la última evaluación para garantizar el 100% exacto de forma forzosa
+                diff = 100.0 - sum(float(e.get("weight", 0)) for e in evals[:-1])
+                evals[-1]["weight"] = round(diff, 1)
+                result_data["evaluation_plans"] = evals
+                
+        # Registrar consumo
+        prompt_tokens = 0
+        completion_tokens = 0
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            prompt_tokens = response.usage_metadata.get('input_tokens', 0) or response.usage_metadata.get('prompt_tokens', 0) or 0
+            completion_tokens = response.usage_metadata.get('output_tokens', 0) or response.usage_metadata.get('completion_tokens', 0) or 0
+            
+        AILog.objects.create(
+            action=f"Copiloto: Sugerencia de Evaluaciones ({subject_code})",
+            status="success",
+            details="Matriz de evaluación generada de forma atómica y forzada a 100%.",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            provider_name=agent.provider.name,
+            model_name=agent.provider.llm_model
+        )
+        
+        return JsonResponse(result_data)
+    except Exception as e:
+        logger.exception(f"Error generando plan de evaluación con Copiloto: {e}")
+        return JsonResponse({"error": f"Fallo al procesar la sugerencia: {str(e)}"}, status=500)
+
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def suggest_full_plan(request):
+    """
+    Sugerencia conjunta y coherente de la matriz de evaluación y la dosificación de 12 semanas.
+    """
+    from .models import CoreSyllabusVersion, AILog, CoreSubject, CoreSubjectUnit
+    from .tasks import get_llm_model
+    from langchain_core.messages import HumanMessage, SystemMessage
+    
+    try:
+        data = json.loads(request.body)
+        subject_code = data.get("subject_code")
+        section = data.get("section")
+        modality = data.get("modality", "Presencial")
+    except:
+        return JsonResponse({"error": "Cuerpo JSON inválido"}, status=400)
+        
+    if not subject_code:
+        return JsonResponse({"error": "subject_code requerido"}, status=400)
+        
+    agent = resolve_agent(subject_code, section)
+    if not agent or not agent.provider:
+        return JsonResponse({"error": "No hay un agente asignado o proveedor activo configurado para esta materia."}, status=400)
+        
+    subject = CoreSubject.objects.filter(code=subject_code).first()
+    syllabus = CoreSyllabusVersion.objects.filter(subject__code=subject_code, is_active=True).first()
+    if not syllabus or not syllabus.extracted_text:
+        return JsonResponse({"error": "El programa sinóptico oficial debe estar cargado en el sistema para usar el Copiloto."}, status=400)
+        
+    # Obtener todas las unidades temáticas de la materia para dosificación
+    units = CoreSubjectUnit.objects.filter(subject__code=subject_code).order_by('unit_number')
+    units_text = ""
+    for u in units:
+        units_text += f"Unidad {u.unit_number}: {u.unit_title}\nContenidos: {u.contents}\nCriterios: {u.performance_criteria}\n\n"
+        
+    # Obtener detalles del syllabus que hablen de evaluación
+    eval_text = ""
+    if subject:
+        eval_text += f"Evaluación Diagnóstica: {subject.eval_diagnostica or ''}\n"
+        eval_text += f"Evaluación Formativa: {subject.eval_formativa or ''}\n"
+        eval_text += f"Evaluación Sumativa: {subject.eval_sumativa or ''}\n"
+
+    limit_chars = agent.provider.context_limit if getattr(agent.provider, 'context_limit', None) is not None else 3000
+    truncated_units = units_text[:limit_chars//2]
+    truncated_eval_text = (eval_text + "\n" + syllabus.extracted_text)[:limit_chars//2]
+    
+    prompt = f"""Actúas como un Copiloto Pedagógico experto.
+Tu tarea es proponer el PLAN DIDÁCTICO COMPLETO para la materia '{subject_code}' bajo modalidad '{modality}'.
+Esto incluye:
+1. La MATRIZ COMPLETA DE EVALUACIÓN (3 o 4 evaluaciones como máximo, sumando exactamente 100.0%).
+2. La DOSIFICACIÓN SEMANAL detallada para exactamente 12 semanas, distribuyendo coherentemente los contenidos del sinóptico.
+
+=== UNIDADES Y TEMARIOS DEL SINÓPTICO ===
+{truncated_units}
+
+=== INFORMACIÓN DE EVALUACIÓN DEL SINÓPTICO ===
+{truncated_eval_text}
+
+Reglas estrictas para el JSON de respuesta:
+1. El sumatorio del campo 'weight' (Ponderación) de todas las evaluaciones sugeridas debe ser exactamente igual a 100.0%.
+2. Los valores permitidos para 'unit' son números enteros (1, 2, 3 o 4).
+3. 'due_week' (Semana de entrega) en las evaluaciones debe estar entre 1 y 12.
+4. Para cada una de las 12 semanas (week_number de 1 a 12), debes generar:
+   - 'unit_content': Un título muy corto para la semana (máximo 40 caracteres, ej. "Conceptos Básicos de...").
+   - 'content_description': Temas y contenidos detallados (máximo 150 caracteres).
+   - 'specific_competence': Competencia a desarrollar (máximo 100 caracteres).
+   - 'performance_criteria': Criterios de desempeño esperados (máximo 100 caracteres).
+   - 'teaching_strategy': Estrategias didácticas adaptadas a la modalidad '{modality}' (máximo 100 caracteres).
+   - 'evaluation_feedback': Evaluaciones adicionales o métodos de retroalimentación de la semana (máximo 100 caracteres).
+   - 'resources': Recursos de aprendizaje (máximo 50 caracteres).
+   - 'bibliography': Referencias recomendadas en formato APA, presentadas dentro de un bloque HTML con sangría francesa y estilo inline idéntico a este:
+     <div style="padding-left: 20px; text-indent: -20px; margin-bottom: 2px; text-align: left; line-height: 1.2;">[Autor] ([Año]). [Título]. [Editorial]</div>
+5. Inserta saltos de línea (\\n) después de cada punto y seguido en descripciones de contenidos, competencias y criterios de desempeño.
+6. Sé sumamente profesional, conciso y directo para asegurar que la respuesta quepa completa en el límite de salida del modelo.
+
+Devuelve la respuesta estrictamente en formato JSON con la siguiente estructura:
+{{
+  "evaluation_plans": [
+    {{
+      "unit": 1,
+      "title": "Evaluación Unidad I...",
+      "competence": "...",
+      "performance_criterion": "...",
+      "strategy": "...",
+      "instrument": "...",
+      "evaluation_type": "Sumativa...",
+      "evidence": "...",
+      "feedback_method": "...",
+      "weight": 25.0,
+      "due_week": 4
+    }}
+  ],
+  "weekly_contents": [
+    {{
+      "week_number": 1,
+      "unit_content": "...",
+      "content_description": "...",
+      "specific_competence": "...",
+      "performance_criteria": "...",
+      "teaching_strategy": "...",
+      "evaluation_feedback": "...",
+      "resources": "...",
+      "bibliography": "..."
+    }}
+  ]
+}}
+Responde SOLO con el JSON. No incluyas explicaciones previas ni posteriores, ni bloques de código de markdown."""
+
+    try:
+        llm = get_llm_model(agent.provider)
+        messages = [
+            SystemMessage(content=agent.system_prompt),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = llm.invoke(messages)
+        clean_json = response.content.strip().strip('```json').strip('```').strip()
+        result_data = json.loads(clean_json)
+        
+        # Validar la sumatoria de ponderaciones y forzar ajuste si es necesario
+        evals = result_data.get("evaluation_plans", [])
+        if evals:
+            total_weight = sum(float(e.get("weight", 0)) for e in evals)
+            if abs(total_weight - 100.0) > 0.01:
+                diff = 100.0 - sum(float(e.get("weight", 0)) for e in evals[:-1])
+                evals[-1]["weight"] = round(diff, 1)
+                result_data["evaluation_plans"] = evals
+                
+        # Registrar consumo
+        prompt_tokens = 0
+        completion_tokens = 0
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            prompt_tokens = response.usage_metadata.get('input_tokens', 0) or response.usage_metadata.get('prompt_tokens', 0) or 0
+            completion_tokens = response.usage_metadata.get('output_tokens', 0) or response.usage_metadata.get('completion_tokens', 0) or 0
+            
+        AILog.objects.create(
+            action=f"Copiloto: Plan Completo ({subject_code})",
+            status="success",
+            details="Matriz de evaluación y 12 semanas generadas conjuntamente.",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            provider_name=agent.provider.name,
+            model_name=agent.provider.llm_model
+        )
+        
+        return JsonResponse(result_data)
+    except Exception as e:
+        logger.exception(f"Error generando plan completo con Copiloto: {e}")
+        return JsonResponse({"error": f"Fallo al procesar la sugerencia: {str(e)}"}, status=500)

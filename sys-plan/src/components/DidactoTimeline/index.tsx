@@ -6,7 +6,7 @@ import { WeekDetailsPanel } from './WeekDetailsPanel';
 import { EvaluationPlanGrid } from './EvaluationPlanGrid';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, FileText, Target, Map, CheckCircle2, Layers } from 'lucide-react';
+import { ArrowLeft, Save, FileText, Target, Map, CheckCircle2, Layers, Sparkles } from 'lucide-react';
 import { WizardProvider, useWizard } from '@/context/WizardContext';
 import { WizardBasicInfo } from '../wizard/WizardBasicInfo';
 import { WizardObjectives } from '../wizard/WizardObjectives';
@@ -14,6 +14,8 @@ import { WizardReview } from '../wizard/WizardReview';
 import { useAutosave } from '@/hooks/useAutosave';
 import api from '@/lib/api-client';
 import { Clock } from 'lucide-react';
+import { useAICopilot } from '@/hooks/useAICopilot';
+import { useToast } from '@/hooks/use-toast';
 
 // No more INITIAL_WEEKS or MOCK_EVALUATIONS as constants. They will be generated dynamically.
 
@@ -56,6 +58,15 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
   const { state, updateField } = useWizard();
   const [activeTab, setActiveTab] = useState('general');
   const [activePlanId, setActivePlanId] = useState<number | null>(planId || null);
+
+  const { toast } = useToast();
+  const {
+    hasAssignedAgent,
+    attemptsRemaining,
+    limitReached,
+    suggestFullPlan,
+    suggestingFullPlan,
+  } = useAICopilot(state.subject_code, state.section);
 
   const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV'];
   
@@ -185,6 +196,78 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
       }
     } catch (err) {
       console.error('Error auto-saving plan:', err);
+    }
+  };
+
+  const handleSuggestFullPlan = async () => {
+    const hasEvalData = state.evaluation_plans.some((e) =>
+      e.competence?.trim() || e.due_week || e.weight || e.strategy?.trim() || e.evidence?.trim() || e.instrument?.trim()
+    );
+    const hasWeekData = weeks.some((w) =>
+      (w.title || '').trim() !== '' || (w.contenido || '').trim() !== '' || (w.estrategiasDidacticas || '').trim() !== ''
+    );
+
+    if (hasEvalData || hasWeekData) {
+      if (!confirm('Esta acción generará el plan de evaluación y todo el contenido de las 12 semanas. Se sobrescribirá cualquier información que ya hayas redactado. ¿Estás seguro de que deseas continuar?')) {
+        return;
+      }
+    }
+
+    try {
+      const response = await suggestFullPlan(state.modality || 'Presencial');
+      if (response) {
+        // 1. Update evaluations
+        if (response.evaluation_plans) {
+          const plans = response.evaluation_plans.map((e: any) => ({
+            unit: e.unit || null,
+            title: e.title || '',
+            competence: e.competence || '',
+            performance_criterion: e.performance_criterion || '',
+            strategy: e.strategy || '',
+            instrument: e.instrument || '',
+            evaluation_type: e.evaluation_type || '',
+            evidence: e.evidence || '',
+            feedback_method: e.feedback_method || '',
+            weight: e.weight || '',
+            due_week: e.due_week || '',
+            due_date: '',
+          }));
+          updateField('evaluation_plans', plans);
+        }
+
+        // 2. Update weeks
+        if (response.weekly_contents) {
+          const newWeeks = weeks.map((w) => {
+            const suggestion = response.weekly_contents.find((s: any) => s.week_number === w.weekNumber);
+            if (suggestion) {
+              return {
+                ...w,
+                title: suggestion.unit_content && !suggestion.unit_content.startsWith('unit-') ? suggestion.unit_content : w.title,
+                contenido: suggestion.content_description || '',
+                specificCompetence: suggestion.specific_competence || '',
+                criteriosDesempeno: suggestion.performance_criteria || '',
+                estrategiasDidacticas: suggestion.teaching_strategy || '',
+                recursosAprendizaje: suggestion.resources || '',
+                bibliografia: suggestion.bibliography || '',
+                evaluationFeedback: suggestion.evaluation_feedback || '',
+              };
+            }
+            return w;
+          });
+          setWeeks(newWeeks);
+        }
+
+        toast({
+          title: 'Plan Completado con IA',
+          description: 'Se ha sugerido la matriz de evaluación y la dosificación de las 12 semanas exitosamente.',
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: 'Error de Copiloto',
+        description: err.response?.data?.detail || err.message || 'No se pudo generar el plan completo.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -358,8 +441,22 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
             <div className="bg-primary/10 text-primary w-8 h-8 rounded-lg flex items-center justify-center">
               <Map size={18} strokeWidth={3} />
             </div>
-            <span>Editor Visual Didacto</span>
+            <span>Planificador Didáctico</span>
           </DialogTitle>
+          {hasAssignedAgent && (
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold backdrop-blur-md ${
+              limitReached
+                ? 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
+                : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-600 dark:text-indigo-400'
+            }`}>
+              <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+              {limitReached ? (
+                <span>⚠️ Límite de Copiloto de IA consumido (2 de 2 utilizados)</span>
+              ) : (
+                <span>✨ Copiloto de IA disponible (Intentos restantes: {attemptsRemaining} de 2)</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tabs inside Header */}
@@ -418,7 +515,12 @@ function DidactoTimelineInner({ initialData, planId, onSave, onClose }: Props) {
 
         {activeTab === 'units' && (
           <div className="p-8 w-full h-full overflow-y-auto custom-scrollbar bg-accent/10">
-            <EvaluationPlanGrid />
+            <EvaluationPlanGrid 
+              onSuggestFullPlan={handleSuggestFullPlan}
+              isSuggesting={suggestingFullPlan}
+              limitReached={limitReached}
+              hasAssignedAgent={hasAssignedAgent}
+            />
           </div>
         )}
 

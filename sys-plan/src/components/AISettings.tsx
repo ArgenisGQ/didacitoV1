@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit, Trash2, Cpu, Key, Database, Play, AlertTriangle, Zap, FileText, CheckCircle2, XCircle, Binary, MessageSquare, Layers, BarChart3, Download, Calendar, Loader2, RefreshCw } from 'lucide-react'
+import { Plus, Edit, Trash2, Cpu, Key, Database, Play, AlertTriangle, Zap, FileText, CheckCircle2, XCircle, Binary, MessageSquare, Layers, BarChart3, Download, Calendar, Loader2, RefreshCw, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Brush, ReferenceArea } from 'recharts'
 
@@ -42,6 +42,20 @@ export default function AISettings() {
   // States for Assignment Modal
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false)
   const [editingAssignment, setEditingAssignment] = useState<any>(null)
+
+  // Filters and Pagination for Templates (Agentes IA)
+  const [templateSearch, setTemplateSearch] = useState('')
+  const [templateTypeFilter, setTemplateTypeFilter] = useState('all')
+  const [templateStatusFilter, setTemplateStatusFilter] = useState('all')
+  const [templatePage, setTemplatePage] = useState(1)
+  const [templatePageSize, setTemplatePageSize] = useState(10)
+
+  // Filters and Pagination for Assignments (Asignación de Agentes)
+  const [assignmentSearch, setAssignmentSearch] = useState('')
+  const [assignmentLevelFilter, setAssignmentLevelFilter] = useState('all')
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState('all')
+  const [assignmentPage, setAssignmentPage] = useState(1)
+  const [assignmentPageSize, setAssignmentPageSize] = useState(10)
 
   // Queries for Assignments
   const { data: assignments = [], refetch: refetchAssignments } = useQuery({
@@ -94,6 +108,8 @@ export default function AISettings() {
       toast.error("Error al eliminar asignación")
     }
   }
+
+
 
   // States for Metrics Filters
   const getWeekDates = () => {
@@ -515,6 +531,193 @@ export default function AISettings() {
     }
   }
 
+  // Filtered and paginated templates
+  const filteredTemplates = templates.filter((t: any) => {
+    const matchesSearch = 
+      t.name.toLowerCase().includes(templateSearch.toLowerCase()) || 
+      (t.description && t.description.toLowerCase().includes(templateSearch.toLowerCase()));
+    
+    const matchesType = 
+      templateTypeFilter === 'all' || 
+      t.agent_type === templateTypeFilter;
+      
+    const matchesStatus = 
+      templateStatusFilter === 'all' || 
+      (templateStatusFilter === 'active' && t.is_active) || 
+      (templateStatusFilter === 'inactive' && !t.is_active);
+      
+    return matchesSearch && matchesType && matchesStatus;
+  });
+
+  const totalTemplates = filteredTemplates.length;
+  const totalTemplatePages = Math.ceil(totalTemplates / templatePageSize);
+  const paginatedTemplates = filteredTemplates.slice(
+    (templatePage - 1) * templatePageSize,
+    templatePage * templatePageSize
+  );
+
+  // Filtered and paginated assignments
+  const filteredAssignments = assignments.filter((a: any) => {
+    let level = "Global";
+    let detail = "-";
+    if (a.subject_code) {
+      level = "Asignatura";
+      detail = `Código: ${a.subject_code}`;
+      if (a.section) detail += ` | Secc: ${a.section}`;
+    } else if (a.career_id) {
+      level = "Carrera";
+      detail = a.career_name || `ID: ${a.career_id}`;
+    } else if (a.department_id) {
+      level = "Departamento";
+      detail = a.department_name || `ID: ${a.department_id}`;
+    } else if (a.faculty_id) {
+      level = "Facultad";
+      detail = a.faculty_name || `ID: ${a.faculty_id}`;
+    }
+
+    const matchesSearch = 
+      a.agent_name.toLowerCase().includes(assignmentSearch.toLowerCase()) ||
+      level.toLowerCase().includes(assignmentSearch.toLowerCase()) ||
+      detail.toLowerCase().includes(assignmentSearch.toLowerCase());
+      
+    const matchesLevel = 
+      assignmentLevelFilter === 'all' || 
+      level.toLowerCase() === assignmentLevelFilter.toLowerCase();
+      
+    const matchesStatus = 
+      assignmentStatusFilter === 'all' || 
+      (assignmentStatusFilter === 'active' && a.is_active) || 
+      (assignmentStatusFilter === 'inactive' && !a.is_active);
+      
+    return matchesSearch && matchesLevel && matchesStatus;
+  });
+
+  const totalAssignments = filteredAssignments.length;
+  const totalAssignmentPages = Math.ceil(totalAssignments / assignmentPageSize);
+  const paginatedAssignments = filteredAssignments.slice(
+    (assignmentPage - 1) * assignmentPageSize,
+    assignmentPage * assignmentPageSize
+  );
+
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+
+      try {
+        // Simple CSV parser that handles quotes
+        const lines: string[][] = [];
+        let row: string[] = [];
+        let insideQuote = false;
+        let entry = '';
+
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          const nextChar = text[i + 1];
+
+          if (char === '"') {
+            if (insideQuote && nextChar === '"') {
+              entry += '"'; // Escaped quote
+              i++;
+            } else {
+              insideQuote = !insideQuote;
+            }
+          } else if (char === ',' && !insideQuote) {
+            row.push(entry.trim());
+            entry = '';
+          } else if ((char === '\n' || char === '\r') && !insideQuote) {
+            if (char === '\r' && nextChar === '\n') i++;
+            row.push(entry.trim());
+            if (row.length > 1 || row[0] !== '') {
+              lines.push(row);
+            }
+            row = [];
+            entry = '';
+          } else {
+            entry += char;
+          }
+        }
+        if (entry || row.length > 0) {
+          row.push(entry.trim());
+          lines.push(row);
+        }
+
+        if (lines.length < 2) {
+          toast.error("El archivo CSV está vacío o no tiene el formato correcto.");
+          return;
+        }
+
+        // Clean UTF-8 BOM if present in first header
+        const headers = lines[0].map(h => h.replace(/^\uFEFF/, '').trim());
+        const dataRows = lines.slice(1);
+
+        let importedCount = 0;
+        let errorCount = 0;
+
+        for (const dataRow of dataRows) {
+          const item: any = {};
+          headers.forEach((header, index) => {
+            item[header] = dataRow[index] || '';
+          });
+
+          const name = item["Nombre del Agente"] || item["Nombre"] || '';
+          if (!name) continue;
+
+          const description = item["Descripción"] || item["Descripcion"] || '';
+          const rawType = item["Tipo de Agente"] || item["Tipo"] || 'chat';
+          let agent_type = 'chat';
+          if (rawType.toLowerCase().includes('evaluador')) agent_type = 'evaluator';
+          else if (rawType.toLowerCase().includes('copiloto')) agent_type = 'copilot';
+          else if (rawType.toLowerCase().includes('chat') || rawType.toLowerCase().includes('rag')) agent_type = 'chat';
+
+          // Try matching provider ID
+          let provider_id = item["ID del Proveedor"] || item["ID Proveedor"] || '';
+          if (!provider_id && item["Proveedor de IA"]) {
+            const match = providers.find((p: any) => p.name.toLowerCase() === item["Proveedor de IA"].toLowerCase());
+            if (match) provider_id = match.id;
+          }
+          if (!provider_id && providers.length > 0) {
+            const activeP = providers.find((p: any) => p.is_active);
+            provider_id = activeP ? activeP.id : providers[0].id;
+          }
+
+          const system_prompt = item["System Prompt (Directrices)"] || item["System Prompt"] || 'Eres un asistente evaluador.';
+          const rawStatus = item["Estado"] || 'Activo';
+          const is_active = rawStatus.toLowerCase() === 'activo' || rawStatus.toLowerCase() === 'true' || rawStatus === '1';
+          
+          const rawTools = item["Herramientas Permitidas"] || '';
+          const enabled_tools = rawTools ? rawTools.split('|').map((t: string) => t.trim()).filter(Boolean) : [];
+
+          try {
+            await api.post('/ai/admin/templates', {
+              name,
+              description,
+              agent_type,
+              provider_id: Number(provider_id),
+              system_prompt,
+              is_active,
+              enabled_tools
+            });
+            importedCount++;
+          } catch (err) {
+            errorCount++;
+          }
+        }
+
+        toast.success(`Importación finalizada. Creados: ${importedCount}, Errores: ${errorCount}`);
+        queryClient.invalidateQueries({ queryKey: ['ai-templates'] });
+      } catch (err) {
+        toast.error("Error al procesar el archivo CSV.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const hasActiveProvider = providers.some((p: any) => p.is_active)
 
   return (
@@ -699,55 +902,227 @@ export default function AISettings() {
       )}
 
       {activeTab === 'templates' && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="shadow-md border border-slate-200/80 rounded-2xl overflow-hidden bg-white">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 border-b border-slate-100 p-6">
             <div>
-              <CardTitle>Agentes de Evaluación</CardTitle>
-              <CardDescription>Define cómo la IA evaluará las planificaciones leyendo los programas sinópticos.</CardDescription>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-2xl font-bold tracking-tight text-slate-800">Agentes de Evaluación</CardTitle>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                  {templates.length}
+                </span>
+              </div>
+              <CardDescription className="text-slate-500 mt-1">Define cómo la IA evaluará las planificaciones leyendo los programas sinópticos.</CardDescription>
             </div>
-            <Button onClick={() => { setEditingTemplate(null); setIsTemplateModalOpen(true) }} className="gap-2">
-              <Plus size={16} /> Nuevo Agente
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => {
+                const headers = [
+                  "Nombre del Agente", 
+                  "Descripción", 
+                  "Tipo de Agente", 
+                  "Proveedor de IA", 
+                  "ID del Proveedor", 
+                  "System Prompt (Directrices)", 
+                  "Estado", 
+                  "Herramientas Permitidas"
+                ];
+                const rows = templates.map((t: any) => [
+                  t.name,
+                  t.description || '',
+                  t.agent_type === 'chat' ? 'Chat / RAG' : t.agent_type === 'evaluator' ? 'Evaluador Académico' : t.agent_type === 'copilot' ? 'Copiloto Académico' : t.agent_type,
+                  t.provider_name,
+                  t.provider_id || '',
+                  t.system_prompt || '',
+                  t.is_active ? 'Activo' : 'Inactivo',
+                  Array.isArray(t.enabled_tools) ? t.enabled_tools.join(" | ") : (t.enabled_tools || '')
+                ]);
+                
+                const csvContent = [headers, ...rows]
+                  .map(row => row.map((val: any) => `"${String(val).replace(/"/g, '""')}"`).join(","))
+                  .join("\n");
+                
+                const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", "todos_los_agentes.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+              }} variant="outline" size="sm" className="gap-1 text-xs border-slate-200 text-slate-700 hover:bg-slate-50">
+                <Download size={14} /> Matriz CSV
+              </Button>
+              <Button onClick={() => document.getElementById('csv-import-input')?.click()} variant="outline" size="sm" className="gap-1 text-xs border-slate-200 text-slate-700 hover:bg-slate-50">
+                <Upload size={14} /> Importar CSV
+              </Button>
+              <input 
+                type="file" 
+                id="csv-import-input" 
+                accept=".csv" 
+                onChange={handleImportCSV} 
+                className="hidden" 
+              />
+              <Button onClick={() => { setEditingTemplate(null); setIsTemplateModalOpen(true) }} className="gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold">
+                <Plus size={16} /> Nuevo Agente
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre del Agente</TableHead>
-                  <TableHead>Proveedor</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {templates.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      No hay agentes configurados.
-                    </TableCell>
+          <CardContent className="p-6 space-y-4">
+            {/* Control Filters Bar */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/50 p-4 border border-slate-100 rounded-xl">
+              <div className="relative w-full md:max-w-xs">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Buscar agente..."
+                  value={templateSearch}
+                  onChange={(e) => { setTemplateSearch(e.target.value); setTemplatePage(1); }}
+                  className="pl-9 bg-white border-slate-200/80 focus:border-slate-400 focus:ring-0 text-sm h-9"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200/80 rounded-md px-2.5 py-0.5 h-9">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Tipo:</label>
+                  <Select value={templateTypeFilter} onValueChange={(val) => { setTemplateTypeFilter(val); setTemplatePage(1); }}>
+                    <SelectTrigger className="w-[160px] h-7 border-none shadow-none focus:ring-0 px-1 py-0 text-xs">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los Tipos</SelectItem>
+                      <SelectItem value="chat">Chat / RAG Agent</SelectItem>
+                      <SelectItem value="evaluator">Evaluador Académico</SelectItem>
+                      <SelectItem value="copilot">Copiloto Académico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200/80 rounded-md px-2.5 py-0.5 h-9">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Estado:</label>
+                  <Select value={templateStatusFilter} onValueChange={(val) => { setTemplateStatusFilter(val); setTemplatePage(1); }}>
+                    <SelectTrigger className="w-[120px] h-7 border-none shadow-none focus:ring-0 px-1 py-0 text-xs">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="active">Activo</SelectItem>
+                      <SelectItem value="inactive">Inactivo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="border border-slate-200/80 rounded-xl overflow-hidden bg-white">
+              <Table>
+                <TableHeader className="bg-slate-50/70">
+                  <TableRow className="border-b border-slate-200 hover:bg-transparent">
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Nombre del Agente</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Descripción</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Tipo de Agente</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Proveedor</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Estado</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5 text-right pr-6">Acciones</TableHead>
                   </TableRow>
-                ) : (
-                  templates.map((t: any) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="font-bold">{t.name}</TableCell>
-                      <TableCell>{t.provider_name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{t.description}</TableCell>
-                      <TableCell>
-                        <Badge variant={t.is_active ? 'default' : 'secondary'}>
-                          {t.is_active ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingTemplate(t); setIsTemplateModalOpen(true) }}>
-                          <Edit size={16} />
-                        </Button>
+                </TableHeader>
+                <TableBody>
+                  {paginatedTemplates.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-slate-400 py-12 text-sm">
+                        No se encontraron agentes con los filtros aplicados.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    paginatedTemplates.map((t: any) => (
+                      <TableRow key={t.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                        <TableCell className="font-bold text-slate-800 py-3.5">{t.name}</TableCell>
+                        <TableCell className="text-sm text-slate-500 py-3.5 max-w-xs truncate" title={t.description}>{t.description || '-'}</TableCell>
+                        <TableCell className="py-3.5">
+                          <Badge variant="outline" className="capitalize text-slate-700 border-slate-200 bg-slate-50 font-medium py-0.5 px-2">
+                            {t.agent_type === 'chat' ? 'Chat / RAG' : t.agent_type === 'evaluator' ? 'Evaluador Académico' : t.agent_type === 'copilot' ? 'Copiloto Académico' : t.agent_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-slate-600 py-3.5">{t.provider_name}</TableCell>
+                        <TableCell className="py-3.5">
+                          <Badge variant={t.is_active ? 'default' : 'secondary'} className={`py-0.5 px-2.5 font-bold ${t.is_active ? 'bg-emerald-500 hover:bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                            {t.is_active ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right py-3.5 pr-6">
+                          <Button variant="ghost" size="sm" onClick={() => { setEditingTemplate(t); setIsTemplateModalOpen(true) }} className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg">
+                            <Edit size={15} />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination Footer */}
+            {totalTemplates > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 text-xs font-semibold text-slate-600">
+                <div>
+                  Mostrando {((templatePage - 1) * templatePageSize) + 1} al {Math.min(templatePage * templatePageSize, totalTemplates)} de {totalTemplates} agentes
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <span>Filas por página:</span>
+                    <Select value={templatePageSize.toString()} onValueChange={(val) => { setTemplatePageSize(Number(val)); setTemplatePage(1); }}>
+                      <SelectTrigger className="w-[65px] h-7 border-slate-200 focus:ring-0 text-xs px-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 p-0 border-slate-200"
+                      onClick={() => setTemplatePage(1)}
+                      disabled={templatePage === 1}
+                    >
+                      <ChevronsLeft size={14} />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 p-0 border-slate-200"
+                      onClick={() => setTemplatePage(prev => Math.max(prev - 1, 1))}
+                      disabled={templatePage === 1}
+                    >
+                      <ChevronLeft size={14} />
+                    </Button>
+                    <span className="text-xs font-medium px-2">
+                      Pág. {templatePage} de {totalTemplatePages || 1}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 p-0 border-slate-200"
+                      onClick={() => setTemplatePage(prev => Math.min(prev + 1, totalTemplatePages))}
+                      disabled={templatePage === totalTemplatePages || totalTemplatePages === 0}
+                    >
+                      <ChevronRight size={14} />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 p-0 border-slate-200"
+                      onClick={() => setTemplatePage(totalTemplatePages)}
+                      disabled={templatePage === totalTemplatePages || totalTemplatePages === 0}
+                    >
+                      <ChevronsRight size={14} />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1191,105 +1566,283 @@ export default function AISettings() {
       )}
 
       {activeTab === 'assignments' && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="shadow-md border border-slate-200/80 rounded-2xl overflow-hidden bg-white">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 border-b border-slate-100 p-6">
             <div>
-              <CardTitle>Asignaciones de Agentes</CardTitle>
-              <CardDescription>Asigna agentes de IA específicos a determinadas áreas, carreras, asignaturas o facultades.</CardDescription>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-2xl font-bold tracking-tight text-slate-800">Asignaciones de Agentes</CardTitle>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                  {assignments.length}
+                </span>
+              </div>
+              <CardDescription className="text-slate-500 mt-1">Asigna agentes de IA específicos a determinadas áreas, carreras, asignaturas o facultades.</CardDescription>
             </div>
-            <Button onClick={() => openAssignmentModal(null)} className="gap-2">
-              <Plus size={16} /> Nueva Asignación
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => {
+                const headers = ["Agente IA", "Nivel de Asignación", "Detalle de Asignación", "Estado", "Fecha Creación"];
+                const rows = assignments.map((a: any) => {
+                  let level = "Global"
+                  let detail = "-"
+                  if (a.subject_code) {
+                    level = "Asignatura"
+                    detail = `Código: ${a.subject_code}`
+                    if (a.section) detail += ` | Secc: ${a.section}`
+                  } else if (a.career_id) {
+                    level = "Carrera"
+                    detail = a.career_name || `ID: ${a.career_id}`
+                  } else if (a.department_id) {
+                    level = "Departamento"
+                    detail = a.department_name || `ID: ${a.department_id}`
+                  } else if (a.faculty_id) {
+                    level = "Facultad"
+                    detail = a.faculty_name || `ID: ${a.faculty_id}`
+                  }
+                  
+                  let formattedDate = "-"
+                  const date = new Date(a.created_at)
+                  if (!isNaN(date.getTime())) {
+                    const day = String(date.getDate()).padStart(2, '0')
+                    const month = String(date.getMonth() + 1).padStart(2, '0')
+                    const year = date.getFullYear()
+                    formattedDate = `${day}/${month}/${year}`
+                  }
+
+                  return [
+                    a.agent_name,
+                    level,
+                    detail,
+                    a.is_active ? 'Activo' : 'Inactivo',
+                    formattedDate
+                  ];
+                });
+
+                const csvContent = [headers, ...rows]
+                  .map(row => row.map((val: any) => `"${String(val).replace(/"/g, '""')}"`).join(","))
+                  .join("\n");
+                
+                const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", "todas_las_asignaciones.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+              }} variant="outline" size="sm" className="gap-1 text-xs border-slate-200 text-slate-700 hover:bg-slate-50">
+                <Download size={14} /> Matriz CSV
+              </Button>
+              <Button onClick={() => openAssignmentModal(null)} className="gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold">
+                <Plus size={16} /> Nueva Asignación
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Agente IA</TableHead>
-                  <TableHead>Nivel de Asignación</TableHead>
-                  <TableHead>Detalle de Asignación</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Fecha Creación</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {assignments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      No hay asignaciones registradas. El sistema utilizará el agente activo por defecto.
-                    </TableCell>
+          <CardContent className="p-6 space-y-4">
+            {/* Filters panel */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/50 p-4 border border-slate-100 rounded-xl">
+              <div className="relative w-full md:max-w-xs">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Buscar asignación..."
+                  value={assignmentSearch}
+                  onChange={(e) => { setAssignmentSearch(e.target.value); setAssignmentPage(1); }}
+                  className="pl-9 bg-white border-slate-200/80 focus:border-slate-400 focus:ring-0 text-sm h-9"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200/80 rounded-md px-2.5 py-0.5 h-9">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Nivel:</label>
+                  <Select value={assignmentLevelFilter} onValueChange={(val) => { setAssignmentLevelFilter(val); setAssignmentPage(1); }}>
+                    <SelectTrigger className="w-[140px] h-7 border-none shadow-none focus:ring-0 px-1 py-0 text-xs">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los Niveles</SelectItem>
+                      <SelectItem value="global">Global / General</SelectItem>
+                      <SelectItem value="asignatura">Asignatura</SelectItem>
+                      <SelectItem value="carrera">Carrera</SelectItem>
+                      <SelectItem value="departamento">Departamento</SelectItem>
+                      <SelectItem value="facultad">Facultad</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200/80 rounded-md px-2.5 py-0.5 h-9">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Estado:</label>
+                  <Select value={assignmentStatusFilter} onValueChange={(val) => { setAssignmentStatusFilter(val); setAssignmentPage(1); }}>
+                    <SelectTrigger className="w-[120px] h-7 border-none shadow-none focus:ring-0 px-1 py-0 text-xs">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="active">Activo</SelectItem>
+                      <SelectItem value="inactive">Inactivo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="border border-slate-200/80 rounded-xl overflow-hidden bg-white">
+              <Table>
+                <TableHeader className="bg-slate-50/70">
+                  <TableRow className="border-b border-slate-200 hover:bg-transparent">
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Agente IA</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Nivel de Asignación</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Detalle de Asignación</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Estado</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5">Fecha Creación</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-xs py-3.5 text-right pr-6">Acciones</TableHead>
                   </TableRow>
-                ) : (
-                  assignments.map((a: any) => {
-                    let level = "Global"
-                    let detail = "-"
-                    if (a.subject_code) {
-                      level = "Asignatura"
-                      detail = `Código: ${a.subject_code}`
-                      if (a.section) {
-                        detail += ` | Secc: ${a.section}`
+                </TableHeader>
+                <TableBody>
+                  {paginatedAssignments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-slate-400 py-12 text-sm">
+                        No se encontraron asignaciones de agentes.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedAssignments.map((a: any) => {
+                      let level = "Global"
+                      let detail = "-"
+                      if (a.subject_code) {
+                        level = "Asignatura"
+                        detail = `Código: ${a.subject_code}`
+                        if (a.section) {
+                          detail += ` | Secc: ${a.section}`
+                        }
+                      } else if (a.career_id) {
+                        level = "Carrera"
+                        detail = a.career_name || `ID: ${a.career_id}`
+                      } else if (a.department_id) {
+                        level = "Departamento"
+                        detail = a.department_name || `ID: ${a.department_id}`
+                      } else if (a.faculty_id) {
+                        level = "Facultad"
+                        detail = a.faculty_name || `ID: ${a.faculty_id}`
                       }
-                    } else if (a.career_id) {
-                      level = "Carrera"
-                      detail = a.career_name || `ID: ${a.career_id}`
-                    } else if (a.department_id) {
-                      level = "Departamento"
-                      detail = a.department_name || `ID: ${a.department_id}`
-                    } else if (a.faculty_id) {
-                      level = "Facultad"
-                      detail = a.faculty_name || `ID: ${a.faculty_id}`
-                    }
-                    return (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-bold">{a.agent_name}</TableCell>
-                        <TableCell><Badge variant="outline">{level}</Badge></TableCell>
-                        <TableCell>{detail}</TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={a.is_active ? 'default' : 'secondary'}
-                            className={`cursor-pointer select-none transition-colors ${!hasActiveProvider ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            onClick={async () => {
-                              if (!hasActiveProvider) {
-                                toast.error("El sistema de IA no está activo. Active un proveedor primero.")
-                                return
-                              }
-                              try {
-                                await api.put(`/ai/admin/assignments/${a.id}`, { is_active: !a.is_active })
-                                toast.success(!a.is_active ? "Asignación activada" : "Asignación desactivada")
-                                refetchAssignments()
-                              } catch (err) {
-                                toast.error("Error al actualizar estado")
-                              }
-                            }}
-                          >
-                            {a.is_active ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
-                          {(() => {
-                            const date = new Date(a.created_at)
-                            if (isNaN(date.getTime())) return "-"
-                            const day = String(date.getDate()).padStart(2, '0')
-                            const month = String(date.getMonth() + 1).padStart(2, '0')
-                            const year = date.getFullYear()
-                            return `${day}/${month}/${year}`
-                          })()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" onClick={() => openAssignmentModal(a)} title="Editar Asignación" className="mr-1">
-                            <Edit size={16} />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => deleteAssignment(a.id)} title="Eliminar Asignación">
-                            <Trash2 size={16} />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
+                      return (
+                        <TableRow key={a.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                          <TableCell className="font-bold text-slate-800 py-3.5">{a.agent_name}</TableCell>
+                          <TableCell className="py-3.5">
+                            <Badge variant="outline" className="capitalize text-slate-700 border-slate-200 bg-slate-50 font-medium py-0.5 px-2">
+                              {level}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-slate-600 text-sm py-3.5">{detail}</TableCell>
+                          <TableCell className="py-3.5">
+                            <Badge 
+                              variant={a.is_active ? 'default' : 'secondary'}
+                              className={`py-0.5 px-2.5 font-bold cursor-pointer select-none transition-colors ${a.is_active ? 'bg-emerald-500 hover:bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'} ${!hasActiveProvider ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              onClick={async () => {
+                                if (!hasActiveProvider) {
+                                  toast.error("El sistema de IA no está activo. Active un proveedor primero.")
+                                  return
+                                }
+                                try {
+                                  await api.put(`/ai/admin/assignments/${a.id}`, { is_active: !a.is_active })
+                                  toast.success(!a.is_active ? "Asignación activada" : "Asignación desactivada")
+                                  refetchAssignments()
+                                } catch (err) {
+                                  toast.error("Error al actualizar estado")
+                                }
+                              }}
+                            >
+                              {a.is_active ? 'Activo' : 'Inactivo'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-xs py-3.5">
+                            {(() => {
+                              const date = new Date(a.created_at)
+                              if (isNaN(date.getTime())) return "-"
+                              const day = String(date.getDate()).padStart(2, '0')
+                              const month = String(date.getMonth() + 1).padStart(2, '0')
+                              const year = date.getFullYear()
+                              return `${day}/${month}/${year}`
+                            })()}
+                          </TableCell>
+                          <TableCell className="text-right py-3.5 pr-6">
+                            <Button variant="ghost" size="sm" onClick={() => openAssignmentModal(a)} title="Editar Asignación" className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg mr-1">
+                              <Edit size={15} />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg" onClick={() => deleteAssignment(a.id)} title="Eliminar Asignación">
+                              <Trash2 size={15} />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination Footer */}
+            {totalAssignments > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 text-xs font-semibold text-slate-600">
+                <div>
+                  Mostrando {((assignmentPage - 1) * assignmentPageSize) + 1} al {Math.min(assignmentPage * assignmentPageSize, totalAssignments)} de {totalAssignments} asignaciones
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <span>Filas por página:</span>
+                    <Select value={assignmentPageSize.toString()} onValueChange={(val) => { setAssignmentPageSize(Number(val)); setAssignmentPage(1); }}>
+                      <SelectTrigger className="w-[65px] h-7 border-slate-200 focus:ring-0 text-xs px-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 p-0 border-slate-200"
+                      onClick={() => setAssignmentPage(1)}
+                      disabled={assignmentPage === 1}
+                    >
+                      <ChevronsLeft size={14} />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 p-0 border-slate-200"
+                      onClick={() => setAssignmentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={assignmentPage === 1}
+                    >
+                      <ChevronLeft size={14} />
+                    </Button>
+                    <span className="text-xs font-medium px-2">
+                      Pág. {assignmentPage} de {totalAssignmentPages || 1}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 p-0 border-slate-200"
+                      onClick={() => setAssignmentPage(prev => Math.min(prev + 1, totalAssignmentPages))}
+                      disabled={assignmentPage === totalAssignmentPages || totalAssignmentPages === 0}
+                    >
+                      <ChevronRight size={14} />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 p-0 border-slate-200"
+                      onClick={() => setAssignmentPage(totalAssignmentPages)}
+                      disabled={assignmentPage === totalAssignmentPages || totalAssignmentPages === 0}
+                    >
+                      <ChevronsRight size={14} />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1987,7 +2540,8 @@ export default function AISettings() {
                   <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="chat">Chat / RAG Agent</SelectItem>
-                    <SelectItem value="evaluator">Evaluador Automático</SelectItem>
+                    <SelectItem value="evaluator">Evaluador Académico</SelectItem>
+                    <SelectItem value="copilot">Copiloto Académico</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

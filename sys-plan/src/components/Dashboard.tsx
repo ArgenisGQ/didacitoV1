@@ -55,7 +55,6 @@ import AIChat from './AIChat'
 import AcademicPeriods from './AcademicPeriods'
 import { AcademicDistribution } from './AcademicDistribution'
 import { PdfPreviewModal } from './PdfPreviewModal'
-import { PlanStyleSelectorModal } from './PlanStyleSelectorModal'
 import { DidactoTimeline } from './DidactoTimeline'
 import { CompactSidebar, NavItem } from './layout/CompactSidebar'
 import { Button } from '@/components/ui/button'
@@ -74,7 +73,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { LessonPlanWizard } from './wizard/LessonPlanWizard'
 import UserManagement from './UserManagement'
 import RoleManagement from './RoleManagement'
 import {
@@ -124,7 +122,6 @@ interface LessonPlan {
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isStyleSelectorOpen, setIsStyleSelectorOpen] = useState(false)
   const [planningStyle, setPlanningStyle] = useState<'wizard' | 'timeline' | null>(null)
   const [editingPlan, setEditingPlan] = useState<LessonPlan | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -823,7 +820,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 const planToEdit = plans.find(p => p.id === planId)
                 if (planToEdit) {
                   setEditingPlan(planToEdit)
-                  setIsStyleSelectorOpen(true)
+                  setPlanningStyle('timeline')
+                  setIsModalOpen(true)
                 }
               }} 
               onDeletePlan={handleDeletePlan}
@@ -1103,7 +1101,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                                                 className="gap-1 border border-transparent hover:border-primary/20 text-primary hover:bg-primary/5 font-extrabold"
                                                 onClick={() => {
                                                   setEditingPlan(item.plan)
-                                                  setIsStyleSelectorOpen(true)
+                                                  setPlanningStyle('timeline')
+                                                  setIsModalOpen(true)
                                                 }}
                                               >
                                                 Editar
@@ -1135,7 +1134,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                                             subject_bibliography: item.subject?.bibliographic_references || '',
                                             subject_strategies: item.subject?.teaching_strategies || '',
                                           })
-                                          setIsStyleSelectorOpen(true)
+                                          setPlanningStyle('timeline')
+                                          setIsModalOpen(true)
                                         }}
                                       >
                                         <Plus size={14} strokeWidth={2.5} />
@@ -1328,7 +1328,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                                       className="gap-1 border-primary/20 hover:border-primary/40 text-primary hover:bg-primary/5 font-extrabold"
                                       onClick={() => {
                                         setEditingPlan(plan)
-                                        setIsStyleSelectorOpen(true)
+                                        setPlanningStyle('timeline')
+                                        setIsModalOpen(true)
                                       }}
                                     >
                                       Corregir Plan
@@ -1399,19 +1400,6 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </main>
 
-      {isModalOpen && planningStyle === 'wizard' && (
-        <LessonPlanWizard
-          onClose={() => {
-            setIsModalOpen(false)
-            setPlanningStyle(null)
-            setEditingPlan(null)
-          }}
-          onSave={handleSavePlan}
-          initialData={editingPlan}
-          planId={editingPlan?.id ?? null}
-        />
-      )}
-
       {isModalOpen && planningStyle === 'timeline' && (
         <DidactoTimeline
           onClose={() => {
@@ -1424,19 +1412,6 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           planId={editingPlan?.id ?? null}
         />
       )}
-
-      <PlanStyleSelectorModal
-        isOpen={isStyleSelectorOpen}
-        onClose={() => {
-          setIsStyleSelectorOpen(false)
-          setEditingPlan(null)
-        }}
-        onSelect={(style) => {
-          setPlanningStyle(style)
-          setIsStyleSelectorOpen(false)
-          setIsModalOpen(true)
-        }}
-      />
 
       {isSubjectModalOpen && selectedSubjectId && (
         <SubjectDetailModal

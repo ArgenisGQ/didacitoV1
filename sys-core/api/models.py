@@ -548,3 +548,22 @@ class Notification(Base):
 
     user = relationship("User", backref="notifications")
 
+
+class AICopilotUsage(Base):
+    __tablename__ = "plan_app_ai_copilot_usage"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("plan_app_user.id", ondelete="CASCADE"), nullable=False)
+    academic_period_id = Column(Integer, ForeignKey("plan_app_academicperiod.id", ondelete="CASCADE"), nullable=False)
+    subject_code = Column(String(50), nullable=False)
+    section = Column(String(50), nullable=False)
+    attempts_used = Column(Integer, default=0, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False
+    )
+
+

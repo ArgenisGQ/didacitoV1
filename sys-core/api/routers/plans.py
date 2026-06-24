@@ -5,7 +5,7 @@ from typing import List
 
 from api.database import get_db
 from api.core.dependencies import get_current_user, check_role
-from api.models import User, UserRole, LessonPlan, PlanStatus, EvaluationPlan, WeeklyContent
+from api.models import User, UserRole, LessonPlan, PlanStatus, EvaluationPlan, WeeklyContent, AICopilotUsage, AcademicPeriod
 from api.schemas import (
     LessonPlanResponse, LessonPlanCreate, LessonPlanUpdate,
 )
@@ -783,5 +783,70 @@ async def preview_plan_pdf(
         media_type="application/pdf", 
         headers={"Content-Disposition": 'inline; filename="preview.pdf"'}
     )
+
+
+@router.get("/suggest/status")
+async def get_copilot_status(
+    subject_code: str,
+    section: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Checks if a subject and section has an active AI agent assigned,
+    and returns the number of copilot attempts used by the user in the active academic period.
+    """
+    import httpx
+    import os
+    
+    # 1. Fetch active academic period
+    period_res = await db.execute(
+        select(AcademicPeriod).where(AcademicPeriod.is_active == True)
+    )
+    active_period = period_res.scalar_one_or_none()
+    if not active_period:
+        return {
+            "has_assigned_agent": False,
+            "attempts_used": 0,
+            "attempts_remaining": 0
+        }
+        
+    # 2. Consult sys-ai for agent assignment status
+    ai_service_url = os.getenv("AI_SERVICE_URL", "http://sys-ai:8003")
+    has_assigned_agent = False
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{ai_service_url}/agent-assignment-status/",
+                params={"subject_code": subject_code, "section": section},
+                timeout=5.0
+            )
+            if resp.status_code == 200:
+                has_assigned_agent = resp.json().get("has_assigned_agent", False)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error querying agent assignment status from sys-ai: {e}")
+        
+    # 3. Query copilot usage
+    usage_res = await db.execute(
+        select(AICopilotUsage).where(
+            AICopilotUsage.user_id == current_user.id,
+            AICopilotUsage.academic_period_id == active_period.id,
+            AICopilotUsage.subject_code == subject_code,
+            AICopilotUsage.section == section
+        )
+    )
+    usage = usage_res.scalar_one_or_none()
+    
+    attempts_used = usage.attempts_used if usage else 0
+    attempts_remaining = max(0, 2 - attempts_used)
+    
+    return {
+        "has_assigned_agent": has_assigned_agent,
+        "attempts_used": attempts_used,
+        "attempts_remaining": attempts_remaining
+    }
+
 
 

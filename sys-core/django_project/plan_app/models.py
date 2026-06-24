@@ -626,3 +626,22 @@ class Notification(models.Model):
     def __str__(self):
         return f"Notif #{self.id} for {self.user.email} - Read: {self.is_read}"
 
+
+class AICopilotUsage(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ai_copilot_usages")
+    academic_period = models.ForeignKey(AcademicPeriod, on_delete=models.CASCADE, related_name="ai_copilot_usages")
+    subject_code = models.CharField(max_length=50)
+    section = models.CharField(max_length=50)
+    attempts_used = models.IntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "plan_app_ai_copilot_usage"
+        unique_together = ("user", "academic_period", "subject_code", "section")
+        verbose_name = "Uso de Copiloto de IA"
+        verbose_name_plural = "Usos de Copiloto de IA"
+
+    def __str__(self):
+        return f"{self.user.email} - {self.subject_code} ({self.section}) - Attempts: {self.attempts_used}"
+
+

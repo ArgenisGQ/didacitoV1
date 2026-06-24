@@ -35,7 +35,6 @@ const parseEvaluationFeedback = (val: string = '') => {
   });
   return { types, rawText: rawText.trim() };
 };
-
 export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Props) {
   const { register, handleSubmit, reset, control, setValue, getValues, formState: { isDirty } } = useForm<WeekData & { evaluationFeedbackRaw?: string }>();
   const { state, updateEvaluationItem } = useWizard();
@@ -246,7 +245,7 @@ export function WeekDetailsPanel({ week, units, onSave, onClose, onDelete }: Pro
             variant="outline" 
             size="sm" 
             onClick={handleAutoFill}
-            className="text-amber-500 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-600 gap-1 px-2"
+            className="text-amber-500 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-600 gap-1 px-2 font-bold"
             title="Autocompletar con información del Sinóptico"
           >
             <Wand2 size={14} />

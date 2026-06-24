@@ -29,5 +29,11 @@ urlpatterns = [
     path('admin/metrics/evaluations/export/', views.ai_metrics_evaluations_export, name='ai_metrics_evaluations_export'),
     path('admin/metrics/chats/export/', views.ai_metrics_chats_export, name='ai_metrics_chats_export'),
     path('admin/metrics/tokens/export/', views.ai_metrics_tokens_export, name='ai_metrics_tokens_export'),
+    path('agent-assignment-status/', views.agent_assignment_status, name='agent_assignment_status'),
+    path('suggest-objectives/', views.suggest_objectives, name='suggest_objectives'),
+    path('suggest-weekly-content/', views.suggest_weekly_content, name='suggest_weekly_content'),
+    path('suggest-evaluations/', views.suggest_evaluations, name='suggest_evaluations'),
+    path('suggest-full-plan/', views.suggest_full_plan, name='suggest_full_plan'),
 ]
+
 
